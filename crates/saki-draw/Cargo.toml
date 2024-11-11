@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 wgpu = "23.0.0"
+log.workspace = true

@@ -7,3 +7,6 @@ default-members = ["crates/saki"]
 saki-draw = { path = "./crates/saki-draw" }
 async-task = "4.7.1"
 async-std = "1.13.0"
+env_logger = "0.11.5"
+log = "0.4.22"
+chrono = "0.4.38"

@@ -148,6 +148,7 @@ impl Renderer {
 
         self.render_target.update(&mut gpu);
 
+        log::info!("prerender");
         self.render_target.prerender();
 
         let view = self.render_target.get_view();
@@ -178,9 +179,11 @@ impl Renderer {
         }
 
         gpu.queue().submit(std::iter::once(encoder.finish()));
+        log::info!("render");
 
+        log::info!("postrender");
         self.render_target.postrender();
 
-        println!("Rendering things!");
+        log::info!("Rendering things!");
     }
 }

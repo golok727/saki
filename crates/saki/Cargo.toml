@@ -7,3 +7,6 @@ edition = "2021"
 winit = "0.30.5"
 saki-draw.workspace = true
 async-std.workspace = true
+env_logger.workspace = true
+log.workspace = true
+chrono.workspace = true
