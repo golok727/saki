@@ -4,3 +4,4 @@ members = ["crates/*"]
 default-members = ["crates/saki"]
 
 [workspace.dependencies]
+saki-draw = { path = "./crates/saki-draw" }
