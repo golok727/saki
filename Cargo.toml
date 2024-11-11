@@ -5,3 +5,5 @@ default-members = ["crates/saki"]
 
 [workspace.dependencies]
 saki-draw = { path = "./crates/saki-draw" }
+async-task = "4.7.1"
+async-std = "1.13.0"

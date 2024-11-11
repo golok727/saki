@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 winit = "0.30.5"
 saki-draw.workspace = true
+async-std.workspace = true
