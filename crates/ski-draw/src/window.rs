@@ -1,9 +1,10 @@
+pub mod error;
 pub mod manager;
 
 use std::sync::Arc;
 
-use crate::gpu::surface::GpuSurface;
-use crate::renderer::Renderer;
+// use crate::gpu::surface::GpuSurface;
+// use crate::renderer::Renderer;
 pub use manager::WindowManager;
 
 pub(crate) use winit::window::Window as WinitWindow;
@@ -18,7 +19,7 @@ pub struct WindowSpecification {
 #[derive(Debug)]
 pub struct Window {
     pub(crate) winit_handle: Arc<WinitWindow>,
-    pub(crate) renderer: Renderer,
+    // pub(crate) renderer: Renderer,
     // pub(crate) surface: GpuSurface,
 }
 
