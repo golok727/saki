@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -27,10 +27,11 @@ pub struct App {
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
     // we will move this to a task pool;
-    windows_to_open: RefCell<Vec<(WindowSpecification, OpenWindowCallback)>>,
+    open_window_callbacks: RefCell<Vec<(WindowSpecification, OpenWindowCallback)>>,
 
     #[allow(dead_code)]
     windows: HashMap<WindowId, Rc<RefCell<Window>>>,
+    contains_queued_windows: Cell<bool>,
     // pub for now
     pub gpu: Arc<GpuContext>,
 }
@@ -43,8 +44,11 @@ impl App {
 
         Self {
             init_callback: None,
-            windows_to_open: RefCell::new(vec![]),
+            open_window_callbacks: RefCell::new(vec![]),
+            // start windows
             windows: HashMap::new(),
+            contains_queued_windows: Cell::new(false),
+            // end windows
             gpu: Arc::new(gpu),
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
         }
@@ -65,7 +69,8 @@ impl App {
     where
         F: Fn(&mut WindowContext) + 'static,
     {
-        RefCell::borrow_mut(&self.windows_to_open).push((specs, Box::new(f)));
+        RefCell::borrow_mut(&self.open_window_callbacks).push((specs, Box::new(f)));
+        self.contains_queued_windows.set(true);
     }
 
     fn insert_window(
@@ -106,20 +111,11 @@ impl App {
             println!("Error running app: Error: {}", err);
         };
     }
-}
 
-impl ApplicationHandler for App {
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
+    fn run_open_window_callbacks(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.contains_queued_windows.set(false);
 
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::info!("App Resumed!");
-
-        if let Some(cb) = self.init_callback.take() {
-            log::info!("Init callback start");
-            cb(self);
-        }
-
-        for (spec, callback) in self.windows_to_open.take() {
+        for (spec, callback) in self.open_window_callbacks.take() {
             // let gpu = Arc::clone(&self.gpu);
 
             log::info!("Creating window. \n Spec: {:#?}", &spec);
@@ -140,6 +136,23 @@ impl ApplicationHandler for App {
             } else {
                 log::error!("Error creating window")
             }
+        }
+    }
+}
+
+impl ApplicationHandler for App {
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self.contains_queued_windows.get() {
+            self.run_open_window_callbacks(event_loop);
+        }
+    }
+
+    fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        log::info!("App Resumed!");
+
+        if let Some(cb) = self.init_callback.take() {
+            log::info!("Init callback start");
+            cb(self);
         }
     }
 
