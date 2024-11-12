@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 winit.workspace = true
 ski-draw.workspace = true
-async-std.workspace = true
+pollster.workspace = true
 env_logger.workspace = true
 log.workspace = true
 chrono.workspace = true

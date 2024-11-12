@@ -11,26 +11,27 @@ impl GpuContext {
         let instance = wgpu::Instance::default();
 
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                force_fallback_adapter: false,
-                compatible_surface: None,
-            })
-            .await
+            .request_adapter(
+                &(wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::default(),
+                    force_fallback_adapter: false,
+                    compatible_surface: None,
+                })
+            ).await
             .unwrap();
 
         let (device, queue) = adapter
             .request_device(
-                &wgpu::DeviceDescriptor {
+                &(wgpu::DeviceDescriptor {
                     label: Some("GPUContext device"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                    required_limits: wgpu::Limits
+                        ::downlevel_webgl2_defaults()
                         .using_resolution(adapter.limits()),
                     memory_hints: wgpu::MemoryHints::MemoryUsage,
-                },
-                None,
-            )
-            .await
+                }),
+                None
+            ).await
             .unwrap();
 
         Self {

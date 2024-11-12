@@ -1,9 +1,8 @@
 use std::cell::RefCell;
-use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ski_draw::{ GpuContext, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpecs };
+use crate::GpuContext;
 
 use winit::{
     application::ApplicationHandler,
@@ -15,29 +14,24 @@ use winit::{
 type InitCallback = Box<dyn FnOnce(&mut App) + 'static>;
 type FrameCallback = Box<dyn FnOnce(&mut App) + 'static>;
 
-type GpuRefCell = Rc<RefCell<GpuContext>>;
-
 struct App {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
     window: Option<Arc<winit::window::Window>>,
-    gpu_context: Option<GpuRefCell>,
+    gpu: Arc<GpuContext>,
 }
 
 impl App {
     pub fn new() -> Self {
+        let gpu = pollster::block_on(GpuContext::new());
+
         Self {
             window: None,
             init_callback: None,
-            gpu_context: None,
+            gpu: Arc::new(gpu),
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
         }
-    }
-
-    pub async fn init(&mut self) {
-        let cx = GpuContext::new().await;
-        self.gpu_context = Some(Rc::new(RefCell::new(cx)));
     }
 
     pub fn on_next_frame<F>(&mut self, f: F) where F: FnOnce(&mut App) + 'static {
@@ -105,76 +99,4 @@ impl ApplicationHandler for App {
             }
         }
     }
-}
-
-fn main() {
-    println!("Radhe Shyam!");
-
-    init_logger();
-
-    log::info!("Welcome to ski!");
-
-    let mut app = App::new();
-
-    pollster::block_on(app.init());
-
-    app.run(|app| {
-        if let Some(context) = &app.gpu_context {
-            let gpu = context.clone();
-
-            let window = app.window.as_ref().expect("window_not_found");
-            let size = window.inner_size();
-
-            let specs = &(SurfaceRenderTargetSpecs {
-                width: size.width,
-                height: size.height,
-            });
-
-            let surface_target = {
-                let mut gpu = gpu.borrow_mut();
-                let screen = Arc::clone(window);
-                SurfaceRenderTarget::new(specs, &mut gpu, screen)
-            };
-
-            let renderer = Rc::new(RefCell::new(Renderer::new(gpu, surface_target)));
-
-            let ren = Rc::clone(&renderer);
-
-            app.on_next_frame(move |_| {
-                let mut renderer = ren.borrow_mut();
-                renderer.render();
-            })
-        }
-    });
-}
-
-fn init_logger() {
-    env_logger::Builder
-        ::new()
-        .parse_default_env()
-        .format(|buf, record| {
-            use env_logger::fmt::style::{ AnsiColor, Style };
-
-            // Subtle style for the whole date part, dimmed color
-            let dimmed = Style::new().fg_color(Some(AnsiColor::BrightBlack.into()));
-
-            // Apply the dimmed style to the date part
-            write!(buf, "{dimmed}[{dimmed:#}")?;
-            write!(
-                buf,
-                "{dimmed}{}{dimmed:#} ",
-                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z")
-            )?;
-
-            let level_style = buf.default_level_style(record.level());
-            write!(buf, "{level_style}{:<5}{level_style:#}", record.level())?;
-
-            if let Some(path) = record.module_path() {
-                write!(buf, "  {dimmed}{path}{dimmed:#}")?;
-            }
-
-            write!(buf, "{dimmed}]{dimmed:#}")?;
-            writeln!(buf, " {}", record.args())
-        })
-        .init();
 }
