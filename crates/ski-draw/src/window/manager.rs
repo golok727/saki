@@ -1,21 +1,26 @@
 use super::{error::CreateWindowError, Window, WindowSpecification};
 use crate::gpu::GpuContext;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use winit::window::WindowId;
 
 #[derive(Debug, Default)]
 pub struct WindowManager {
-    pub(crate) windows: HashMap<WindowId, Window>,
+    pub(crate) windows: HashMap<WindowId, Rc<RefCell<Window>>>,
 }
 
 impl WindowManager {
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn create_window(
         &mut self,
         _gpu: Arc<GpuContext>,
         event_loop: &winit::event_loop::ActiveEventLoop,
         specs: &WindowSpecification,
-    ) -> Result<(), CreateWindowError> {
+    ) -> Result<WindowId, CreateWindowError> {
         let width = specs.width;
         let height = specs.height;
 
@@ -31,9 +36,12 @@ impl WindowManager {
 
         let window = Window { winit_handle };
 
-        let _ = self.windows.insert(window_id, window).is_some();
+        let _ = self
+            .windows
+            .insert(window_id, Rc::new(RefCell::new(window)))
+            .is_some();
 
-        Ok(())
+        Ok(window_id)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -44,12 +52,8 @@ impl WindowManager {
         let _ = self.windows.remove(id);
     }
 
-    pub fn get(&self, id: &WindowId) -> Option<&Window> {
-        self.windows.get(id)
-    }
-
-    pub fn get_mut(&mut self, id: &WindowId) -> Option<&mut Window> {
-        self.windows.get_mut(id)
+    pub fn get(&self, id: &WindowId) -> Option<Rc<RefCell<Window>>> {
+        self.windows.get(id).cloned()
     }
 
     pub fn has(&self, id: &WindowId) -> bool {

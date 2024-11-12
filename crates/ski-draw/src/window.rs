@@ -9,11 +9,21 @@ pub use manager::WindowManager;
 
 pub(crate) use winit::window::Window as WinitWindow;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct WindowSpecification {
     pub width: u32,
     pub height: u32,
     pub title: &'static str,
+}
+
+impl Default for WindowSpecification {
+    fn default() -> Self {
+        Self {
+            width: 800,
+            height: 800,
+            title: "Ski",
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -27,5 +37,9 @@ impl Window {
     #[inline]
     pub fn id(&self) -> winit::window::WindowId {
         self.winit_handle.id()
+    }
+
+    pub fn winit_handle(&self) -> &Arc<WinitWindow> {
+        &self.winit_handle
     }
 }

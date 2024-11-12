@@ -3,23 +3,31 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::gpu::GpuContext;
+use crate::window::{Window, WindowManager, WindowSpecification};
 
 use winit::{
     application::ApplicationHandler,
     event::{KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
-    window::WindowAttributes,
 };
 
+pub struct WindowContext<'a> {
+    pub app: &'a mut App,
+    pub window: &'a mut Window,
+}
+
 type InitCallback = Box<dyn FnOnce(&mut App) + 'static>;
-type FrameCallback = Box<dyn FnOnce(&mut App) + 'static>;
+type FrameCallback = Box<dyn Fn(&mut App) + 'static>;
+type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
 
 pub struct App {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
-    window: Option<Arc<winit::window::Window>>,
-    // for now
+    windows_to_open: RefCell<Vec<(WindowSpecification, OpenWindowCallback)>>,
+
+    wm: WindowManager,
+    // pub for now
     pub gpu: Arc<GpuContext>,
 }
 
@@ -28,10 +36,12 @@ impl App {
     pub fn new() -> Self {
         // TODO handle error
         let gpu = pollster::block_on(GpuContext::new()).unwrap();
+        let window_manager = WindowManager::new();
 
         Self {
-            window: None,
             init_callback: None,
+            windows_to_open: RefCell::new(vec![]),
+            wm: window_manager,
             gpu: Arc::new(gpu),
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
         }
@@ -41,16 +51,18 @@ impl App {
         &self.gpu
     }
 
-    pub fn window_handle(&self) -> &Arc<winit::window::Window> {
-        let window = self.window.as_ref().unwrap();
-        window
-    }
-
     pub fn on_next_frame<F>(&mut self, f: F)
     where
-        F: FnOnce(&mut App) + 'static,
+        F: Fn(&mut App) + 'static,
     {
         RefCell::borrow_mut(&self.frame_callbacks).push(Box::new(f))
+    }
+
+    pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
+    where
+        F: Fn(&mut WindowContext) + 'static,
+    {
+        RefCell::borrow_mut(&self.windows_to_open).push((specs, Box::new(f)));
     }
 
     pub fn run<F>(&mut self, f: F)
@@ -67,21 +79,30 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::info!("resumed!");
-        if self.window.is_none() {
-            let attr = WindowAttributes::default()
-                .with_inner_size(winit::dpi::PhysicalSize {
-                    width: 1280,
-                    height: 920,
-                })
-                .with_title("ski");
+        log::info!("App Resumed!");
 
-            let window = event_loop.create_window(attr).unwrap();
+        if let Some(cb) = self.init_callback.take() {
+            log::info!("Init callback start");
+            cb(self);
+        }
 
-            self.window = Some(Arc::new(window));
+        for (spec, callback) in self.windows_to_open.take() {
+            let gpu = Arc::clone(&self.gpu);
 
-            if let Some(cb) = self.init_callback.take() {
-                cb(self);
+            log::info!("Creating window. \n Spec: {:#?}", &spec);
+            if let Ok(id) = self.wm.create_window(gpu, event_loop, &spec) {
+                log::info!("Window created");
+                let window = self.wm.get(&id).expect("window not found");
+                let mut window_mut = window.borrow_mut();
+
+                let mut context = WindowContext {
+                    app: self,
+                    window: &mut window_mut,
+                };
+
+                callback(&mut context);
+            } else {
+                log::error!("Error creating window")
             }
         }
     }
@@ -108,12 +129,11 @@ impl ApplicationHandler for App {
                     },
                 ..
             } => {
-                if let Some(window) = &self.window {
-                    // TODO add wm and close window only
-                    if window.id() == window_id {
-                        event_loop.exit();
-                        log::info!("Bye!");
-                    }
+                self.wm.remove(&window_id);
+
+                if self.wm.is_empty() && !event_loop.exiting() {
+                    // TODO make this better
+                    event_loop.exit();
                 }
             }
             _ => {
