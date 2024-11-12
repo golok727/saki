@@ -28,7 +28,8 @@ fn main() {
 
         let surface_target = {
             let screen = Arc::clone(window);
-            gpu.create_surface(screen, specs)
+            // TODO error handling
+            gpu.create_surface(screen, specs).unwrap()
         };
 
         let renderer = Rc::new(RefCell::new(Renderer::new(

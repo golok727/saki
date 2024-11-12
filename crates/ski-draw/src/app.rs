@@ -26,7 +26,8 @@ pub struct App {
 impl App {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let gpu = pollster::block_on(GpuContext::new());
+        // TODO handle error
+        let gpu = pollster::block_on(GpuContext::new()).unwrap();
 
         Self {
             window: None,

@@ -1,4 +1,6 @@
+use super::error::GpuSurfaceCreateError;
 use super::GpuContext;
+
 use crate::renderer::RenderTarget;
 use std::cell::{Cell, RefCell};
 
@@ -91,11 +93,14 @@ impl GpuContext {
         &self,
         screen: impl Into<wgpu::SurfaceTarget<'static>>,
         specs: &GpuSurfaceSpecification,
-    ) -> GpuSurface {
+    ) -> Result<GpuSurface, GpuSurfaceCreateError> {
         let width = specs.width.max(1);
         let height = specs.height.max(1);
 
-        let surface = self.instance.create_surface(screen).unwrap();
+        let surface = self
+            .instance
+            .create_surface(screen)
+            .map_err(GpuSurfaceCreateError)?;
 
         let capabilities = surface.get_capabilities(&self.adapter);
 
@@ -119,6 +124,6 @@ impl GpuContext {
 
         surface.configure(&self.device, &surface_config);
 
-        GpuSurface::new(surface, surface_config)
+        Ok(GpuSurface::new(surface, surface_config))
     }
 }

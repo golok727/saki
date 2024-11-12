@@ -1,5 +1,6 @@
 // this provides an abstraction over the wgpu api; too lazy to move to another crate
 pub mod surface;
+pub mod error; 
 
 #[derive(Debug)]
 pub struct GpuContext {
@@ -10,7 +11,7 @@ pub struct GpuContext {
 }
 
 impl GpuContext {
-    pub async fn new() -> Self {
+    pub async fn new() -> Result<Self, error::GpuContextCreateError> {
         let instance = wgpu::Instance::default();
 
         let adapter = instance
@@ -22,7 +23,7 @@ impl GpuContext {
                 }),
             )
             .await
-            .unwrap();
+            .ok_or(error::GpuContextCreateError::AdapterMissing)?; 
 
         let (device, queue) = adapter
             .request_device(
@@ -36,14 +37,16 @@ impl GpuContext {
                 None,
             )
             .await
-            .unwrap();
+            .map_err(error::GpuContextCreateError::RequestDeviceError)?;
 
-        Self {
-            device,
-            queue,
-            instance,
-            adapter,
-        }
+        Ok(
+            Self {
+                device,
+                queue,
+                instance,
+                adapter,
+            }
+        )
     }
 
     pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
