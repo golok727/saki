@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 pub(crate) use winit::window::Window as WinitWindow;
 
+use crate::app::AppContext;
+
 #[derive(Debug)]
 pub struct WindowSpecification {
     pub width: u32,
@@ -41,5 +43,16 @@ impl Window {
 
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
         &self.winit_handle
+    }
+}
+
+pub struct WindowContext<'a> {
+    pub app: &'a mut AppContext,
+    pub window: &'a mut Window,
+}
+
+impl<'a> WindowContext<'a> {
+    pub fn new(app: &'a mut AppContext, window: &'a mut Window) -> Self {
+        Self { app, window }
     }
 }

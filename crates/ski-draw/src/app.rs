@@ -5,18 +5,13 @@ use std::sync::Arc;
 
 use crate::gpu::GpuContext;
 use crate::window::error::CreateWindowError;
-use crate::window::{Window, WindowId, WindowSpecification};
+use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 
 use winit::{
     application::ApplicationHandler,
     event::{KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
-
-pub struct WindowContext<'a> {
-    pub app: &'a mut AppContext,
-    pub window: &'a mut Window,
-}
 
 type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
 type FrameCallback = Box<dyn Fn(&mut AppContext) + 'static>;
@@ -143,10 +138,7 @@ impl AppContext {
 
                 let mut window_mut = window.borrow_mut();
 
-                let mut context = WindowContext {
-                    app: self,
-                    window: &mut window_mut,
-                };
+                let mut context = WindowContext::new(self, &mut window_mut);
 
                 callback(&mut context);
             } else {

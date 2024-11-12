@@ -1,6 +1,6 @@
 // this provides an abstraction over the wgpu api; too lazy to move to another crate
+pub mod error;
 pub mod surface;
-pub mod error; 
 
 #[derive(Debug)]
 pub struct GpuContext {
@@ -23,7 +23,7 @@ impl GpuContext {
                 }),
             )
             .await
-            .ok_or(error::GpuContextCreateError::AdapterMissing)?; 
+            .ok_or(error::GpuContextCreateError::AdapterMissing)?;
 
         let (device, queue) = adapter
             .request_device(
@@ -39,24 +39,24 @@ impl GpuContext {
             .await
             .map_err(error::GpuContextCreateError::RequestDeviceError)?;
 
-        Ok(
-            Self {
-                device,
-                queue,
-                instance,
-                adapter,
-            }
-        )
-    }
-
-    pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
-        self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label
+        Ok(Self {
+            device,
+            queue,
+            instance,
+            adapter,
         })
     }
 
+    pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
+        self.device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label })
+    }
+
     pub fn create_shader(&self) {
-        todo!("create_shader is not implemented yet"); 
+        todo!("create_shader is not implemented yet");
     }
     
+    pub fn create_texture(&self, descriptor: &wgpu::TextureDescriptor) -> wgpu::Texture {
+        self.device.create_texture(descriptor)
+    }
 }
