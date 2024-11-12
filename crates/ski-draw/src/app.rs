@@ -1,9 +1,11 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::gpu::GpuContext;
-use crate::window::{Window, WindowManager, WindowSpecification};
+use crate::window::error::CreateWindowError;
+use crate::window::{Window, WindowId, WindowSpecification};
 
 use winit::{
     application::ApplicationHandler,
@@ -27,7 +29,8 @@ pub struct App {
     // we will move this to a task pool;
     windows_to_open: RefCell<Vec<(WindowSpecification, OpenWindowCallback)>>,
 
-    wm: WindowManager,
+    #[allow(dead_code)]
+    windows: HashMap<WindowId, Rc<RefCell<Window>>>,
     // pub for now
     pub gpu: Arc<GpuContext>,
 }
@@ -37,12 +40,11 @@ impl App {
     pub fn new() -> Self {
         // TODO handle error
         let gpu = pollster::block_on(GpuContext::new()).unwrap();
-        let window_manager = WindowManager::new();
 
         Self {
             init_callback: None,
             windows_to_open: RefCell::new(vec![]),
-            wm: window_manager,
+            windows: HashMap::new(),
             gpu: Arc::new(gpu),
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
         }
@@ -66,6 +68,34 @@ impl App {
         RefCell::borrow_mut(&self.windows_to_open).push((specs, Box::new(f)));
     }
 
+    fn insert_window(
+        &mut self,
+        specs: &WindowSpecification,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+    ) -> Result<WindowId, CreateWindowError> {
+        let width = specs.width;
+        let height = specs.height;
+
+        // TODO make a attribute builder
+        let attr = winit::window::WindowAttributes::default()
+            .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
+            .with_title(specs.title);
+
+        // TODO handle error
+        let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
+        let window_id = winit_window.id();
+        let winit_handle = Arc::new(winit_window);
+
+        let window = Window { winit_handle };
+
+        let _ = self
+            .windows
+            .insert(window_id, Rc::new(RefCell::new(window)))
+            .is_some();
+
+        Ok(window_id)
+    }
+
     pub fn run<F>(&mut self, f: F)
     where
         F: FnOnce(&mut App) + 'static,
@@ -79,6 +109,8 @@ impl App {
 }
 
 impl ApplicationHandler for App {
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
+
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         log::info!("App Resumed!");
 
@@ -88,12 +120,15 @@ impl ApplicationHandler for App {
         }
 
         for (spec, callback) in self.windows_to_open.take() {
-            let gpu = Arc::clone(&self.gpu);
+            // let gpu = Arc::clone(&self.gpu);
 
             log::info!("Creating window. \n Spec: {:#?}", &spec);
-            if let Ok(id) = self.wm.create_window(gpu, event_loop, &spec) {
+            if let Ok(id) = self.insert_window(&spec, event_loop) {
                 log::info!("Window created");
-                let window = self.wm.get(&id).expect("window not found");
+
+                let window = self.windows.get(&id).cloned();
+                let window = window.expect("expected a window");
+
                 let mut window_mut = window.borrow_mut();
 
                 let mut context = WindowContext {
@@ -130,9 +165,9 @@ impl ApplicationHandler for App {
                     },
                 ..
             } => {
-                self.wm.remove(&window_id);
+                self.windows.remove(&window_id);
 
-                if self.wm.is_empty() && !event_loop.exiting() {
+                if self.windows.is_empty() && !event_loop.exiting() {
                     // TODO make this better
                     event_loop.exit();
                 }

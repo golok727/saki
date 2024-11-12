@@ -1,11 +1,9 @@
 pub mod error;
-pub mod manager;
 
 use std::sync::Arc;
 
 // use crate::gpu::surface::GpuSurface;
 // use crate::renderer::Renderer;
-pub use manager::WindowManager;
 
 pub(crate) use winit::window::Window as WinitWindow;
 
@@ -15,6 +13,8 @@ pub struct WindowSpecification {
     pub height: u32,
     pub title: &'static str,
 }
+
+pub type WindowId = winit::window::WindowId;
 
 impl Default for WindowSpecification {
     fn default() -> Self {
