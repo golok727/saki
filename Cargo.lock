@@ -1441,9 +1441,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "log",
- "pollster",
  "ski-draw",
- "winit",
 ]
 
 [[package]]

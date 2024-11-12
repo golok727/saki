@@ -3,7 +3,7 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ski_draw::{ app::App, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpecs };
+use ski_draw::{app::App, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpecs};
 
 fn main() {
     println!("Radhe Shyam!");
@@ -31,7 +31,10 @@ fn main() {
             SurfaceRenderTarget::new(specs, gpu, screen)
         };
 
-        let renderer = Rc::new(RefCell::new(Renderer::new(Arc::clone(gpu_arc), surface_target)));
+        let renderer = Rc::new(RefCell::new(Renderer::new(
+            Arc::clone(gpu_arc),
+            surface_target,
+        )));
 
         let ren = Rc::clone(&renderer);
 
@@ -43,11 +46,10 @@ fn main() {
 }
 
 fn init_stdout_logger() {
-    env_logger::Builder
-        ::new()
+    env_logger::Builder::new()
         .parse_default_env()
         .format(|buf, record| {
-            use env_logger::fmt::style::{ AnsiColor, Style };
+            use env_logger::fmt::style::{AnsiColor, Style};
 
             // Subtle style for the whole date part, dimmed color
             let dimmed = Style::new().fg_color(Some(AnsiColor::BrightBlack.into()));

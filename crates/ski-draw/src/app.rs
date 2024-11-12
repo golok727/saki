@@ -6,8 +6,8 @@ use crate::GpuContext;
 
 use winit::{
     application::ApplicationHandler,
-    event::{ KeyEvent, WindowEvent },
-    keyboard::{ KeyCode, PhysicalKey },
+    event::{KeyEvent, WindowEvent},
+    keyboard::{KeyCode, PhysicalKey},
     window::WindowAttributes,
 };
 
@@ -44,11 +44,17 @@ impl App {
         window
     }
 
-    pub fn on_next_frame<F>(&mut self, f: F) where F: FnOnce(&mut App) + 'static {
+    pub fn on_next_frame<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut App) + 'static,
+    {
         RefCell::borrow_mut(&self.frame_callbacks).push(Box::new(f))
     }
 
-    pub fn run<F>(&mut self, f: F) where F: FnOnce(&mut App) + 'static {
+    pub fn run<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut App) + 'static,
+    {
         self.init_callback = Some(Box::new(f));
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
         if let Err(err) = event_loop.run_app(self) {
@@ -82,7 +88,7 @@ impl ApplicationHandler for App {
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent
+        event: winit::event::WindowEvent,
     ) {
         match event {
             WindowEvent::RedrawRequested => {
@@ -91,11 +97,15 @@ impl ApplicationHandler for App {
                     callback(self);
                 }
             }
-            | WindowEvent::CloseRequested
+            WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
-                  event: KeyEvent { physical_key: PhysicalKey::Code(KeyCode::Escape), .. },
-                  ..
-              } => {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(KeyCode::Escape),
+                        ..
+                    },
+                ..
+            } => {
                 if let Some(window) = &self.window {
                     // TODO add wm and close window only
                     if window.id() == window_id {

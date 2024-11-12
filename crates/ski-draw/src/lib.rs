@@ -1,5 +1,5 @@
-pub mod gpu;
 pub mod app;
+pub mod gpu;
 use std::sync::Arc;
 
 pub use gpu::GpuContext;
@@ -36,7 +36,7 @@ impl SurfaceRenderTarget {
     pub fn new(
         specs: &SurfaceRenderTargetSpecs,
         gpu: &GpuContext,
-        screen: impl Into<wgpu::SurfaceTarget<'static>>
+        screen: impl Into<wgpu::SurfaceTarget<'static>>,
     ) -> Self {
         let width = specs.width.max(1);
         let height = specs.height.max(1);
@@ -46,7 +46,8 @@ impl SurfaceRenderTarget {
 
         let capabilities = surface.get_capabilities(&gpu.adapter);
 
-        let surface_format = capabilities.formats
+        let surface_format = capabilities
+            .formats
             .iter()
             .find(|f| f.is_srgb())
             .copied()
@@ -119,7 +120,10 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new<T>(gpu: Arc<GpuContext>, target: T) -> Self where T: RenderTarget {
+    pub fn new<T>(gpu: Arc<GpuContext>, target: T) -> Self
+    where
+        T: RenderTarget,
+    {
         Self {
             gpu,
             render_target: Box::new(target),
@@ -153,27 +157,25 @@ impl Renderer {
         let mut encoder = gpu.device.create_command_encoder(
             &(wgpu::CommandEncoderDescriptor {
                 label: Some("my encoder"),
-            })
+            }),
         );
 
         {
             let _render_pass = encoder.begin_render_pass(
                 &(wgpu::RenderPassDescriptor {
                     label: Some("Render pass"),
-                    color_attachments: &[
-                        Some(wgpu::RenderPassColorAttachment {
-                            view: &view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a }),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        }),
-                    ],
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a }),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
                     depth_stencil_attachment: None,
                     occlusion_query_set: None,
                     timestamp_writes: None,
-                })
+                }),
             );
         }
 
