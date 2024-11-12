@@ -3,11 +3,7 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ski_draw::{
-    app::App,
-    gpu::surface::{GpuSurface, GpuSurfaceSpecification},
-    Renderer,
-};
+use ski_draw::{app::App, gpu::surface::GpuSurfaceSpecification, Renderer};
 
 fn main() {
     println!("Radhe Shyam!");

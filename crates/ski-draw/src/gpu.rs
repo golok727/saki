@@ -46,38 +46,14 @@ impl GpuContext {
         }
     }
 
-    pub fn create_surface(
-        &self,
-        screen: impl Into<wgpu::SurfaceTarget<'static>>,
-        specs: &surface::GpuSurfaceSpecification,
-    ) -> surface::GpuSurface {
-        let width = specs.width.max(1);
-        let height = specs.height.max(1);
-
-        let surface = self.instance.create_surface(screen).unwrap();
-
-        let capabilities = surface.get_capabilities(&self.adapter);
-
-        let surface_format = capabilities
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(capabilities.formats[0]);
-
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width,
-            height,
-            present_mode: capabilities.present_modes[0],
-            alpha_mode: capabilities.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-
-        surface.configure(&self.device, &surface_config);
-
-        surface::GpuSurface::new(surface, surface_config)
+    pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
+        self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label
+        })
     }
+
+    pub fn create_shader(&self) {
+        todo!("create_shader is not implemented yet"); 
+    }
+    
 }

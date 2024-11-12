@@ -1,3 +1,5 @@
+use super::GpuContext;
+use crate::renderer::RenderTarget;
 use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Clone)]
@@ -26,6 +28,7 @@ impl GpuSurface {
         }
     }
 
+    // todo change this
     pub fn create_view(&self) -> wgpu::TextureView {
         let mut texture = self.texture.borrow_mut();
         if texture.is_none() {
@@ -58,5 +61,64 @@ impl GpuSurface {
     pub fn present(&self) {
         let tex = self.texture.take().unwrap();
         tex.present();
+    }
+}
+
+impl RenderTarget for GpuSurface {
+    fn update(&mut self, gpu: &GpuContext) {
+        self.sync(gpu);
+    }
+
+    fn get_view(&self) -> wgpu::TextureView {
+        self.create_view()
+    }
+
+    fn postrender(&mut self) {
+        self.present();
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.resize(width, height)
+    }
+
+    fn get_texture(&self) -> &wgpu::Texture {
+        unimplemented!()
+    }
+}
+
+impl GpuContext {
+    pub fn create_surface(
+        &self,
+        screen: impl Into<wgpu::SurfaceTarget<'static>>,
+        specs: &GpuSurfaceSpecification,
+    ) -> GpuSurface {
+        let width = specs.width.max(1);
+        let height = specs.height.max(1);
+
+        let surface = self.instance.create_surface(screen).unwrap();
+
+        let capabilities = surface.get_capabilities(&self.adapter);
+
+        let surface_format = capabilities
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(capabilities.formats[0]);
+
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width,
+            height,
+            present_mode: capabilities.present_modes[0],
+            alpha_mode: capabilities.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+
+        surface.configure(&self.device, &surface_config);
+
+        GpuSurface::new(surface, surface_config)
     }
 }

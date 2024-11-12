@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::GpuContext;
+use crate::gpu::GpuContext;
 
 use winit::{
     application::ApplicationHandler,
@@ -24,6 +24,7 @@ pub struct App {
 }
 
 impl App {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let gpu = pollster::block_on(GpuContext::new());
 
