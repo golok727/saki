@@ -8,7 +8,7 @@ use ski_draw::{ app::App, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpec
 fn main() {
     println!("Radhe Shyam!");
 
-    init_logger();
+    init_stdout_logger();
 
     log::info!("Welcome to ski!");
 
@@ -42,7 +42,7 @@ fn main() {
     });
 }
 
-fn init_logger() {
+fn init_stdout_logger() {
     env_logger::Builder
         ::new()
         .parse_default_env()
