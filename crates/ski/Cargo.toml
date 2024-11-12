@@ -1,11 +1,11 @@
 [package]
-name = "saki"
+name = "ski"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winit = "0.30.5"
-saki-draw.workspace = true
+winit.workspace = true
+ski-draw.workspace = true
 async-std.workspace = true
 env_logger.workspace = true
 log.workspace = true

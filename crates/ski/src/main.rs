@@ -3,12 +3,12 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use saki_draw::{GpuContext, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpecs};
+use ski_draw::{ GpuContext, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpecs };
 
 use winit::{
     application::ApplicationHandler,
-    event::{KeyEvent, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
+    event::{ KeyEvent, WindowEvent },
+    keyboard::{ KeyCode, PhysicalKey },
     window::WindowAttributes,
 };
 
@@ -40,17 +40,11 @@ impl App {
         self.gpu_context = Some(Rc::new(RefCell::new(cx)));
     }
 
-    pub fn on_next_frame<F>(&mut self, f: F)
-    where
-        F: FnOnce(&mut App) + 'static,
-    {
+    pub fn on_next_frame<F>(&mut self, f: F) where F: FnOnce(&mut App) + 'static {
         RefCell::borrow_mut(&self.frame_callbacks).push(Box::new(f))
     }
 
-    pub fn run<F>(&mut self, f: F)
-    where
-        F: FnOnce(&mut App) + 'static,
-    {
+    pub fn run<F>(&mut self, f: F) where F: FnOnce(&mut App) + 'static {
         self.init_callback = Some(Box::new(f));
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
         if let Err(err) = event_loop.run_app(self) {
@@ -68,7 +62,7 @@ impl ApplicationHandler for App {
                     width: 1280,
                     height: 920,
                 })
-                .with_title("Saki");
+                .with_title("ski");
 
             let window = event_loop.create_window(attr).unwrap();
 
@@ -84,7 +78,7 @@ impl ApplicationHandler for App {
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
+        event: winit::event::WindowEvent
     ) {
         match event {
             WindowEvent::RedrawRequested => {
@@ -93,15 +87,11 @@ impl ApplicationHandler for App {
                     callback(self);
                 }
             }
-            WindowEvent::CloseRequested
+            | WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(KeyCode::Escape),
-                        ..
-                    },
-                ..
-            } => {
+                  event: KeyEvent { physical_key: PhysicalKey::Code(KeyCode::Escape), .. },
+                  ..
+              } => {
                 if let Some(window) = &self.window {
                     // TODO add wm and close window only
                     if window.id() == window_id {
@@ -122,7 +112,7 @@ fn main() {
 
     init_logger();
 
-    log::info!("Welcome to saki!");
+    log::info!("Welcome to ski!");
 
     let mut app = App::new();
 
@@ -135,10 +125,10 @@ fn main() {
             let window = app.window.as_ref().expect("window_not_found");
             let size = window.inner_size();
 
-            let specs = &SurfaceRenderTargetSpecs {
+            let specs = &(SurfaceRenderTargetSpecs {
                 width: size.width,
                 height: size.height,
-            };
+            });
 
             let surface_target = {
                 let mut gpu = gpu.borrow_mut();
@@ -159,10 +149,11 @@ fn main() {
 }
 
 fn init_logger() {
-    env_logger::Builder::new()
+    env_logger::Builder
+        ::new()
         .parse_default_env()
         .format(|buf, record| {
-            use env_logger::fmt::style::{AnsiColor, Style};
+            use env_logger::fmt::style::{ AnsiColor, Style };
 
             // Subtle style for the whole date part, dimmed color
             let dimmed = Style::new().fg_color(Some(AnsiColor::BrightBlack.into()));
