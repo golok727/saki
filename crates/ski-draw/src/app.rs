@@ -24,6 +24,7 @@ pub struct App {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
+    // we will move this to a task pool;
     windows_to_open: RefCell<Vec<(WindowSpecification, OpenWindowCallback)>>,
 
     wm: WindowManager,
