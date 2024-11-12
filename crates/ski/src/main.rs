@@ -3,7 +3,11 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ski_draw::{app::App, Renderer, SurfaceRenderTarget, SurfaceRenderTargetSpecs};
+use ski_draw::{
+    app::App,
+    gpu::surface::{GpuSurface, GpuSurfaceSpecification},
+    Renderer,
+};
 
 fn main() {
     println!("Radhe Shyam!");
@@ -21,14 +25,14 @@ fn main() {
         let window = app.window_handle();
         let size = window.inner_size();
 
-        let specs = &(SurfaceRenderTargetSpecs {
+        let specs = &(GpuSurfaceSpecification {
             width: size.width,
             height: size.height,
         });
 
         let surface_target = {
             let screen = Arc::clone(window);
-            SurfaceRenderTarget::new(specs, gpu, screen)
+            gpu.create_surface(screen, specs)
         };
 
         let renderer = Rc::new(RefCell::new(Renderer::new(

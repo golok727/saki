@@ -1,15 +1,19 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Clone)]
-pub struct SurfaceSpecs {
+pub struct GpuSurfaceSpecification {
     pub width: u32,
     pub height: u32,
 }
 
+#[derive(Debug)]
 pub struct GpuSurface {
+    // for now we will remove this
+    dirty: Cell<bool>,
+
+    pub texture: RefCell<Option<wgpu::SurfaceTexture>>,
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
-    dirty: Cell<bool>,
 }
 
 impl GpuSurface {
@@ -17,12 +21,22 @@ impl GpuSurface {
         Self {
             surface,
             config,
+            texture: RefCell::new(None),
             dirty: Cell::new(false),
         }
     }
 
-    pub fn get_current_texture(&self) -> wgpu::SurfaceTexture {
-        self.surface.get_current_texture().unwrap()
+    pub fn create_view(&self) -> wgpu::TextureView {
+        let mut texture = self.texture.borrow_mut();
+        if texture.is_none() {
+            *texture = Some(self.surface.get_current_texture().unwrap());
+        }
+
+        texture
+            .as_ref()
+            .unwrap()
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default())
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -39,5 +53,10 @@ impl GpuSurface {
             self.surface.configure(&gpu.device, &self.config);
             self.dirty.set(false);
         }
+    }
+
+    pub fn present(&self) {
+        let tex = self.texture.take().unwrap();
+        tex.present();
     }
 }

@@ -1,8 +1,9 @@
-pub mod app;
-pub mod gpu;
 use std::sync::Arc;
 
-pub use gpu::GpuContext;
+pub mod app;
+pub mod gpu;
+
+use gpu::{surface::GpuSurface, GpuContext};
 
 pub trait RenderTarget: std::fmt::Debug + 'static {
     fn get_texture(&self) -> &wgpu::Texture;
@@ -18,98 +19,25 @@ pub trait RenderTarget: std::fmt::Debug + 'static {
     fn postrender(&mut self) {}
 }
 
-#[derive(Debug)]
-pub struct SurfaceRenderTargetSpecs {
-    pub width: u32,
-    pub height: u32,
-}
-
-#[derive(Debug)]
-pub struct SurfaceRenderTarget {
-    surface: wgpu::Surface<'static>,
-    surface_config: wgpu::SurfaceConfiguration,
-    cur_texture: Option<wgpu::SurfaceTexture>,
-    dirty: bool,
-}
-
-impl SurfaceRenderTarget {
-    pub fn new(
-        specs: &SurfaceRenderTargetSpecs,
-        gpu: &GpuContext,
-        screen: impl Into<wgpu::SurfaceTarget<'static>>,
-    ) -> Self {
-        let width = specs.width.max(1);
-        let height = specs.height.max(1);
-
-        let instance = &gpu.instance;
-        let surface = instance.create_surface(screen).unwrap();
-
-        let capabilities = surface.get_capabilities(&gpu.adapter);
-
-        let surface_format = capabilities
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(capabilities.formats[0]);
-
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width,
-            height,
-            present_mode: capabilities.present_modes[0],
-            alpha_mode: capabilities.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-
-        surface.configure(&gpu.device, &surface_config);
-
-        Self {
-            surface,
-            surface_config,
-            cur_texture: None,
-            dirty: false,
-        }
-    }
-}
-
-impl RenderTarget for SurfaceRenderTarget {
+impl RenderTarget for GpuSurface {
     fn update(&mut self, gpu: &GpuContext) {
-        if self.dirty {
-            self.surface.configure(&gpu.device, &self.surface_config);
-            self.dirty = false;
-        }
-    }
-
-    fn get_texture(&self) -> &wgpu::Texture {
-        let tex = self.cur_texture.as_ref().unwrap();
-        &tex.texture
+        self.sync(gpu);
     }
 
     fn get_view(&self) -> wgpu::TextureView {
-        let texture = self.get_texture();
-        texture.create_view(&wgpu::TextureViewDescriptor::default())
-    }
-
-    fn prerender(&mut self) {
-        if self.cur_texture.is_none() {
-            let surface_texture = self.surface.get_current_texture().unwrap();
-            self.cur_texture = Some(surface_texture);
-        }
+        self.create_view()
     }
 
     fn postrender(&mut self) {
-        if let Some(texture) = self.cur_texture.take() {
-            texture.present();
-        }
+        self.present();
     }
 
     fn resize(&mut self, width: u32, height: u32) {
-        self.surface_config.width = width;
-        self.surface_config.height = height;
-        self.dirty = true;
+        self.resize(width, height)
+    }
+
+    fn get_texture(&self) -> &wgpu::Texture {
+        unimplemented!()
     }
 }
 

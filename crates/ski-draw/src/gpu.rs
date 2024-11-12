@@ -49,7 +49,7 @@ impl GpuContext {
     pub fn create_surface(
         &self,
         screen: impl Into<wgpu::SurfaceTarget<'static>>,
-        specs: &surface::SurfaceSpecs,
+        specs: &surface::GpuSurfaceSpecification,
     ) -> surface::GpuSurface {
         let width = specs.width.max(1);
         let height = specs.height.max(1);
