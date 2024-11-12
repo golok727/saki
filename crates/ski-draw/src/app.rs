@@ -14,12 +14,13 @@ use winit::{
 type InitCallback = Box<dyn FnOnce(&mut App) + 'static>;
 type FrameCallback = Box<dyn FnOnce(&mut App) + 'static>;
 
-struct App {
+pub struct App {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
     window: Option<Arc<winit::window::Window>>,
-    gpu: Arc<GpuContext>,
+    // for now
+    pub gpu: Arc<GpuContext>,
 }
 
 impl App {
@@ -32,6 +33,15 @@ impl App {
             gpu: Arc::new(gpu),
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
         }
+    }
+
+    pub fn gpu(&self) -> &Arc<GpuContext> {
+        &self.gpu
+    }
+
+    pub fn window_handle(&self) -> &Arc<winit::window::Window> {
+        let window = self.window.as_ref().unwrap();
+        window
     }
 
     pub fn on_next_frame<F>(&mut self, f: F) where F: FnOnce(&mut App) + 'static {

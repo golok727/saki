@@ -1,6 +1,6 @@
 pub mod gpu;
 pub mod app;
-use std::{ cell::RefCell, rc::Rc };
+use std::sync::Arc;
 
 pub use gpu::GpuContext;
 
@@ -11,7 +11,7 @@ pub trait RenderTarget: std::fmt::Debug + 'static {
 
     fn resize(&mut self, width: u32, height: u32);
 
-    fn update(&mut self, gpu: &mut GpuContext);
+    fn update(&mut self, gpu: &GpuContext);
 
     fn prerender(&mut self) {}
 
@@ -35,7 +35,7 @@ pub struct SurfaceRenderTarget {
 impl SurfaceRenderTarget {
     pub fn new(
         specs: &SurfaceRenderTargetSpecs,
-        gpu: &mut GpuContext,
+        gpu: &GpuContext,
         screen: impl Into<wgpu::SurfaceTarget<'static>>
     ) -> Self {
         let width = specs.width.max(1);
@@ -75,7 +75,7 @@ impl SurfaceRenderTarget {
 }
 
 impl RenderTarget for SurfaceRenderTarget {
-    fn update(&mut self, gpu: &mut GpuContext) {
+    fn update(&mut self, gpu: &GpuContext) {
         if self.dirty {
             self.surface.configure(&gpu.device, &self.surface_config);
             self.dirty = false;
@@ -115,11 +115,11 @@ impl RenderTarget for SurfaceRenderTarget {
 #[derive(Debug)]
 pub struct Renderer {
     render_target: Box<dyn RenderTarget>,
-    gpu: Rc<RefCell<GpuContext>>,
+    gpu: Arc<GpuContext>,
 }
 
 impl Renderer {
-    pub fn new<T>(gpu: Rc<RefCell<GpuContext>>, target: T) -> Self where T: RenderTarget {
+    pub fn new<T>(gpu: Arc<GpuContext>, target: T) -> Self where T: RenderTarget {
         Self {
             gpu,
             render_target: Box::new(target),
@@ -141,16 +141,16 @@ impl Renderer {
     pub fn render(&mut self) {
         let (r, g, b, a) = (1.0, 1.0, 0.0, 1.0);
 
-        let mut gpu = self.gpu.borrow_mut();
+        let gpu = self.gpu.as_ref();
 
-        self.render_target.update(&mut gpu);
+        self.render_target.update(gpu);
 
         log::info!("prerender");
         self.render_target.prerender();
 
         let view = self.render_target.get_view();
 
-        let mut encoder = gpu.device().create_command_encoder(
+        let mut encoder = gpu.device.create_command_encoder(
             &(wgpu::CommandEncoderDescriptor {
                 label: Some("my encoder"),
             })
@@ -177,7 +177,7 @@ impl Renderer {
             );
         }
 
-        gpu.queue().submit(std::iter::once(encoder.finish()));
+        gpu.queue.submit(std::iter::once(encoder.finish()));
         log::info!("render");
 
         log::info!("postrender");
