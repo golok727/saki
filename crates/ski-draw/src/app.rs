@@ -14,15 +14,31 @@ use winit::{
 };
 
 pub struct WindowContext<'a> {
-    pub app: &'a mut App,
+    pub app: &'a mut AppContext,
     pub window: &'a mut Window,
 }
 
-type InitCallback = Box<dyn FnOnce(&mut App) + 'static>;
-type FrameCallback = Box<dyn Fn(&mut App) + 'static>;
+type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
+type FrameCallback = Box<dyn Fn(&mut AppContext) + 'static>;
 type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
 
-pub struct App {
+pub struct App(Rc<RefCell<AppContext>>);
+
+impl App {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self(AppContext::new())
+    }
+
+    pub fn run<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut AppContext) + 'static,
+    {
+        self.0.borrow_mut().run(f);
+    }
+}
+
+pub struct AppContext {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
@@ -36,13 +52,13 @@ pub struct App {
     pub gpu: Arc<GpuContext>,
 }
 
-impl App {
+impl AppContext {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new() -> Rc<RefCell<Self>> {
         // TODO handle error
         let gpu = pollster::block_on(GpuContext::new()).unwrap();
 
-        Self {
+        Rc::new(RefCell::new(Self {
             init_callback: None,
             open_window_callbacks: RefCell::new(vec![]),
             // start windows
@@ -51,7 +67,7 @@ impl App {
             // end windows
             gpu: Arc::new(gpu),
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
-        }
+        }))
     }
 
     pub fn gpu(&self) -> &Arc<GpuContext> {
@@ -60,7 +76,7 @@ impl App {
 
     pub fn on_next_frame<F>(&mut self, f: F)
     where
-        F: Fn(&mut App) + 'static,
+        F: Fn(&mut AppContext) + 'static,
     {
         RefCell::borrow_mut(&self.frame_callbacks).push(Box::new(f))
     }
@@ -103,7 +119,7 @@ impl App {
 
     pub fn run<F>(&mut self, f: F)
     where
-        F: FnOnce(&mut App) + 'static,
+        F: FnOnce(&mut AppContext) + 'static,
     {
         self.init_callback = Some(Box::new(f));
         let event_loop = winit::event_loop::EventLoop::new().unwrap();
@@ -140,7 +156,7 @@ impl App {
     }
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler for AppContext {
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         if self.contains_queued_windows.get() {
             self.run_open_window_callbacks(event_loop);
