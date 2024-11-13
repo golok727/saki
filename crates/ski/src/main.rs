@@ -46,6 +46,8 @@ fn main() {
             let renderer = Rc::new(RefCell::new(Renderer::new(
                 Arc::clone(gpu_arc),
                 surface_target,
+                size.width,
+                size.height,
             )));
 
             let ren = Rc::clone(&renderer);
@@ -53,7 +55,7 @@ fn main() {
             cx.app.on_next_frame(move |_| {
                 let mut renderer = ren.borrow_mut();
                 renderer.render();
-            })
+            });
         });
     });
 }

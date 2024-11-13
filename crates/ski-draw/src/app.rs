@@ -37,12 +37,12 @@ pub struct AppContext {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
-    // we will move this to a task pool;
     open_window_callbacks: RefCell<Vec<(WindowSpecification, OpenWindowCallback)>>,
 
     #[allow(dead_code)]
-    windows: HashMap<WindowId, Rc<RefCell<Window>>>,
+    windows: HashMap<WindowId, Window>,
     contains_queued_windows: Cell<bool>,
+
     // pub for now
     pub gpu: Arc<GpuContext>,
 }
@@ -84,11 +84,11 @@ impl AppContext {
         self.contains_queued_windows.set(true);
     }
 
-    fn insert_window(
+    fn create_window(
         &mut self,
         specs: &WindowSpecification,
         event_loop: &winit::event_loop::ActiveEventLoop,
-    ) -> Result<WindowId, CreateWindowError> {
+    ) -> Result<(WindowId, Window), CreateWindowError> {
         let width = specs.width;
         let height = specs.height;
 
@@ -104,12 +104,7 @@ impl AppContext {
 
         let window = Window { winit_handle };
 
-        let _ = self
-            .windows
-            .insert(window_id, Rc::new(RefCell::new(window)))
-            .is_some();
-
-        Ok(window_id)
+        Ok((window_id, window))
     }
 
     pub fn run<F>(&mut self, f: F)
@@ -127,20 +122,16 @@ impl AppContext {
         self.contains_queued_windows.set(false);
 
         for (spec, callback) in self.open_window_callbacks.take() {
-            // let gpu = Arc::clone(&self.gpu);
-
             log::info!("Creating window. \n Spec: {:#?}", &spec);
-            if let Ok(id) = self.insert_window(&spec, event_loop) {
+            if let Ok((id, mut window)) = self.create_window(&spec, event_loop) {
                 log::info!("Window created");
 
-                let window = self.windows.get(&id).cloned();
-                let window = window.expect("expected a window");
+                let mut context = WindowContext::new(self, &mut window);
 
-                let mut window_mut = window.borrow_mut();
-
-                let mut context = WindowContext::new(self, &mut window_mut);
-
+                log::info!("Calling window init callback");
                 callback(&mut context);
+
+                let _ = self.windows.insert(id, window);
             } else {
                 log::error!("Error creating window")
             }
@@ -189,7 +180,6 @@ impl ApplicationHandler for AppContext {
                 self.windows.remove(&window_id);
 
                 if self.windows.is_empty() && !event_loop.exiting() {
-                    // TODO make this better
                     event_loop.exit();
                 }
             }

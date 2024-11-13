@@ -1,7 +1,7 @@
 use super::error::GpuSurfaceCreateError;
 use super::GpuContext;
 
-use crate::renderer::RenderTarget;
+use crate::renderer::MockRenderTarget;
 use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Clone)]
@@ -66,7 +66,7 @@ impl GpuSurface {
     }
 }
 
-impl RenderTarget for GpuSurface {
+impl MockRenderTarget for GpuSurface {
     fn update(&mut self, gpu: &GpuContext) {
         self.sync(gpu);
     }
