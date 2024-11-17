@@ -9,7 +9,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use crate::app::AppContext;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WindowSpecification {
     pub width: u32,
     pub height: u32,
@@ -25,6 +25,19 @@ impl Default for WindowSpecification {
             height: 800,
             title: "Ski",
         }
+    }
+}
+
+impl WindowSpecification {
+    pub fn with_size(mut self, width: u32, height: u32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+
+    pub fn with_title(mut self, title: &'static str) -> Self {
+        self.title = title;
+        self
     }
 }
 

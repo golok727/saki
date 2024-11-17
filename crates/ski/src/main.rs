@@ -17,15 +17,13 @@ fn main() {
     let mut app = App::new();
 
     app.run(|app| {
-        log::info!("from run callback!");
-
         let window_specs = WindowSpecification {
             width: 1280,
             height: 720,
             ..Default::default()
         };
 
-        app.open_window(window_specs, move |cx| {
+        app.open_window(window_specs.clone(), move |cx| {
             let gpu_arc = cx.app.gpu();
             let gpu = &gpu_arc;
 
