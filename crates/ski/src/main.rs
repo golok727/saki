@@ -24,7 +24,17 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
+            cx.app.update(|app| {
+                app.open_window(
+                    WindowSpecification::default()
+                        .with_title("Settings")
+                        .with_size(800, 800),
+                    |_| {},
+                );
+            });
+
             let gpu_arc = cx.app.gpu();
+
             let gpu = &gpu_arc;
 
             let winit_window = cx.window.winit_handle();

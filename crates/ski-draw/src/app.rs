@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use winit::{
 
 use parking_lot::Mutex;
 
-pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopProxy<AppAction>>> =
+pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopProxy<UserEvent>>> =
     Mutex::new(None);
 
 type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
@@ -39,24 +39,37 @@ impl App {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AppAction {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UserEvent {
     AppUpdate,
     Quit,
 }
 
-pub(crate) enum AppEvent {
+pub(crate) enum AppUpdateUserEvent {
     CreateWindow {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
     },
+    #[allow(unused)]
+    Other,
+}
+
+pub(crate) enum Effect {
+    UserEvent(UserEvent),
+
+    #[allow(unused)]
+    Other,
 }
 
 pub struct AppContext {
     init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
-    app_events: RefCell<Vec<AppEvent>>,
+    pending_user_events: HashSet<UserEvent>,
+    pending_updates: usize,
+    flushing_effects: bool,
+    effects: VecDeque<Effect>,
+    app_events: RefCell<Vec<AppUpdateUserEvent>>,
     windows: HashMap<WindowId, Window>,
     // pub for now
     pub gpu: Arc<GpuContext>,
@@ -70,33 +83,82 @@ impl AppContext {
 
         Rc::new(RefCell::new(Self {
             init_callback: None,
-            windows: HashMap::new(),
+
             app_events: Default::default(),
-            gpu: Arc::new(gpu),
+            pending_user_events: HashSet::new(),
+
+            pending_updates: 0,
+            flushing_effects: false,
+            effects: VecDeque::new(),
+
             frame_callbacks: Rc::new(RefCell::new(Vec::new())),
+
+            windows: HashMap::new(),
+            gpu: Arc::new(gpu),
         }))
-    }
-
-    pub(crate) fn push_event(&self, event: AppEvent) {
-        RefCell::borrow_mut(&self.app_events).push(event);
-
-        AppContext::use_proxy(|proxy| {
-            if let Err(error) = proxy.send_event(AppAction::AppUpdate) {
-                log::error!("Error sending AppUpdateEvent: {}", &error)
-            }
-        });
-    }
-
-    pub fn quit(&self) {
-        AppContext::use_proxy(|proxy| {
-            if let Err(error) = proxy.send_event(AppAction::Quit) {
-                log::error!("Error sending QuitEvent: {}", &error)
-            }
-        })
     }
 
     pub fn gpu(&self) -> &Arc<GpuContext> {
         &self.gpu
+    }
+
+    pub fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
+        self.pending_updates += 1;
+        let res = cb(self);
+
+        if !self.flushing_effects && self.pending_updates == 1 {
+            self.flush_effects();
+        }
+        self.pending_updates -= 1;
+
+        res
+    }
+
+    pub(crate) fn push_effect(&mut self, effect: Effect) {
+        match effect {
+            Effect::UserEvent(event) => {
+                dbg!(&self.pending_user_events);
+                if !self.pending_user_events.insert(event) {
+                    return;
+                }
+            }
+            _ => unimplemented!(),
+        }
+
+        self.effects.push_back(effect);
+    }
+
+    fn flush_effects(&mut self) {
+        self.flushing_effects = true;
+
+        while let Some(effect) = self.effects.pop_front() {
+            match effect {
+                Effect::UserEvent(event) => self.notify_user_event(event),
+                _ => unimplemented!(),
+            }
+        }
+
+        self.flushing_effects = false;
+    }
+
+    fn notify_user_event(&self, event: UserEvent) {
+        log::debug!("Notify");
+        AppContext::use_proxy(|proxy| {
+            if let Err(error) = proxy.send_event(event) {
+                log::error!("Error sending: {}", &error)
+            }
+        });
+    }
+
+    pub(crate) fn push_app_event(&mut self, event: AppUpdateUserEvent) {
+        RefCell::borrow_mut(&self.app_events).push(event);
+        self.push_effect(Effect::UserEvent(UserEvent::AppUpdate))
+    }
+
+    pub fn quit(&mut self) {
+        self.update(|app| {
+            app.push_effect(Effect::UserEvent(UserEvent::Quit));
+        })
     }
 
     pub fn on_next_frame<F>(&mut self, f: F)
@@ -110,7 +172,16 @@ impl AppContext {
     where
         F: Fn(&mut WindowContext) + 'static,
     {
-        self.push_event(AppEvent::CreateWindow {
+        log::debug!("Queueing window");
+        self.update(|app| app.request_create_window(specs, f));
+    }
+
+    #[inline]
+    pub(crate) fn request_create_window<F>(&mut self, specs: WindowSpecification, f: F)
+    where
+        F: Fn(&mut WindowContext) + 'static,
+    {
+        self.push_app_event(AppUpdateUserEvent::CreateWindow {
             specs,
             callback: Box::new(f),
         })
@@ -143,7 +214,7 @@ impl AppContext {
         F: FnOnce(&mut AppContext) + 'static,
     {
         self.init_callback = Some(Box::new(f));
-        let event_loop: EventLoop<AppAction> = EventLoop::with_user_event()
+        let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
             .build()
             .expect("error creating event_loop.");
 
@@ -161,37 +232,40 @@ impl AppContext {
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for event in self.app_events.take() {
             match event {
-                AppEvent::CreateWindow { specs, callback } => {
-                    self.handle_window_create_event(event_loop, specs, callback);
+                window_create_event @ AppUpdateUserEvent::CreateWindow { .. } => {
+                    self.handle_window_create_event(event_loop, window_create_event);
                 }
+                _ => todo!(),
             }
         }
     }
 
+    // please pass in the AppEvent::CreateWindow or it will panic
     fn handle_window_create_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        specs: WindowSpecification,
-        callback: OpenWindowCallback,
+        window_create_event: AppUpdateUserEvent,
     ) {
-        log::info!("Creating window. \n Spec: {:#?}", &specs);
-        if let Ok((id, mut window)) = self.create_window(&specs, event_loop) {
-            log::info!("Window created");
+        match window_create_event {
+            AppUpdateUserEvent::CreateWindow { specs, callback } => {
+                log::info!("Creating window. \n Spec: {:#?}", &specs);
+                if let Ok((id, mut window)) = self.create_window(&specs, event_loop) {
+                    let mut context = WindowContext::new(self, &mut window);
 
-            let mut context = WindowContext::new(self, &mut window);
+                    callback(&mut context);
 
-            log::info!("Calling window init callback");
-            callback(&mut context);
-
-            let _ = self.windows.insert(id, window);
-        } else {
-            log::error!("Error creating window")
+                    let _ = self.windows.insert(id, window);
+                } else {
+                    log::error!("Error creating window")
+                }
+            }
+            _ => unreachable!(),
         }
     }
 
     pub(crate) fn use_proxy<F>(f: F)
     where
-        F: FnOnce(&winit::event_loop::EventLoopProxy<AppAction>) + 'static,
+        F: FnOnce(&winit::event_loop::EventLoopProxy<UserEvent>),
     {
         if let Some(proxy) = EVENT_LOOP_PROXY.lock().as_ref() {
             f(proxy)
@@ -199,14 +273,18 @@ impl AppContext {
     }
 }
 
-impl ApplicationHandler<AppAction> for AppContext {
-    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: AppAction) {
+impl ApplicationHandler<UserEvent> for AppContext {
+    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
+        log::debug!("Handling user event: {:#?}", &event);
+
+        self.pending_user_events.remove(&event);
+
         match event {
-            AppAction::AppUpdate => self.handle_app_update_event(event_loop),
-            AppAction::Quit => {
+            UserEvent::AppUpdate => self.handle_app_update_event(event_loop),
+            UserEvent::Quit => {
                 event_loop.exit();
-                // or winit will cause issues
                 *EVENT_LOOP_PROXY.lock() = None;
+                log::info!("Bye!");
             }
         }
     }
