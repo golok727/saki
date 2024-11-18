@@ -24,15 +24,6 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
-            cx.app.update(|app| {
-                app.open_window(
-                    WindowSpecification::default()
-                        .with_title("Settings")
-                        .with_size(800, 800),
-                    |_| {},
-                );
-            });
-
             let gpu_arc = cx.app.gpu();
 
             let gpu = &gpu_arc;
@@ -45,25 +36,26 @@ fn main() {
                 height: size.height,
             });
 
-            let surface_target = {
-                let screen = Arc::clone(winit_window);
-                // TODO error handling
-                gpu.create_surface(screen, specs).unwrap()
-            };
+            let surface = Rc::new(gpu.create_surface(Arc::clone(winit_window), specs).unwrap());
 
             let renderer = Rc::new(RefCell::new(Renderer::new(
                 Arc::clone(gpu_arc),
-                surface_target,
                 size.width,
                 size.height,
             )));
 
             let ren = Rc::clone(&renderer);
 
-            cx.app.on_next_frame(move |_| {
-                let mut renderer = ren.borrow_mut();
-                renderer.render();
-            });
+            {
+                let surface = Rc::clone(&surface);
+                cx.app.on_next_frame(move |_| {
+                    let mut renderer = ren.borrow_mut();
+                    let surface_texture = surface.surface.get_current_texture().unwrap();
+
+                    renderer.render_to_texture(&surface_texture.texture);
+                    surface_texture.present();
+                });
+            }
         });
     });
 }

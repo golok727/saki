@@ -52,11 +52,22 @@ impl GpuContext {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label })
     }
 
-    pub fn create_shader(&self) {
-        todo!("create_shader is not implemented yet");
+    pub fn create_shader(&self, source: &str) ->  wgpu::ShaderModule {
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None, 
+            source: wgpu::ShaderSource::Wgsl(source.into())
+        })
+    }
+
+    pub fn create_shader_labeled(&self, source: &str, label: &str) ->  wgpu::ShaderModule {
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(label), 
+            source: wgpu::ShaderSource::Wgsl(source.into())
+        })
     }
     
     pub fn create_texture(&self, descriptor: &wgpu::TextureDescriptor) -> wgpu::Texture {
         self.device.create_texture(descriptor)
     }
+
 }

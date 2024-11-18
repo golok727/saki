@@ -49,6 +49,11 @@ pub struct Window {
 }
 
 impl Window {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        todo!()
+    }
+
     #[inline]
     pub fn id(&self) -> winit::window::WindowId {
         self.winit_handle.id()
@@ -57,6 +62,8 @@ impl Window {
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
         &self.winit_handle
     }
+
+    pub(crate) fn paint(&self) {}
 }
 
 pub struct WindowContext<'a> {

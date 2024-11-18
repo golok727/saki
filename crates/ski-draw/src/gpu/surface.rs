@@ -1,8 +1,7 @@
 use super::error::GpuSurfaceCreateError;
 use super::GpuContext;
 
-use crate::renderer::MockRenderTarget;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 
 #[derive(Debug, Clone)]
 pub struct GpuSurfaceSpecification {
@@ -15,7 +14,6 @@ pub struct GpuSurface {
     // for now we will remove this
     dirty: Cell<bool>,
 
-    pub texture: RefCell<Option<wgpu::SurfaceTexture>>,
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
 }
@@ -25,23 +23,8 @@ impl GpuSurface {
         Self {
             surface,
             config,
-            texture: RefCell::new(None),
             dirty: Cell::new(false),
         }
-    }
-
-    // todo change this
-    pub fn create_view(&self) -> wgpu::TextureView {
-        let mut texture = self.texture.borrow_mut();
-        if texture.is_none() {
-            *texture = Some(self.surface.get_current_texture().unwrap());
-        }
-
-        texture
-            .as_ref()
-            .unwrap()
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default())
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -58,33 +41,6 @@ impl GpuSurface {
             self.surface.configure(&gpu.device, &self.config);
             self.dirty.set(false);
         }
-    }
-
-    pub fn present(&self) {
-        let tex = self.texture.take().unwrap();
-        tex.present();
-    }
-}
-
-impl MockRenderTarget for GpuSurface {
-    fn update(&mut self, gpu: &GpuContext) {
-        self.sync(gpu);
-    }
-
-    fn get_view(&self) -> wgpu::TextureView {
-        self.create_view()
-    }
-
-    fn postrender(&mut self) {
-        self.present();
-    }
-
-    fn resize(&mut self, width: u32, height: u32) {
-        self.resize(width, height)
-    }
-
-    fn get_texture(&self) -> &wgpu::Texture {
-        unimplemented!()
     }
 }
 
@@ -112,7 +68,7 @@ impl GpuContext {
             .unwrap_or(capabilities.formats[0]);
 
         let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
             format: surface_format,
             width,
             height,

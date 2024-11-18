@@ -224,7 +224,7 @@ impl AppContext {
         if let Err(err) = event_loop.run_app(self) {
             println!("Error running app: Error: {}", err);
         } else {
-            *EVENT_LOOP_PROXY.lock() = None;
+            EVENT_LOOP_PROXY.lock().take();
         };
     }
 
@@ -282,7 +282,7 @@ impl ApplicationHandler<UserEvent> for AppContext {
             UserEvent::AppUpdate => self.handle_app_update_event(event_loop),
             UserEvent::Quit => {
                 event_loop.exit();
-                *EVENT_LOOP_PROXY.lock() = None;
+                EVENT_LOOP_PROXY.lock().take();
                 log::info!("Bye!");
             }
         }

@@ -1,19 +1,5 @@
 use crate::gpu::GpuContext;
 
-pub trait MockRenderTarget: std::fmt::Debug + 'static {
-    fn get_texture(&self) -> &wgpu::Texture;
-
-    fn get_view(&self) -> wgpu::TextureView;
-
-    fn resize(&mut self, width: u32, height: u32);
-
-    fn update(&mut self, gpu: &GpuContext);
-
-    fn prerender(&mut self) {}
-
-    fn postrender(&mut self) {}
-}
-
 pub type TextureFormat = wgpu::TextureFormat;
 
 #[derive(Debug)]
@@ -99,7 +85,9 @@ impl RenderTarget {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: specs.format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         })
     }
@@ -123,7 +111,7 @@ impl RenderTarget {
         &self.texture
     }
 
-    pub fn create_view(&self) -> &wgpu::TextureView {
+    pub fn texture_view(&self) -> &wgpu::TextureView {
         &self.texture_view
     }
 
