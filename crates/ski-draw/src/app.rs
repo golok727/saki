@@ -117,7 +117,6 @@ impl AppContext {
     pub(crate) fn push_effect(&mut self, effect: Effect) {
         match effect {
             Effect::UserEvent(event) => {
-                dbg!(&self.pending_user_events);
                 if !self.pending_user_events.insert(event) {
                     return;
                 }
