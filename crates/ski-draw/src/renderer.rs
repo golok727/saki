@@ -8,7 +8,7 @@ use crate::gpu::GpuContext;
 
 #[derive(Debug, Default)]
 pub struct Pipes {
-    quad: Option<wgpu::RenderPipeline>,
+    pub quad: Option<wgpu::RenderPipeline>,
 }
 
 impl Pipes {
@@ -45,18 +45,16 @@ impl Renderer {
         self.render_target.resize(&self.gpu, width, height);
     }
 
-    pub fn destroy(&mut self) {}
-
-    pub fn render(&mut self) {
+    pub fn destroy(&mut self) {
         self.pipes.destroy();
     }
 
-    pub fn render_to_texture(&mut self, destination_texture: &wgpu::Texture) {
-        let (r, g, b, a) = (1.0, 1.0, 0.0, 1.0);
+    pub fn render(&mut self) {
+        todo!()
+    }
 
+    pub fn render_to_texture(&mut self, color: wgpu::Color, destination_texture: &wgpu::Texture) {
         let gpu = &self.gpu;
-
-        log::info!("Rendering to a texture");
 
         let mut encoder = gpu.create_command_encoder(Some("my encoder"));
 
@@ -68,7 +66,7 @@ impl Renderer {
                         view: self.render_target.texture_view(),
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a }),
+                            load: wgpu::LoadOp::Clear(color),
                             store: wgpu::StoreOp::Store,
                         },
                     })],
@@ -84,10 +82,6 @@ impl Renderer {
 
         gpu.queue.submit(std::iter::once(encoder.finish()));
 
-        log::info!("render");
-
-        log::info!("postrender");
-
-        log::info!("Rendering things!");
+        log::info!("Render Complete!");
     }
 }

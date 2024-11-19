@@ -5,9 +5,17 @@ use std::sync::Arc;
 // use crate::gpu::surface::GpuSurface;
 // use crate::renderer::Renderer;
 
+use error::CreateWindowError;
 pub(crate) use winit::window::Window as WinitWindow;
 
-use crate::app::AppContext;
+use crate::{
+    app::AppContext,
+    gpu::{
+        surface::{GpuSurface, GpuSurfaceSpecification},
+        GpuContext,
+    },
+    Renderer,
+};
 
 #[derive(Debug, Clone)]
 pub struct WindowSpecification {
@@ -43,27 +51,68 @@ impl WindowSpecification {
 
 #[derive(Debug)]
 pub struct Window {
-    pub(crate) winit_handle: Arc<WinitWindow>,
-    // pub(crate) renderer: Renderer,
-    // pub(crate) surface: GpuSurface,
+    pub(crate) surface: GpuSurface,
+    pub(crate) renderer: Renderer,
+    pub(crate) handle: Arc<WinitWindow>,
+    bg_color: wgpu::Color,
 }
 
 impl Window {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        todo!()
+    pub(crate) fn new(
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        specs: &WindowSpecification,
+        gpu: Arc<GpuContext>,
+    ) -> Result<Self, CreateWindowError> {
+        let width = specs.width;
+        let height = specs.height;
+
+        let attr = winit::window::WindowAttributes::default()
+            .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
+            .with_title(specs.title);
+
+        let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
+        let handle = Arc::new(winit_window);
+
+        let surface = gpu
+            .create_surface(
+                Arc::clone(&handle),
+                &GpuSurfaceSpecification { width, height },
+            )
+            .unwrap(); // TODO handle error
+
+        let renderer = Renderer::new(gpu, width, height);
+
+        Ok(Self {
+            bg_color: wgpu::Color::WHITE,
+            handle,
+            renderer,
+            surface,
+        })
+    }
+
+    // for now :)
+    pub fn set_bg_color(&mut self, r: f64, g: f64, b: f64) {
+        self.bg_color = wgpu::Color { r, g, b, a: 1.0 };
     }
 
     #[inline]
     pub fn id(&self) -> winit::window::WindowId {
-        self.winit_handle.id()
+        self.handle.id()
     }
 
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
-        &self.winit_handle
+        &self.handle
     }
 
-    pub(crate) fn paint(&self) {}
+    pub(crate) fn paint(&mut self) {
+        let surface_texture = self.surface.surface.get_current_texture().unwrap();
+        self.renderer
+            .render_to_texture(self.bg_color, &surface_texture.texture);
+
+        surface_texture.present();
+
+        log::info!("Painting");
+    }
 }
 
 pub struct WindowContext<'a> {
@@ -74,5 +123,12 @@ pub struct WindowContext<'a> {
 impl<'a> WindowContext<'a> {
     pub fn new(app: &'a mut AppContext, window: &'a mut Window) -> Self {
         Self { app, window }
+    }
+
+    pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
+    where
+        F: Fn(&mut WindowContext) + 'static,
+    {
+        self.app.open_window(specs, f)
     }
 }

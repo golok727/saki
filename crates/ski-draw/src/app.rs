@@ -141,7 +141,6 @@ impl AppContext {
     }
 
     fn notify_user_event(&self, event: UserEvent) {
-        log::debug!("Notify");
         AppContext::use_proxy(|proxy| {
             if let Err(error) = proxy.send_event(event) {
                 log::error!("Error sending: {}", &error)
@@ -171,7 +170,6 @@ impl AppContext {
     where
         F: Fn(&mut WindowContext) + 'static,
     {
-        log::debug!("Queueing window");
         self.update(|app| app.request_create_window(specs, f));
     }
 
@@ -191,19 +189,8 @@ impl AppContext {
         specs: &WindowSpecification,
         event_loop: &winit::event_loop::ActiveEventLoop,
     ) -> Result<(WindowId, Window), CreateWindowError> {
-        let width = specs.width;
-        let height = specs.height;
-
-        // TODO make a spec builder
-        let attr = winit::window::WindowAttributes::default()
-            .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
-            .with_title(specs.title);
-
-        let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
-        let window_id = winit_window.id();
-        let winit_handle = Arc::new(winit_window);
-
-        let window = Window { winit_handle };
+        let window = Window::new(event_loop, specs, Arc::clone(&self.gpu))?;
+        let window_id = window.handle.id();
 
         Ok((window_id, window))
     }
@@ -274,8 +261,6 @@ impl AppContext {
 
 impl ApplicationHandler<UserEvent> for AppContext {
     fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
-        log::debug!("Handling user event: {:#?}", &event);
-
         self.pending_user_events.remove(&event);
 
         match event {
@@ -291,11 +276,12 @@ impl ApplicationHandler<UserEvent> for AppContext {
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
 
     fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::info!("App Resumed!");
+        log::info!("Initializing...");
 
         if let Some(cb) = self.init_callback.take() {
             cb(self);
         }
+        log::info!("Initialized!");
     }
 
     fn window_event(
@@ -310,6 +296,8 @@ impl ApplicationHandler<UserEvent> for AppContext {
                 for callback in callbacks.take() {
                     callback(self);
                 }
+                let window = self.windows.get_mut(&window_id).expect("expected a window");
+                window.paint();
             }
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
@@ -320,6 +308,7 @@ impl ApplicationHandler<UserEvent> for AppContext {
                     },
                 ..
             } => {
+                // TODO close child windows
                 self.windows.remove(&window_id);
                 if self.windows.is_empty() && !event_loop.exiting() {
                     self.quit();

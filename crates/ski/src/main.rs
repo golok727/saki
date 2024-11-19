@@ -1,11 +1,6 @@
-use std::cell::RefCell;
 use std::io::Write;
-use std::rc::Rc;
-use std::sync::Arc;
 
-use ski_draw::{
-    app::App, gpu::surface::GpuSurfaceSpecification, window::WindowSpecification, Renderer,
-};
+use ski_draw::{app::App, window::WindowSpecification};
 
 fn main() {
     println!("Radhe Shyam!");
@@ -15,7 +10,6 @@ fn main() {
     log::info!("Welcome to ski!");
 
     let mut app = App::new();
-
     app.run(|app| {
         let window_specs = WindowSpecification {
             width: 1280,
@@ -24,38 +18,11 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
-            let gpu_arc = cx.app.gpu();
-
-            let gpu = &gpu_arc;
-
-            let winit_window = cx.window.winit_handle();
-            let size = winit_window.inner_size();
-
-            let specs = &(GpuSurfaceSpecification {
-                width: size.width,
-                height: size.height,
-            });
-
-            let surface = Rc::new(gpu.create_surface(Arc::clone(winit_window), specs).unwrap());
-
-            let renderer = Rc::new(RefCell::new(Renderer::new(
-                Arc::clone(gpu_arc),
-                size.width,
-                size.height,
-            )));
-
-            let ren = Rc::clone(&renderer);
-
-            {
-                let surface = Rc::clone(&surface);
-                cx.app.on_next_frame(move |_| {
-                    let mut renderer = ren.borrow_mut();
-                    let surface_texture = surface.surface.get_current_texture().unwrap();
-
-                    renderer.render_to_texture(&surface_texture.texture);
-                    surface_texture.present();
-                });
-            }
+            cx.window.set_bg_color(1.0, 1.0, 0.0);
+            let specs = window_specs.clone();
+            cx.open_window(specs.with_title("Settings").with_size(800, 800), |cx| {
+                cx.window.set_bg_color(0.01, 0.01, 0.01);
+            })
         });
     });
 }
