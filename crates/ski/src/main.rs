@@ -12,17 +12,13 @@ fn main() {
     let mut app = App::new();
     app.run(|app| {
         let window_specs = WindowSpecification {
-            width: 1280,
-            height: 720,
+            width: 1875,
+            height: 1023,
             ..Default::default()
         };
 
         app.open_window(window_specs.clone(), move |cx| {
-            cx.window.set_bg_color(1.0, 1.0, 0.0);
-            let specs = window_specs.clone();
-            cx.open_window(specs.with_title("Settings").with_size(800, 800), |cx| {
-                cx.window.set_bg_color(0.01, 0.01, 0.01);
-            })
+            cx.window.set_bg_color(0.01, 0.01, 0.01);
         });
     });
 }

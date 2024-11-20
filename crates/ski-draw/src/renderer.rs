@@ -4,6 +4,69 @@ pub mod render_target;
 
 use render_target::{RenderTarget, RenderTargetSpecification};
 
+#[derive(Debug)]
+pub struct SimplePipe {
+    pub pipeline: wgpu::RenderPipeline,
+    pub shader: wgpu::ShaderModule,
+}
+
+impl SimplePipe {
+    pub fn new(gpu: &GpuContext) -> Self {
+        let shader =
+            gpu.create_shader_labeled(include_str!("./scene/shader.wgsl"), "Simple Shader");
+
+        let layout = gpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("thing desciptor"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+
+        let pipeline = gpu
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Simple pipeline"),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs"),
+                    buffers: &[],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: None,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+                cache: None,
+            });
+
+        Self { pipeline, shader }
+    }
+}
+
 use crate::gpu::GpuContext;
 
 #[derive(Debug, Default)]
@@ -20,8 +83,9 @@ pub struct Renderer {
     render_target: RenderTarget,
 
     pipes: Pipes,
+    simple_pipe: SimplePipe,
 
-    gpu: Arc<GpuContext>,
+    pub(crate) gpu: Arc<GpuContext>,
 }
 
 impl Renderer {
@@ -33,10 +97,12 @@ impl Renderer {
 
         let render_target = RenderTarget::new(&gpu, &render_target_spec);
 
+        let simple_pipe = SimplePipe::new(&gpu);
+
         Self {
             gpu,
             render_target,
-
+            simple_pipe,
             pipes: Pipes::default(),
         }
     }
@@ -59,7 +125,7 @@ impl Renderer {
         let mut encoder = gpu.create_command_encoder(Some("my encoder"));
 
         {
-            encoder.begin_render_pass(
+            let mut pass = encoder.begin_render_pass(
                 &(wgpu::RenderPassDescriptor {
                     label: Some("RenderTarget Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -75,10 +141,12 @@ impl Renderer {
                     timestamp_writes: None,
                 }),
             );
-
-            self.render_target
-                .copy_to_texture(&mut encoder, destination_texture);
+            pass.set_pipeline(&self.simple_pipe.pipeline);
+            pass.draw(0..3, 0..1);
         }
+
+        self.render_target
+            .copy_to_texture(&mut encoder, destination_texture);
 
         gpu.queue.submit(std::iter::once(encoder.finish()));
 

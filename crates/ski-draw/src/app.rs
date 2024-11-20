@@ -291,6 +291,12 @@ impl ApplicationHandler<UserEvent> for AppContext {
         event: winit::event::WindowEvent,
     ) {
         match event {
+            WindowEvent::Resized(size) => {
+                let width = size.width;
+                let height = size.height;
+                let window = self.windows.get_mut(&window_id).expect("expected a window");
+                window.handle_resize(width, height);
+            }
             WindowEvent::RedrawRequested => {
                 let callbacks = self.frame_callbacks.clone();
                 for callback in callbacks.take() {

@@ -97,6 +97,15 @@ impl RenderTarget {
             return;
         }
 
+        log::trace!(
+            "render target resize: width = {} height = {}",
+            new_width,
+            new_height
+        );
+
+        self.width = new_width;
+        self.height = new_height;
+
         let spec = RenderTargetSpecification::default()
             .with_size(self.width, self.height)
             .with_format(self.texture.format());

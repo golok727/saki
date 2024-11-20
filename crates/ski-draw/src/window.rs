@@ -100,6 +100,11 @@ impl Window {
         self.handle.id()
     }
 
+    pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
+        self.surface.resize(&self.renderer.gpu, width, height);
+        self.renderer.resize(width, height);
+    }
+
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
         &self.handle
     }
