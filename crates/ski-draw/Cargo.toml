@@ -10,3 +10,4 @@ winit.workspace = true
 log.workspace = true
 thiserror.workspace = true
 parking_lot.workspace = true
+bytemuck = "1.20.0"
