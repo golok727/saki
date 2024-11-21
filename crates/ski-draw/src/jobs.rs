@@ -1,5 +1,5 @@
-use std::{future::Future, sync::Arc, thread};
 use async_task::Runnable;
+use std::{future::Future, sync::Arc, thread};
 
 #[derive(Debug)]
 pub struct Timeout {
@@ -86,7 +86,10 @@ impl Dispatcher {
             .min(avail_threads)
             .max(1);
 
-        log::info!("Creating dispatcher with {} background threads", thread_count); 
+        log::info!(
+            "Creating dispatcher with {} background threads",
+            thread_count
+        );
 
         let mut background_threads = (0..thread_count)
             .map(|_| {
@@ -111,8 +114,7 @@ impl Dispatcher {
         }
     }
 
-    pub(crate) fn create_timer() -> (thread::JoinHandle<()>, calloop::channel::Sender<Timeout>)
-    {
+    pub(crate) fn create_timer() -> (thread::JoinHandle<()>, calloop::channel::Sender<Timeout>) {
         let (sender, channel) = calloop::channel::channel::<Timeout>();
         let handle = std::thread::spawn(|| {
             let mut eventloop: calloop::EventLoop<()> =

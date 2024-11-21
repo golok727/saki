@@ -21,57 +21,45 @@ pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopPro
     Mutex::new(None);
 
 type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
-type FrameCallback = Box<dyn Fn(&mut AppContext) + 'static>;
 type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
 
-pub struct App(Option<Rc<RefCell<AppContext>>>);
-
-
-fn run_app<F>(cx: Rc<RefCell<AppContext>>, init_fn: F) 
-    where
-        F: FnOnce(&mut AppContext) + 'static,
-{
-    let mut app = &mut *cx.borrow_mut();
-    app.init_callback = Some(Box::new(init_fn)); 
-
-    let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
-        .build()
-        .expect("error creating event_loop.");
-
-    let proxy = event_loop.create_proxy();
-
-    *EVENT_LOOP_PROXY.lock() = Some(proxy);
-
-    if let Err(err) = event_loop.run_app(&mut app) {
-        println!("Error running app: Error: {}", err);
-    } else {
-        EVENT_LOOP_PROXY.lock().take();
-    };
-}
+pub struct App(Rc<RefCell<AppContext>>);
 
 impl App {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self(Some(AppContext::new()))
+        Self(AppContext::new())
     }
 
     pub fn run<F>(&mut self, f: F)
     where
         F: FnOnce(&mut AppContext) + 'static,
     {
-        if let Some(cx) = self.0.take() {
-            run_app(cx, f);
-
+        {
+            let app = &mut *self.0.borrow_mut();
+            app.init_callback = Some(Box::new(f));
         }
+
+        let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
+            .build()
+            .expect("error creating event_loop.");
+
+        let proxy = event_loop.create_proxy();
+
+        *EVENT_LOOP_PROXY.lock() = Some(proxy);
+
+        if let Err(err) = event_loop.run_app(self) {
+            println!("Error running app: Error: {}", err);
+        } else {
+            EVENT_LOOP_PROXY.lock().take();
+        };
     }
 }
 
-
 pub struct AppContext {
-    pub(crate) this: Weak<RefCell<Self>>, 
+    pub(crate) this: Weak<RefCell<Self>>,
 
     pub(self) init_callback: Option<InitCallback>,
-    frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
 
     pub(crate) jobs: Jobs,
 
@@ -82,7 +70,7 @@ pub struct AppContext {
     app_events: RefCell<Vec<AppUpdateUserEvent>>,
     windows: HashMap<WindowId, Window>,
     // pub for now
-    pub gpu: Arc<GpuContext>,
+    pub(crate) gpu: Arc<GpuContext>,
 }
 
 impl AppContext {
@@ -96,7 +84,7 @@ impl AppContext {
 
         Rc::new_cyclic(|this| {
             RefCell::new(Self {
-                this: this.clone(), 
+                this: this.clone(),
                 init_callback: None,
 
                 app_events: Default::default(),
@@ -106,13 +94,11 @@ impl AppContext {
                 flushing_effects: false,
                 effects: VecDeque::new(),
 
-                frame_callbacks: Rc::new(RefCell::new(Vec::new())),
-
                 jobs,
 
                 windows: HashMap::new(),
                 gpu: Arc::new(gpu),
-            })            
+            })
         })
     }
 
@@ -173,29 +159,24 @@ impl AppContext {
         })
     }
 
-    pub fn on_next_frame<F>(&mut self, f: F)
-    where
-        F: Fn(&mut AppContext) + 'static,
-    {
-        RefCell::borrow_mut(&self.frame_callbacks).push(Box::new(f))
-    }
-
     pub fn change_bg(&mut self, window_id: WindowId, color: (f64, f64, f64)) {
         self.update(|app| {
-            app.push_app_event(AppUpdateUserEvent::ChangeWindowBg { window_id, color  }); 
+            app.push_app_event(AppUpdateUserEvent::ChangeWindowBg { window_id, color });
         })
     }
 
     pub fn set_timeout(&self, f: impl FnOnce(&mut Self) + 'static, timeout: std::time::Duration) {
-        let jobs = self.jobs.clone(); 
-        let this = self.this.clone(); 
+        let jobs = self.jobs.clone();
+        let this = self.this.clone();
 
-        self.jobs.spawn_local(async move {
-            jobs.timer(timeout).await; 
-            let app = this.upgrade().expect("app was released"); 
-            let mut app = app.borrow_mut(); 
-            f(&mut app)
-        }).detach();
+        self.jobs
+            .spawn_local(async move {
+                jobs.timer(timeout).await;
+                let app = this.upgrade().expect("app was released");
+                let mut app = app.borrow_mut();
+                f(&mut app)
+            })
+            .detach();
     }
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
@@ -235,7 +216,7 @@ impl AppContext {
                 }
                 AppUpdateUserEvent::ChangeWindowBg { window_id, color } => {
                     if let Some(window) = self.windows.get_mut(&window_id) {
-                        window.set_bg_color(color.0, color.1, color.2); 
+                        window.set_bg_color(color.0, color.1, color.2);
                     }
                 }
                 _ => todo!(),
@@ -274,10 +255,12 @@ impl AppContext {
             f(proxy)
         }
     }
-}
 
-impl ApplicationHandler<UserEvent> for AppContext {
-    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
+    fn handle_user_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        event: UserEvent,
+    ) {
         self.pending_user_events.remove(&event);
 
         match event {
@@ -290,21 +273,7 @@ impl ApplicationHandler<UserEvent> for AppContext {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        self.jobs.run_foregound_tasks();
-    }
-
-    fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::info!("Initializing...");
-
-        if let Some(cb) = self.init_callback.take() {
-            cb(self);
-        }
-
-        log::info!("Initialized!");
-    }
-
-    fn window_event(
+    fn handle_window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
@@ -318,10 +287,6 @@ impl ApplicationHandler<UserEvent> for AppContext {
                 window.handle_resize(width, height);
             }
             WindowEvent::RedrawRequested => {
-                let callbacks = self.frame_callbacks.clone();
-                for callback in callbacks.take() {
-                    callback(self);
-                }
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
                 window.paint();
             }
@@ -345,8 +310,49 @@ impl ApplicationHandler<UserEvent> for AppContext {
             }
         }
     }
+
+    fn handle_on_resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        log::info!("Initializing...");
+
+        if let Some(cb) = self.init_callback.take() {
+            cb(self);
+        }
+
+        log::info!("Initialized!");
+    }
+
+    fn handle_about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.jobs.run_foregound_tasks();
+    }
 }
 
+impl ApplicationHandler<UserEvent> for App {
+    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
+        let mut lock = self.0.borrow_mut(); 
+        lock.handle_user_event(event_loop, event);
+    }
+
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let mut lock = self.0.borrow_mut(); 
+        lock.handle_about_to_wait(event_loop); 
+    }
+
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let mut lock = self.0.borrow_mut(); 
+        lock.handle_on_resumed(event_loop);
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+
+    ) {
+        let mut lock = self.0.borrow_mut(); 
+        lock.handle_window_event(event_loop, window_id, event)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UserEvent {
@@ -360,9 +366,9 @@ pub(crate) enum AppUpdateUserEvent {
         callback: OpenWindowCallback,
     },
     ChangeWindowBg {
-        window_id: WindowId, 
-        color: (f64,f64,f64)
-    }, 
+        window_id: WindowId,
+        color: (f64, f64, f64),
+    },
     #[allow(unused)]
     Other,
 }
