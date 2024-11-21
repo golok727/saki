@@ -1,12 +1,8 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 pub mod context;
 pub use context::AppContext;
 
 use crate::window::{WindowContext, WindowId, WindowSpecification};
 
-use winit::application::ApplicationHandler;
 use winit::event_loop::EventLoop;
 
 use parking_lot::Mutex;
@@ -17,7 +13,7 @@ pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopPro
 pub type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
 pub type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
 
-pub struct App(Rc<RefCell<AppContext>>);
+pub struct App(AppContext);
 
 impl App {
     #[allow(clippy::new_without_default)]
@@ -29,10 +25,7 @@ impl App {
     where
         F: FnOnce(&mut AppContext) + 'static,
     {
-        {
-            let app = &mut *self.0.borrow_mut();
-            app.init_callback = Some(Box::new(f));
-        }
+        self.0.init_callback = Some(Box::new(f));
 
         let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
             .build()
@@ -44,38 +37,11 @@ impl App {
 
         *EVENT_LOOP_PROXY.lock() = Some(proxy);
 
-        if let Err(err) = event_loop.run_app(self) {
+        if let Err(err) = event_loop.run_app(&mut self.0) {
             println!("Error running app: Error: {}", err);
         } else {
             EVENT_LOOP_PROXY.lock().take();
         };
-    }
-}
-
-impl ApplicationHandler<UserEvent> for App {
-    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
-        let mut lock = self.0.borrow_mut();
-        lock.handle_user_event(event_loop, event);
-    }
-
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let mut lock = self.0.borrow_mut();
-        lock.handle_about_to_wait(event_loop);
-    }
-
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let mut lock = self.0.borrow_mut();
-        lock.handle_on_resumed(event_loop);
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
-        let mut lock = self.0.borrow_mut();
-        lock.handle_window_event(event_loop, window_id, event)
     }
 }
 

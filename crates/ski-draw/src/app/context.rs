@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 
-
 use crate::gpu::GpuContext;
 use crate::jobs::Jobs;
 use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 
+use winit::application::ApplicationHandler;
 use winit::{
     event::{KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
@@ -16,17 +16,16 @@ use winit::{
 
 use super::{AppUpdateUserEvent, Effect, InitCallback, UserEvent, EVENT_LOOP_PROXY};
 
-
 pub struct AppContext {
     pub(super) init_callback: Option<InitCallback>,
-    
+
     pub(crate) jobs: Jobs,
 
     pending_user_events: HashSet<UserEvent>,
     pending_updates: usize,
     flushing_effects: bool,
     effects: VecDeque<Effect>,
-    app_events: RefCell<Vec<AppUpdateUserEvent>>,
+    app_events: Rc<RefCell<Vec<AppUpdateUserEvent>>>,
     windows: HashMap<WindowId, Window>,
     // pub for now
     pub(crate) gpu: Arc<GpuContext>,
@@ -34,31 +33,28 @@ pub struct AppContext {
 
 impl AppContext {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Rc<RefCell<Self>> {
+    pub fn new() -> Self {
         // TODO handle error
         let gpu = pollster::block_on(GpuContext::new()).unwrap();
 
         // FIXME
         let jobs = Jobs::new(Some(7));
-        
-        Rc::new( 
-            RefCell::new(Self {
-                init_callback: None,
 
-                app_events: Default::default(),
-                pending_user_events: HashSet::new(),
+        Self {
+            init_callback: None,
 
-                pending_updates: 0,
-                flushing_effects: false,
-                effects: VecDeque::new(),
+            app_events: Default::default(),
+            pending_user_events: HashSet::new(),
 
-                jobs,
+            pending_updates: 0,
+            flushing_effects: false,
+            effects: VecDeque::new(),
 
-                windows: HashMap::new(),
-                gpu: Arc::new(gpu),
-                }
-            )
-        )
+            jobs,
+
+            windows: HashMap::new(),
+            gpu: Arc::new(gpu),
+        }
     }
 
     pub fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
@@ -118,29 +114,33 @@ impl AppContext {
         })
     }
 
+    // todo will be removed
     pub fn change_bg(&mut self, window_id: WindowId, color: (f64, f64, f64)) {
         self.update(|app| {
             app.push_app_event(AppUpdateUserEvent::ChangeWindowBg { window_id, color });
         })
     }
 
-    pub fn set_timeout(&mut self, f: impl FnOnce(&mut Self) + 'static, timeout: std::time::Duration) {
-        
-            let jobs = self.jobs.clone();
+    pub fn set_timeout(
+        &mut self,
+        f: impl FnOnce(&mut Self) + 'static,
+        timeout: std::time::Duration,
+    ) {
+        let jobs = self.jobs.clone();
 
-            // FIXME IMPORTANT !!!!!!!!!!!!!!!!!!
-            RefCell::borrow_mut(&self.app_events).push(AppUpdateUserEvent::AppContextCallback { callback: Box::new(f) });
-            self.effects.push_back(Effect::UserEvent(UserEvent::AppUpdate));
-            
-            self.jobs
-                .spawn_local(async move {
-                    jobs.timer(timeout).await;
-                    AppContext::use_proxy(|proxy| {
-                                let _ = proxy.send_event(UserEvent::AppUpdate); 
-                    })
+        // FIXME IMPORTANT !!!!!!!!!!!!!!!!!!
+        let events = Rc::clone(&self.app_events); 
+        self.jobs
+            .spawn_local(async move {
+                jobs.timer(timeout).await;
+                RefCell::borrow_mut(&events).push(AppUpdateUserEvent::AppContextCallback {
+                    callback: Box::new(f),
+                });
+                AppContext::use_proxy(|proxy| {
+                    let _ = proxy.send_event(UserEvent::AppUpdate);
                 })
-                .detach();
-        
+            })
+            .detach();
     }
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
@@ -183,9 +183,7 @@ impl AppContext {
                         window.set_bg_color(color.0, color.1, color.2);
                     }
                 }
-                AppUpdateUserEvent::AppContextCallback { callback } => {
-                    callback(self)
-                }
+                AppUpdateUserEvent::AppContextCallback { callback } => callback(self),
                 _ => todo!(),
             }
         }
@@ -222,12 +220,10 @@ impl AppContext {
             f(proxy)
         }
     }
+}
 
-    pub(super) fn handle_user_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        event: UserEvent,
-    ) {
+impl ApplicationHandler<UserEvent> for AppContext {
+    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
         self.pending_user_events.remove(&event);
 
         match event {
@@ -240,7 +236,7 @@ impl AppContext {
         }
     }
 
-    pub(super) fn  handle_window_event(
+    fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
@@ -278,7 +274,7 @@ impl AppContext {
         }
     }
 
-    pub(super) fn handle_on_resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         log::info!("Initializing...");
 
         if let Some(cb) = self.init_callback.take() {
@@ -288,8 +284,7 @@ impl AppContext {
         log::info!("Initialized!");
     }
 
-    pub(super) fn handle_about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         self.jobs.run_foregound_tasks();
     }
 }
-
