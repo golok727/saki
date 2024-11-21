@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
 use crate::gpu::GpuContext;
+use crate::jobs::Jobs;
 use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 
@@ -23,47 +24,56 @@ type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
 type FrameCallback = Box<dyn Fn(&mut AppContext) + 'static>;
 type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
 
-pub struct App(Rc<RefCell<AppContext>>);
+pub struct App(Option<Rc<RefCell<AppContext>>>);
+
+
+fn run_app<F>(cx: Rc<RefCell<AppContext>>, init_fn: F) 
+    where
+        F: FnOnce(&mut AppContext) + 'static,
+{
+    let mut app = &mut *cx.borrow_mut();
+    app.init_callback = Some(Box::new(init_fn)); 
+
+    let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
+        .build()
+        .expect("error creating event_loop.");
+
+    let proxy = event_loop.create_proxy();
+
+    *EVENT_LOOP_PROXY.lock() = Some(proxy);
+
+    if let Err(err) = event_loop.run_app(&mut app) {
+        println!("Error running app: Error: {}", err);
+    } else {
+        EVENT_LOOP_PROXY.lock().take();
+    };
+}
 
 impl App {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self(AppContext::new())
+        Self(Some(AppContext::new()))
     }
 
     pub fn run<F>(&mut self, f: F)
     where
         F: FnOnce(&mut AppContext) + 'static,
     {
-        self.0.borrow_mut().run(f);
+        if let Some(cx) = self.0.take() {
+            run_app(cx, f);
+
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UserEvent {
-    AppUpdate,
-    Quit,
-}
-
-pub(crate) enum AppUpdateUserEvent {
-    CreateWindow {
-        specs: WindowSpecification,
-        callback: OpenWindowCallback,
-    },
-    #[allow(unused)]
-    Other,
-}
-
-pub(crate) enum Effect {
-    UserEvent(UserEvent),
-
-    #[allow(unused)]
-    Other,
-}
 
 pub struct AppContext {
-    init_callback: Option<InitCallback>,
+    pub(crate) this: Weak<RefCell<Self>>, 
+
+    pub(self) init_callback: Option<InitCallback>,
     frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
+
+    pub(crate) jobs: Jobs,
 
     pending_user_events: HashSet<UserEvent>,
     pending_updates: usize,
@@ -81,25 +91,29 @@ impl AppContext {
         // TODO handle error
         let gpu = pollster::block_on(GpuContext::new()).unwrap();
 
-        Rc::new(RefCell::new(Self {
-            init_callback: None,
+        // FIXME
+        let jobs = Jobs::new(Some(7));
 
-            app_events: Default::default(),
-            pending_user_events: HashSet::new(),
+        Rc::new_cyclic(|this| {
+            RefCell::new(Self {
+                this: this.clone(), 
+                init_callback: None,
 
-            pending_updates: 0,
-            flushing_effects: false,
-            effects: VecDeque::new(),
+                app_events: Default::default(),
+                pending_user_events: HashSet::new(),
 
-            frame_callbacks: Rc::new(RefCell::new(Vec::new())),
+                pending_updates: 0,
+                flushing_effects: false,
+                effects: VecDeque::new(),
 
-            windows: HashMap::new(),
-            gpu: Arc::new(gpu),
-        }))
-    }
+                frame_callbacks: Rc::new(RefCell::new(Vec::new())),
 
-    pub fn gpu(&self) -> &Arc<GpuContext> {
-        &self.gpu
+                jobs,
+
+                windows: HashMap::new(),
+                gpu: Arc::new(gpu),
+            })            
+        })
     }
 
     pub fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
@@ -166,6 +180,24 @@ impl AppContext {
         RefCell::borrow_mut(&self.frame_callbacks).push(Box::new(f))
     }
 
+    pub fn change_bg(&mut self, window_id: WindowId, color: (f64, f64, f64)) {
+        self.update(|app| {
+            app.push_app_event(AppUpdateUserEvent::ChangeWindowBg { window_id, color  }); 
+        })
+    }
+
+    pub fn set_timeout(&self, f: impl FnOnce(&mut Self) + 'static, timeout: std::time::Duration) {
+        let jobs = self.jobs.clone(); 
+        let this = self.this.clone(); 
+
+        self.jobs.spawn_local(async move {
+            jobs.timer(timeout).await; 
+            let app = this.upgrade().expect("app was released"); 
+            let mut app = app.borrow_mut(); 
+            f(&mut app)
+        }).detach();
+    }
+
     pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
     where
         F: Fn(&mut WindowContext) + 'static,
@@ -174,7 +206,7 @@ impl AppContext {
     }
 
     #[inline]
-    pub(crate) fn request_create_window<F>(&mut self, specs: WindowSpecification, f: F)
+    fn request_create_window<F>(&mut self, specs: WindowSpecification, f: F)
     where
         F: Fn(&mut WindowContext) + 'static,
     {
@@ -195,31 +227,16 @@ impl AppContext {
         Ok((window_id, window))
     }
 
-    pub fn run<F>(&mut self, f: F)
-    where
-        F: FnOnce(&mut AppContext) + 'static,
-    {
-        self.init_callback = Some(Box::new(f));
-        let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
-            .build()
-            .expect("error creating event_loop.");
-
-        let proxy = event_loop.create_proxy();
-
-        *EVENT_LOOP_PROXY.lock() = Some(proxy);
-
-        if let Err(err) = event_loop.run_app(self) {
-            println!("Error running app: Error: {}", err);
-        } else {
-            EVENT_LOOP_PROXY.lock().take();
-        };
-    }
-
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for event in self.app_events.take() {
             match event {
                 window_create_event @ AppUpdateUserEvent::CreateWindow { .. } => {
                     self.handle_window_create_event(event_loop, window_create_event);
+                }
+                AppUpdateUserEvent::ChangeWindowBg { window_id, color } => {
+                    if let Some(window) = self.windows.get_mut(&window_id) {
+                        window.set_bg_color(color.0, color.1, color.2); 
+                    }
                 }
                 _ => todo!(),
             }
@@ -273,7 +290,9 @@ impl ApplicationHandler<UserEvent> for AppContext {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.jobs.run_foregound_tasks();
+    }
 
     fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         log::info!("Initializing...");
@@ -281,6 +300,7 @@ impl ApplicationHandler<UserEvent> for AppContext {
         if let Some(cb) = self.init_callback.take() {
             cb(self);
         }
+
         log::info!("Initialized!");
     }
 
@@ -325,4 +345,31 @@ impl ApplicationHandler<UserEvent> for AppContext {
             }
         }
     }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UserEvent {
+    AppUpdate,
+    Quit,
+}
+
+pub(crate) enum AppUpdateUserEvent {
+    CreateWindow {
+        specs: WindowSpecification,
+        callback: OpenWindowCallback,
+    },
+    ChangeWindowBg {
+        window_id: WindowId, 
+        color: (f64,f64,f64)
+    }, 
+    #[allow(unused)]
+    Other,
+}
+
+pub(crate) enum Effect {
+    UserEvent(UserEvent),
+
+    #[allow(unused)]
+    Other,
 }

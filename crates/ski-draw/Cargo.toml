@@ -5,9 +5,12 @@ edition = "2021"
 
 [dependencies]
 pollster.workspace = true
+async-task.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 log.workspace = true
 thiserror.workspace = true
 parking_lot.workspace = true
+flume.workspace = true
+calloop.workspace = true
 bytemuck = "1.20.0"

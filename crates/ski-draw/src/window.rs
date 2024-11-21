@@ -93,6 +93,7 @@ impl Window {
     // for now :)
     pub fn set_bg_color(&mut self, r: f64, g: f64, b: f64) {
         self.bg_color = wgpu::Color { r, g, b, a: 1.0 };
+        self.handle.request_redraw();
     }
 
     #[inline]

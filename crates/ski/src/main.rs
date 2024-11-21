@@ -18,6 +18,16 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
+            let window_id = cx.window.id();
+
+            cx.app.set_timeout(
+                move |app| {
+                    log::info!("timeout called");
+                    app.change_bg(window_id, (1.0, 1.0, 1.0));
+                },
+                std::time::Duration::from_secs(5),
+            );
+
             cx.window.set_bg_color(0.01, 0.01, 0.01);
         });
     });
