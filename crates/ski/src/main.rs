@@ -28,6 +28,22 @@ fn main() {
                 std::time::Duration::from_secs(5),
             );
 
+            cx.app.set_timeout(
+                move |app| {
+                    log::info!("timeout called");
+                    app.change_bg(window_id, (0.0, 1.0, 1.0));
+                },
+                std::time::Duration::from_secs(10),
+            );
+
+            cx.app.set_timeout(
+                move |app| {
+                    log::info!("timeout called");
+                    app.change_bg(window_id, (1.0, 1.0, 0.0));
+                },
+                std::time::Duration::from_secs(15),
+            );
+
             cx.window.set_bg_color(0.01, 0.01, 0.01);
         });
     });
