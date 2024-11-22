@@ -18,27 +18,21 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
-            let window_id = cx.window.id();
-            cx.app
-                .open_window(window_specs.clone().with_size(800, 600), move |cx| {
-                    cx.window.set_bg_color(0.0, 1.0, 1.0);
-                });
-
-            cx.app.set_timeout(
+            cx.set_timeout(
                 move |cx| {
-                    cx.change_bg(window_id, (1.0, 1.0, 1.0));
+                    cx.window.set_bg_color(1.0, 1.0, 1.0);
                 },
-                std::time::Duration::from_secs(3),
+                std::time::Duration::from_secs(2),
             );
 
-            cx.app.set_timeout(
-                move |cx| cx.change_bg(window_id, (1.0, 1.0, 0.0)),
-                std::time::Duration::from_secs(5),
+            cx.set_timeout(
+                move |cx| cx.window.set_bg_color(1.0, 1.0, 0.0),
+                std::time::Duration::from_secs(4),
             );
 
-            cx.app.set_timeout(
-                move |cx| cx.change_bg(window_id, (0.01, 0.01, 0.01)),
-                std::time::Duration::from_secs(7),
+            cx.set_timeout(
+                move |cx| cx.window.set_bg_color(0.01, 0.01, 0.01),
+                std::time::Duration::from_secs(6),
             );
 
             cx.window.set_bg_color(0.01, 0.01, 0.01);

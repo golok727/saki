@@ -7,11 +7,6 @@ use crate::window::{WindowContext, WindowId, WindowSpecification};
 
 use winit::event_loop::EventLoop;
 
-use parking_lot::Mutex;
-
-pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopProxy<AppAction>>> =
-    Mutex::new(None);
-
 pub type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
 pub type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
 
@@ -37,12 +32,12 @@ impl App {
 
         let proxy = event_loop.create_proxy();
 
-        *EVENT_LOOP_PROXY.lock() = Some(proxy);
+        self.0.app_events.init(proxy.clone());
 
         if let Err(err) = event_loop.run_app(&mut self.0) {
             println!("Error running app: Error: {}", err);
         } else {
-            EVENT_LOOP_PROXY.lock().take();
+            self.0.app_events.dispose();
         };
     }
 }
@@ -58,12 +53,12 @@ pub(crate) enum AppUpdateEvent {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
     },
-    ChangeWindowBg {
-        window_id: WindowId,
-        color: (f64, f64, f64),
-    },
     AppContextCallback {
         callback: Box<dyn FnOnce(&mut AppContext) + 'static>,
+    },
+    WindowContextCallback {
+        callback: Box<dyn FnOnce(&mut WindowContext) + 'static>,
+        window_id: WindowId,
     },
 }
 

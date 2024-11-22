@@ -112,12 +112,11 @@ impl Window {
 
     pub(crate) fn paint(&mut self) {
         let surface_texture = self.surface.surface.get_current_texture().unwrap();
+
         self.renderer
             .render_to_texture(self.bg_color, &surface_texture.texture);
 
         surface_texture.present();
-
-        log::info!("Painting");
     }
 }
 
@@ -138,11 +137,23 @@ impl<'a> WindowContext<'a> {
         self.app.open_window(specs, f)
     }
 
-    pub fn set_timeout(
-        &mut self,
-        f: impl FnOnce(&mut Self) + 'static,
-        timeout: std::time::Duration,
-    ) {
+    pub fn set_timeout<F>(&mut self, f: F, timeout: std::time::Duration)
+    where
+        F: FnOnce(&mut WindowContext) + 'static,
+    {
+        let window_id = self.window.id();
+
+        self.app.set_timeout(
+            move |app| {
+                app.update(|app| {
+                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
+                        callback: Box::new(f),
+                        window_id,
+                    });
+                })
+            },
+            timeout,
+        );
     }
 
     pub fn change_bg() {}

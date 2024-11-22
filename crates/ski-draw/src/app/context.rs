@@ -1,7 +1,5 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::gpu::GpuContext;
@@ -15,7 +13,8 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use super::{AppAction, AppUpdateEvent, Effect, InitCallback, OpenWindowCallback, EVENT_LOOP_PROXY};
+use super::events::AppEvents;
+use super::{AppAction, AppUpdateEvent, Effect, InitCallback, OpenWindowCallback};
 
 
 pub struct AppContext {
@@ -27,7 +26,8 @@ pub struct AppContext {
     flushing_effects: bool,
     pending_user_events: HashSet<AppAction>,
     effects: VecDeque<Effect>,
-    app_events: Rc<RefCell<Vec<AppUpdateEvent>>>,
+
+    pub(crate) app_events: AppEvents,
 
     windows: HashMap<WindowId, Window>,
     pub(crate) gpu: Arc<GpuContext>,
@@ -46,9 +46,8 @@ impl AppContext {
         Self {
             init_callback: None,
 
-            app_events: Default::default(),
+            app_events: AppEvents::default(),
             pending_user_events: HashSet::new(),
-
             pending_updates: 0,
             flushing_effects: false,
             effects: VecDeque::new(),
@@ -79,7 +78,6 @@ impl AppContext {
                     return;
                 }
             }
-            _ => unimplemented!(),
         }
 
         self.effects.push_back(effect);
@@ -90,24 +88,15 @@ impl AppContext {
 
         while let Some(effect) = self.effects.pop_front() {
             match effect {
-                Effect::UserEvent(event) => self.notify_user_event(event),
-                _ => unimplemented!(),
+                Effect::UserEvent(event) => self.app_events.notify(event),
             }
         }
 
         self.flushing_effects = false;
     }
 
-    fn notify_user_event(&self, event: AppAction) {
-        AppContext::use_proxy(|proxy| {
-            if let Err(error) = proxy.send_event(event) {
-                log::error!("Error sending: {}", &error)
-            }
-        });
-    }
-
     pub(crate) fn push_app_event(&mut self, event: AppUpdateEvent) {
-        RefCell::borrow_mut(&self.app_events).push(event);
+        self.app_events.push_event(event); 
         self.push_effect(Effect::UserEvent(AppAction::AppUpdate))
     }
 
@@ -116,14 +105,6 @@ impl AppContext {
             app.push_effect(Effect::UserEvent(AppAction::Quit));
         })
     }
-
-    // todo will be removed
-    pub fn change_bg(&mut self, window_id: WindowId, color: (f64, f64, f64)) {
-        self.update(|app| {
-            app.push_app_event(AppUpdateEvent::ChangeWindowBg { window_id, color });
-        })
-    }
-
 
     pub fn spawn<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
     where
@@ -143,17 +124,15 @@ impl AppContext {
         timeout: std::time::Duration,
     ) {
         let jobs = self.jobs.clone();
-        let events = Rc::clone(&self.app_events); 
+        let events = self.app_events.clone(); 
 
         self.
             spawn(async move {
                 jobs.timer(timeout).await;
-                RefCell::borrow_mut(&events).push(AppUpdateEvent::AppContextCallback {
+                events.push_event(AppUpdateEvent::AppContextCallback {
                     callback: Box::new(f),
                 });
-                AppContext::use_proxy(|proxy| {
-                    let _ = proxy.send_event(AppAction::AppUpdate);
-                })
+                events.notify(AppAction::AppUpdate); 
             })
             .detach();
     }
@@ -188,17 +167,20 @@ impl AppContext {
     }
 
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        for event in self.app_events.take() {
+        for event in self.app_events.drain() {
             match event {
                  AppUpdateEvent::CreateWindow { specs, callback } => {
                     self.handle_window_create_event(event_loop, specs, callback);
                 }
-                AppUpdateEvent::ChangeWindowBg { window_id, color } => {
-                    if let Some(window) = self.windows.get_mut(&window_id) {
-                        window.set_bg_color(color.0, color.1, color.2);
+                AppUpdateEvent::AppContextCallback { callback } => callback(self),
+                AppUpdateEvent::WindowContextCallback { callback, window_id } => {
+                    let window = self.windows.remove(&window_id); 
+                    if let Some(mut window) = window {
+                        let mut cx = WindowContext::new(self, &mut window); 
+                        callback(&mut cx); 
+                        self.windows.insert(window.id(), window); 
                     }
                 }
-                AppUpdateEvent::AppContextCallback { callback } => callback(self),
             }
         }
     }
@@ -221,15 +203,6 @@ impl AppContext {
             log::error!("Error creating window")
         }
     }
-
-    pub(crate) fn use_proxy<F>(f: F)
-    where
-        F: FnOnce(&winit::event_loop::EventLoopProxy<AppAction>),
-    {
-        if let Some(proxy) = EVENT_LOOP_PROXY.lock().as_ref() {
-            f(proxy)
-        }
-    }
 }
 
 impl ApplicationHandler<AppAction> for AppContext {
@@ -240,7 +213,7 @@ impl ApplicationHandler<AppAction> for AppContext {
             AppAction::AppUpdate => self.handle_app_update_event(event_loop),
             AppAction::Quit => {
                 event_loop.exit();
-                EVENT_LOOP_PROXY.lock().take();
+                self.app_events.dispose(); 
                 log::info!("Bye!");
             }
         }
@@ -248,7 +221,7 @@ impl ApplicationHandler<AppAction> for AppContext {
 
     fn window_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
@@ -272,9 +245,8 @@ impl ApplicationHandler<AppAction> for AppContext {
                     },
                 ..
             } => {
-                // TODO close child windows
                 self.windows.remove(&window_id);
-                if self.windows.is_empty() && !event_loop.exiting() {
+                if self.windows.is_empty() {
                     self.quit();
                 }
             }

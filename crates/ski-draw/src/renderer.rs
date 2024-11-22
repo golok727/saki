@@ -150,6 +150,6 @@ impl Renderer {
 
         gpu.queue.submit(std::iter::once(encoder.finish()));
 
-        log::info!("Render Complete!");
+        log::trace!("Render Complete!");
     }
 }

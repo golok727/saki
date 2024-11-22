@@ -19,4 +19,9 @@ pub struct Quad {
     pub y: f32,
     pub height: u32,
     pub width: u32,
+    pub color: wgpu::Color,
+}
+
+impl Quad {
+    pub fn get_data(&self) {}
 }
