@@ -1,13 +1,15 @@
 pub mod context;
 pub use context::AppContext;
 
+pub(crate) mod events;
+
 use crate::window::{WindowContext, WindowId, WindowSpecification};
 
 use winit::event_loop::EventLoop;
 
 use parking_lot::Mutex;
 
-pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopProxy<UserEvent>>> =
+pub(crate) static EVENT_LOOP_PROXY: Mutex<Option<winit::event_loop::EventLoopProxy<AppAction>>> =
     Mutex::new(None);
 
 pub type InitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
@@ -27,7 +29,7 @@ impl App {
     {
         self.0.init_callback = Some(Box::new(f));
 
-        let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event()
+        let event_loop: EventLoop<AppAction> = EventLoop::with_user_event()
             .build()
             .expect("error creating event_loop.");
 
@@ -46,12 +48,12 @@ impl App {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UserEvent {
+pub enum AppAction {
     AppUpdate,
     Quit,
 }
 
-pub(crate) enum AppUpdateUserEvent {
+pub(crate) enum AppUpdateEvent {
     CreateWindow {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
@@ -63,13 +65,8 @@ pub(crate) enum AppUpdateUserEvent {
     AppContextCallback {
         callback: Box<dyn FnOnce(&mut AppContext) + 'static>,
     },
-    #[allow(unused)]
-    Other,
 }
 
 pub(crate) enum Effect {
-    UserEvent(UserEvent),
-
-    #[allow(unused)]
-    Other,
+    UserEvent(AppAction),
 }

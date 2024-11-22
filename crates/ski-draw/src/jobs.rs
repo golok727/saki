@@ -7,16 +7,9 @@ pub struct Timeout {
     runnable: Runnable,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Jobs {
     dispatcher: Arc<Dispatcher>,
-}
-
-impl Clone for Jobs {
-    fn clone(&self) -> Self {
-        let dispatcher = Arc::clone(&self.dispatcher);
-        Self { dispatcher }
-    }
 }
 
 impl Jobs {

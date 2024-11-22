@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use super::events::AppEvents; 
+
 use crate::gpu::GpuContext;
 use crate::jobs::Jobs;
 use crate::window::error::CreateWindowError;
@@ -14,22 +16,24 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use super::{AppUpdateUserEvent, Effect, InitCallback, UserEvent, EVENT_LOOP_PROXY};
+use super::{AppAction, AppUpdateEvent, Effect, InitCallback, OpenWindowCallback, EVENT_LOOP_PROXY};
+
 
 pub struct AppContext {
     pub(super) init_callback: Option<InitCallback>,
 
     pub(crate) jobs: Jobs,
 
-    pending_user_events: HashSet<UserEvent>,
     pending_updates: usize,
     flushing_effects: bool,
+    pending_user_events: HashSet<AppAction>,
     effects: VecDeque<Effect>,
-    app_events: Rc<RefCell<Vec<AppUpdateUserEvent>>>,
+    app_events: Rc<RefCell<Vec<AppUpdateEvent>>>,
+
     windows: HashMap<WindowId, Window>,
-    // pub for now
     pub(crate) gpu: Arc<GpuContext>,
 }
+
 
 impl AppContext {
     #[allow(clippy::new_without_default)]
@@ -95,7 +99,7 @@ impl AppContext {
         self.flushing_effects = false;
     }
 
-    fn notify_user_event(&self, event: UserEvent) {
+    fn notify_user_event(&self, event: AppAction) {
         AppContext::use_proxy(|proxy| {
             if let Err(error) = proxy.send_event(event) {
                 log::error!("Error sending: {}", &error)
@@ -103,21 +107,21 @@ impl AppContext {
         });
     }
 
-    pub(crate) fn push_app_event(&mut self, event: AppUpdateUserEvent) {
+    pub(crate) fn push_app_event(&mut self, event: AppUpdateEvent) {
         RefCell::borrow_mut(&self.app_events).push(event);
-        self.push_effect(Effect::UserEvent(UserEvent::AppUpdate))
+        self.push_effect(Effect::UserEvent(AppAction::AppUpdate))
     }
 
     pub fn quit(&mut self) {
         self.update(|app| {
-            app.push_effect(Effect::UserEvent(UserEvent::Quit));
+            app.push_effect(Effect::UserEvent(AppAction::Quit));
         })
     }
 
     // todo will be removed
     pub fn change_bg(&mut self, window_id: WindowId, color: (f64, f64, f64)) {
         self.update(|app| {
-            app.push_app_event(AppUpdateUserEvent::ChangeWindowBg { window_id, color });
+            app.push_app_event(AppUpdateEvent::ChangeWindowBg { window_id, color });
         })
     }
 
@@ -127,17 +131,15 @@ impl AppContext {
         timeout: std::time::Duration,
     ) {
         let jobs = self.jobs.clone();
-
-        // FIXME IMPORTANT !!!!!!!!!!!!!!!!!!
         let events = Rc::clone(&self.app_events); 
         self.jobs
             .spawn_local(async move {
                 jobs.timer(timeout).await;
-                RefCell::borrow_mut(&events).push(AppUpdateUserEvent::AppContextCallback {
+                RefCell::borrow_mut(&events).push(AppUpdateEvent::AppContextCallback {
                     callback: Box::new(f),
                 });
                 AppContext::use_proxy(|proxy| {
-                    let _ = proxy.send_event(UserEvent::AppUpdate);
+                    let _ = proxy.send_event(AppAction::AppUpdate);
                 })
             })
             .detach();
@@ -155,7 +157,7 @@ impl AppContext {
     where
         F: Fn(&mut WindowContext) + 'static,
     {
-        self.push_app_event(AppUpdateUserEvent::CreateWindow {
+        self.push_app_event(AppUpdateEvent::CreateWindow {
             specs,
             callback: Box::new(f),
         })
@@ -175,16 +177,15 @@ impl AppContext {
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for event in self.app_events.take() {
             match event {
-                window_create_event @ AppUpdateUserEvent::CreateWindow { .. } => {
-                    self.handle_window_create_event(event_loop, window_create_event);
+                 AppUpdateEvent::CreateWindow { specs, callback } => {
+                    self.handle_window_create_event(event_loop, specs, callback);
                 }
-                AppUpdateUserEvent::ChangeWindowBg { window_id, color } => {
+                AppUpdateEvent::ChangeWindowBg { window_id, color } => {
                     if let Some(window) = self.windows.get_mut(&window_id) {
                         window.set_bg_color(color.0, color.1, color.2);
                     }
                 }
-                AppUpdateUserEvent::AppContextCallback { callback } => callback(self),
-                _ => todo!(),
+                AppUpdateEvent::AppContextCallback { callback } => callback(self),
             }
         }
     }
@@ -193,28 +194,24 @@ impl AppContext {
     fn handle_window_create_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        window_create_event: AppUpdateUserEvent,
+        specs: WindowSpecification, 
+        callback: OpenWindowCallback, 
     ) {
-        match window_create_event {
-            AppUpdateUserEvent::CreateWindow { specs, callback } => {
-                log::info!("Creating window. \n Spec: {:#?}", &specs);
-                if let Ok((id, mut window)) = self.create_window(&specs, event_loop) {
-                    let mut context = WindowContext::new(self, &mut window);
+        log::info!("Creating window. \n Spec: {:#?}", &specs);
+        if let Ok((id, mut window)) = self.create_window(&specs, event_loop) {
+            let mut context = WindowContext::new(self, &mut window);
 
-                    callback(&mut context);
+            callback(&mut context);
 
-                    let _ = self.windows.insert(id, window);
-                } else {
-                    log::error!("Error creating window")
-                }
-            }
-            _ => unreachable!(),
+            let _ = self.windows.insert(id, window);
+        } else {
+            log::error!("Error creating window")
         }
     }
 
     pub(crate) fn use_proxy<F>(f: F)
     where
-        F: FnOnce(&winit::event_loop::EventLoopProxy<UserEvent>),
+        F: FnOnce(&winit::event_loop::EventLoopProxy<AppAction>),
     {
         if let Some(proxy) = EVENT_LOOP_PROXY.lock().as_ref() {
             f(proxy)
@@ -222,13 +219,13 @@ impl AppContext {
     }
 }
 
-impl ApplicationHandler<UserEvent> for AppContext {
-    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
+impl ApplicationHandler<AppAction> for AppContext {
+    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: AppAction) {
         self.pending_user_events.remove(&event);
 
         match event {
-            UserEvent::AppUpdate => self.handle_app_update_event(event_loop),
-            UserEvent::Quit => {
+            AppAction::AppUpdate => self.handle_app_update_event(event_loop),
+            AppAction::Quit => {
                 event_loop.exit();
                 EVENT_LOOP_PROXY.lock().take();
                 log::info!("Bye!");
@@ -275,13 +272,11 @@ impl ApplicationHandler<UserEvent> for AppContext {
     }
 
     fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::info!("Initializing...");
-
+        log::info!("Initializing App...");
         if let Some(cb) = self.init_callback.take() {
             cb(self);
         }
-
-        log::info!("Initialized!");
+        log::info!("App Initialized!");
     }
 
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
