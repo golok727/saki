@@ -50,16 +50,16 @@ impl GpuContext {
 
         let capabilities = surface.get_capabilities(&self.adapter);
 
-        let surface_format = capabilities
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(capabilities.formats[0]);
+        // let surface_format = capabilities
+        //     .formats
+        //     .iter()
+        //     .find(|f| f.is_srgb())
+        //     .copied()
+        //     .unwrap_or(capabilities.formats[0]);
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
-            format: surface_format,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             width,
             height,
             present_mode: capabilities.present_modes[0],

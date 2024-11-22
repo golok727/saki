@@ -1,7 +1,9 @@
+use bytemuck::{Pod, Zeroable};
+
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Zeroable, Pod)]
 pub struct Mat3 {
-    data: [f64; 9],
+    data: [f32; 9],
 }
 
 impl Mat3 {
@@ -26,38 +28,38 @@ impl Mat3 {
     }
 
     #[inline]
-    pub fn from_scale(sx: f64, sy: f64) -> Self {
+    pub fn from_scale(sx: f32, sy: f32) -> Self {
         let mut mat = Self::new();
         mat.scale(sx, sy);
         mat
     }
 
     #[inline]
-    pub fn from_translation(dx: f64, dy: f64) -> Self {
+    pub fn from_translation(dx: f32, dy: f32) -> Self {
         let mut mat = Self::new();
         mat.translate(dx, dy);
         mat
     }
 
     #[inline]
-    pub fn translate(&mut self, dx: f64, dy: f64) -> &mut Self {
+    pub fn translate(&mut self, dx: f32, dy: f32) -> &mut Self {
         self.data[2] += dx;
         self.data[5] += dy;
         self
     }
 
     #[inline]
-    pub fn translate_x(&mut self, dx: f64) -> &mut Self {
+    pub fn translate_x(&mut self, dx: f32) -> &mut Self {
         self.translate(dx, 0.)
     }
 
     #[inline]
-    pub fn translate_y(&mut self, dy: f64) -> &mut Self {
+    pub fn translate_y(&mut self, dy: f32) -> &mut Self {
         self.translate(0., dy)
     }
 
     #[inline]
-    pub fn scale(&mut self, sx: f64, sy: f64) -> &mut Self {
+    pub fn scale(&mut self, sx: f32, sy: f32) -> &mut Self {
         self.data[0] *= sx;
         self.data[4] *= sy;
 
@@ -71,13 +73,20 @@ impl Mat3 {
     }
 
     #[inline]
-    pub fn scale_x(&mut self, sx: f64) -> &mut Self {
+    pub fn scale_x(&mut self, sx: f32) -> &mut Self {
         self.scale(sx, 1.)
     }
 
     #[inline]
-    pub fn scale_y(&mut self, sy: f64) -> &mut Self {
+    pub fn scale_y(&mut self, sy: f32) -> &mut Self {
         self.scale(1., sy)
+    }
+
+    pub fn transpose(&mut self) -> &mut Self {
+        self.data.swap(1, 3);
+        self.data.swap(2, 6);
+        self.data.swap(5, 7);
+        self
     }
 
     pub fn is_identity(&self) -> bool {
@@ -100,7 +109,7 @@ impl Mat3 {
     /// - `right`: The right coordinate of the orthographic projection
     /// - `bottom`: The bottom coordinate of the orthographic projection
     /// - `top`: The top coordinate of the orthographic projection
-    pub fn ortho(top: f64, left: f64, bottom: f64, right: f64) -> Self {
+    pub fn ortho(top: f32, left: f32, bottom: f32, right: f32) -> Self {
         let width = right - left;
         let height = top - bottom;
 
@@ -160,10 +169,10 @@ impl std::ops::Mul for Mat3 {
 }
 
 // :) we just need a vec2 for or needs!
-impl std::ops::Mul<Vec2<f64>> for Mat3 {
-    type Output = Vec2<f64>;
+impl std::ops::Mul<Vec2<f32>> for Mat3 {
+    type Output = Vec2<f32>;
 
-    fn mul(self, v: Vec2<f64>) -> Self::Output {
+    fn mul(self, v: Vec2<f32>) -> Self::Output {
         let m = &self.data;
         let x = m[0] * v.x + m[1] * v.y + m[2] * 1.0;
         let y = m[3] * v.x + m[4] * v.y + m[5] * 1.0;
