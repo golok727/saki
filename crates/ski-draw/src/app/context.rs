@@ -1,12 +1,11 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use super::events::AppEvents; 
-
 use crate::gpu::GpuContext;
-use crate::jobs::Jobs;
+use crate::jobs::{Job, Jobs};
 use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 
@@ -125,6 +124,19 @@ impl AppContext {
         })
     }
 
+
+    pub fn spawn<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
+    where
+        T: 'static {
+        self.jobs.spawn_local(future)
+    }
+
+    pub fn spawn_bg<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
+    where
+        T: Send + 'static {
+        self.jobs.spawn(future)
+    }
+
     pub fn set_timeout(
         &mut self,
         f: impl FnOnce(&mut Self) + 'static,
@@ -132,8 +144,9 @@ impl AppContext {
     ) {
         let jobs = self.jobs.clone();
         let events = Rc::clone(&self.app_events); 
-        self.jobs
-            .spawn_local(async move {
+
+        self.
+            spawn(async move {
                 jobs.timer(timeout).await;
                 RefCell::borrow_mut(&events).push(AppUpdateEvent::AppContextCallback {
                     callback: Box::new(f),

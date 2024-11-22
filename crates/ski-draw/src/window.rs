@@ -137,4 +137,13 @@ impl<'a> WindowContext<'a> {
     {
         self.app.open_window(specs, f)
     }
+
+    pub fn set_timeout(
+        &mut self,
+        f: impl FnOnce(&mut Self) + 'static,
+        timeout: std::time::Duration,
+    ) {
+    }
+
+    pub fn change_bg() {}
 }
