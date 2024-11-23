@@ -1,7 +1,5 @@
-use bytemuck::{Pod, Zeroable};
-
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Zeroable, Pod)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Mat3 {
     data: [f32; 9],
 }
@@ -89,6 +87,45 @@ impl Mat3 {
         self
     }
 
+    pub fn inverse(&self) -> Self {
+        let m = &self.data;
+
+        let det = self.det();
+
+        if det == 0.0 {
+            return *self;
+        }
+
+        let inv_det = 1.0 / det;
+
+        Self {
+            data: [
+                (m[4] * m[8] - m[5] * m[7]) * inv_det,
+                (m[2] * m[7] - m[1] * m[8]) * inv_det,
+                (m[1] * m[5] - m[2] * m[4]) * inv_det,
+                (m[5] * m[6] - m[3] * m[8]) * inv_det,
+                (m[0] * m[8] - m[2] * m[6]) * inv_det,
+                (m[2] * m[3] - m[0] * m[5]) * inv_det,
+                (m[3] * m[7] - m[4] * m[6]) * inv_det,
+                (m[1] * m[6] - m[0] * m[7]) * inv_det,
+                (m[0] * m[4] - m[1] * m[3]) * inv_det,
+            ],
+        }
+    }
+
+    pub fn det(&self) -> f32 {
+        let m = &self.data;
+
+        // Determinant formula for a 3x3 matrix:
+        // | a b c |
+        // | d e f |
+        // | g h i |
+        // det = a(ei - fh) - b(di - fg) + c(dh - eg)
+
+        m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6])
+            + m[2] * (m[3] * m[7] - m[4] * m[6])
+    }
+
     pub fn is_identity(&self) -> bool {
         let m = &self.data;
         m[0] == 1.
@@ -103,27 +140,33 @@ impl Mat3 {
     }
 
     /// Constructs an orthographic projection matrix
-    ///
-    /// # Parameters
-    /// - `left`: The left coordinate of the orthographic projection
-    /// - `right`: The right coordinate of the orthographic projection
-    /// - `bottom`: The bottom coordinate of the orthographic projection
-    /// - `top`: The top coordinate of the orthographic projection
     pub fn ortho(top: f32, left: f32, bottom: f32, right: f32) -> Self {
-        let width = right - left;
-        let height = top - bottom;
-
-        let tx = -(right + left) / width;
-        let ty = -(top + bottom) / height;
+        let scale_x = 2.0 / (right - left);
+        let scale_y = 2.0 / (top - bottom);
+        let translate_x = -(right + left) / (right - left);
+        let translate_y = -(top + bottom) / (top - bottom);
 
         Self {
             #[rustfmt::skip]
             data: [
-                2.0 / width, 0.0,         tx,
-                0.0,         2.0 / height, ty,
-                0.0,         0.0,         1.0,
+                scale_x, 0.0, translate_x,
+                0.0, scale_y, translate_y,
+                0.0, 0.0, 1.0,
             ],
         }
+    }
+}
+
+impl From<Mat3> for [[f32; 4]; 4] {
+    fn from(mat: Mat3) -> Self {
+        let m = mat.data;
+
+        [
+            [m[0], m[1], m[2], 0.0], // Row 0
+            [m[3], m[4], m[5], 0.0], // Row 1
+            [m[6], m[7], m[8], 0.0], // Row 2
+            [0.0, 0.0, 0.0, 1.0],    // Row 3
+        ]
     }
 }
 
@@ -390,6 +433,23 @@ mod tests {
             assert_eq!(m * vec2(100.0, 0.0), vec2(1.0, 1.0)); // top right
             assert_eq!(m * vec2(0.0, 100.0), vec2(-1.0, -1.0)); // bottom left
             assert_eq!(m * vec2(100.0, 100.0), vec2(1.0, -1.0)); // bottom right
+        }
+
+        #[test]
+        fn triangle_proj_test() {
+            let width: u32 = 1875;
+            let height: u32 = 1023;
+
+            let aspect: f32 = width as f32 / height as f32;
+            let proj = Mat3::ortho(1.0, aspect, -1.0, -aspect);
+
+            let positions = [vec2(-0.5, -0.5), vec2(0.0, 0.5), vec2(0.5, -0.5)];
+            let transformed = positions.map(|v| proj * v);
+
+            assert_eq!(
+                [vec2(0.2728, -0.5), vec2(0.0, 0.5), vec2(-0.2728, -0.5)],
+                transformed
+            );
         }
 
         #[test]

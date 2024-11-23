@@ -97,6 +97,9 @@ impl RenderTarget {
             return;
         }
 
+        let new_width = new_width.max(1);
+        let new_height = new_height.max(1);
+
         log::trace!(
             "render target resize: width = {} height = {}",
             new_width,

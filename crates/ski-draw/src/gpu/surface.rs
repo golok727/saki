@@ -19,16 +19,16 @@ impl GpuSurface {
         Self { surface, config }
     }
 
-    pub fn resize(&mut self, gpu: &super::GpuContext, width: u32, height: u32) {
-        if self.config.width != width || self.config.height != height {
-            self.config.width = width;
-            self.config.height = height;
+    pub fn resize(&mut self, gpu: &super::GpuContext, new_width: u32, new_height: u32) {
+        if self.config.width != new_width || self.config.height != new_height {
+            self.config.width = new_width.max(1);
+            self.config.height = new_height.max(1);
             self.surface.configure(&gpu.device, &self.config);
 
             log::trace!(
                 "surface target resize:  width = {} height = {}",
-                width,
-                height
+                new_width,
+                new_height
             );
         }
     }

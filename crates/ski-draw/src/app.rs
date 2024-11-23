@@ -1,4 +1,6 @@
 pub mod context;
+use std::hash::Hash;
+
 pub use context::AppContext;
 
 pub(crate) mod events;
@@ -53,6 +55,8 @@ pub(crate) enum AppUpdateEvent {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
     },
+
+    // should we move these two to AppAction ?
     AppContextCallback {
         callback: Box<dyn FnOnce(&mut AppContext) + 'static>,
     },

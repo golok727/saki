@@ -2,17 +2,25 @@ use std::sync::Arc;
 
 pub mod render_target;
 
-use bytemuck::{Pod, Zeroable};
 use render_target::{RenderTarget, RenderTargetSpecification};
 use wgpu::util::DeviceExt;
 
+#[derive(Debug, Default)]
+pub struct Pipes {
+    pub quad: Option<wgpu::RenderPipeline>,
+}
+
+impl Pipes {
+    pub fn destroy(&mut self) {}
+}
+
 #[derive(Debug)]
-pub struct SimplePipe {
+pub struct SimpleQuadPipe {
     pub pipeline: wgpu::RenderPipeline,
     pub shader: wgpu::ShaderModule,
 }
 
-impl SimplePipe {
+impl SimpleQuadPipe {
     pub fn new(gpu: &GpuContext, bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self {
         let shader =
             gpu.create_shader_labeled(include_str!("./scene/shader.wgsl"), "Simple Shader");
@@ -20,7 +28,7 @@ impl SimplePipe {
         let layout = gpu
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("thing desciptor"),
+                label: Some("SimpleQuad pipe layout"),
                 bind_group_layouts,
                 push_constant_ranges: &[],
             });
@@ -71,21 +79,11 @@ impl SimplePipe {
 
 use crate::{gpu::GpuContext, math::Mat3};
 
-#[derive(Debug, Default)]
-pub struct Pipes {
-    pub quad: Option<wgpu::RenderPipeline>,
-}
-
-impl Pipes {
-    pub fn destroy(&mut self) {}
-}
-
-#[derive(Debug, Clone, Copy, Zeroable, Pod, Default)]
+#[derive(Default, Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
 #[repr(C)]
 pub struct GlobalUniformData {
-    pub color: [f32; 4],
-    pub proj: Mat3,
-    _pad: [f32; 3],
+    proj: [[f32; 4]; 4],
+    view: [[f32; 4]; 4],
 }
 
 #[derive(Debug)]
@@ -103,7 +101,9 @@ impl GlobalUniformsBuffer {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Global uniform buffer"),
                 contents: bytemuck::cast_slice(&[data]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_SRC,
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_SRC
+                    | wgpu::BufferUsages::COPY_DST,
             });
 
         let layout = gpu
@@ -112,7 +112,7 @@ impl GlobalUniformsBuffer {
                 label: Some("Global uniform bind group layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -138,6 +138,11 @@ impl GlobalUniformsBuffer {
             bing_group_layout: layout,
         }
     }
+
+    pub fn sync(&self, gpu: &GpuContext) {
+        gpu.queue
+            .write_buffer(&self.gpu_buffer, 0, bytemuck::cast_slice(&[self.data]))
+    }
 }
 
 #[derive(Debug)]
@@ -148,7 +153,7 @@ pub struct Renderer {
 
     // mock
     global_uniforms: GlobalUniformsBuffer,
-    simple_pipe: SimplePipe,
+    simple_pipe: SimpleQuadPipe,
 
     pub(crate) gpu: Arc<GpuContext>,
 }
@@ -163,31 +168,37 @@ impl Renderer {
         let render_target = RenderTarget::new(&gpu, &render_target_spec);
 
         let aspect: f32 = width as f32 / height as f32;
+        let proj = Mat3::ortho(1.0, aspect, -1.0, -aspect);
+        let mut view = Mat3::new();
 
-        // let proj = Mat3::ortho(1.0, -1.0 * aspect, 1.0, 1.0 * aspect);
-        let proj = Mat3::new();
+        view.scale(0.5, 0.5);
+        view.translate(-0.5, 0.0);
 
         let data = GlobalUniformData {
-            color: [0.2, 0.4, 0.6, 1.0],
-            proj,
-            ..Default::default()
+            proj: proj.into(),
+            view: view.into(),
         };
 
-        let g_uniform_buffer = GlobalUniformsBuffer::new(&gpu, data);
+        let uniform_buffer = GlobalUniformsBuffer::new(&gpu, data);
 
-        let simple_pipe = SimplePipe::new(&gpu, &[&g_uniform_buffer.bing_group_layout]);
+        let simple_pipe = SimpleQuadPipe::new(&gpu, &[&uniform_buffer.bing_group_layout]);
 
         Self {
             gpu,
             render_target,
             simple_pipe,
-            global_uniforms: g_uniform_buffer,
+            global_uniforms: uniform_buffer,
             pipes: Pipes::default(),
         }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.render_target.resize(&self.gpu, width, height);
+
+        let aspect: f32 = width as f32 / height as f32;
+        let proj = Mat3::ortho(1.0, aspect, -1.0, -aspect);
+        self.global_uniforms.data.proj = proj.into();
+        self.global_uniforms.sync(&self.gpu);
     }
 
     pub fn destroy(&mut self) {
@@ -223,7 +234,7 @@ impl Renderer {
             );
             pass.set_pipeline(&self.simple_pipe.pipeline);
             pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
-            pass.draw(0..3, 0..1);
+            pass.draw(0..6, 0..1);
         }
 
         gpu.queue.submit(std::iter::once(encoder.finish()));

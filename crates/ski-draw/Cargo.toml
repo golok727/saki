@@ -13,4 +13,5 @@ thiserror.workspace = true
 parking_lot.workspace = true
 flume.workspace = true
 calloop.workspace = true
+image.workspace = true
 bytemuck = {version = "1.20.0", features = ["derive"]}
