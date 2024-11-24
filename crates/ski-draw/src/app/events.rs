@@ -9,10 +9,6 @@ use super::{AppAction, AppUpdateEvent};
 #[derive(Default, Clone)]
 pub struct AppEvents(Arc<Mutex<AppEventsState>>);
 
-impl AppEvents {
-    pub fn send() {}
-}
-
 #[derive(Default)]
 struct AppEventsState {
     app_events: RefCell<Vec<AppUpdateEvent>>,

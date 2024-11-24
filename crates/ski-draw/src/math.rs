@@ -158,9 +158,9 @@ impl Mat3 {
 }
 
 impl From<Mat3> for [[f32; 4]; 4] {
+    #[rustfmt::skip]
     fn from(mat: Mat3) -> Self {
         let m = mat.data;
-
         [
             [m[0], m[1], m[2], 0.0], // Row 0
             [m[3], m[4], m[5], 0.0], // Row 1

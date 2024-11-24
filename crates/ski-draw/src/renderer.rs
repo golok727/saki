@@ -172,7 +172,7 @@ impl Renderer {
         let mut view = Mat3::new();
 
         view.scale(0.5, 0.5);
-        view.translate(-0.5, 0.0);
+        view.translate(0.5, 0.0);
 
         let data = GlobalUniformData {
             proj: proj.into(),
