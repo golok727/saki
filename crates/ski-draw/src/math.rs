@@ -238,6 +238,24 @@ impl<T> Vec2<T> {
     }
 }
 
+impl From<Vec2<f32>> for [f32; 4] {
+    fn from(Vec2 { x, y }: Vec2<f32>) -> Self {
+        [x, y, 1.0, 1.0]
+    }
+}
+
+impl<T> From<(T, T)> for Vec2<T> {
+    fn from((x, y): (T, T)) -> Self {
+        Self { x, y }
+    }
+}
+
+impl From<Vec2<f32>> for [f32; 2] {
+    fn from(Vec2 { x, y }: Vec2<f32>) -> Self {
+        [x, y]
+    }
+}
+
 macro_rules! impl_vec2_common {
     ($t:ty) => {
         impl Vec2<$t> {
@@ -383,6 +401,14 @@ where
 #[inline]
 pub fn vec2<T>(x: T, y: T) -> Vec2<T> {
     Vec2 { x, y }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Rect<T: std::fmt::Debug + Clone + Default> {
+    pub x: T,
+    pub y: T,
+    pub width: T,
+    pub height: T,
 }
 
 #[cfg(test)]

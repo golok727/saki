@@ -1,27 +1,43 @@
+use crate::math::Rect;
+
+#[derive(Debug, Clone)]
+pub enum Primitive {
+    Quad(Quad),
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
-    quads: Vec<Quad>,
+    pub(crate) prims: Vec<Primitive>,
 }
 
 impl Scene {
-    pub fn add_quad(&mut self, quad: Quad) {
-        self.quads.push(quad)
+    pub fn push_layer(&mut self) {
+        todo!()
     }
 
-    pub fn quads(&self) -> &[Quad] {
-        &self.quads
+    pub fn pop_layer(&mut self) {
+        todo!()
+    }
+
+    pub fn add(&mut self, prim: impl Into<Primitive>) {
+        self.prims.push(prim.into())
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Quad {
-    pub x: f32,
-    pub y: f32,
-    pub height: u32,
-    pub width: u32,
-    pub color: wgpu::Color,
+    pub bounds: Rect<f32>,
+    pub background_color: wgpu::Color,
 }
 
-impl Quad {
-    pub fn get_data(&self) {}
+macro_rules! impl_into_primitive {
+    ($t: ty, $kind: tt) => {
+        impl From<$t> for Primitive {
+            fn from(val: $t) -> Self {
+                Primitive::$kind(val)
+            }
+        }
+    };
 }
+
+impl_into_primitive!(Quad, Quad);

@@ -14,6 +14,8 @@ use crate::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
+    math::Rect,
+    scene::{Quad, Scene},
     Renderer,
 };
 
@@ -112,9 +114,25 @@ impl Window {
 
     pub(crate) fn paint(&mut self) {
         let surface_texture = self.surface.surface.get_current_texture().unwrap();
+        let mut scene = Scene::default();
+
+        scene.add(Quad {
+            bounds: Rect {
+                x: 0.,
+                y: 0.,
+                width: 1.,
+                height: 1.,
+            },
+            background_color: wgpu::Color {
+                r: 1.0,
+                g: 0.4,
+                b: 0.6,
+                a: 1.0,
+            },
+        });
 
         self.renderer
-            .render_to_texture(self.bg_color, &surface_texture.texture);
+            .render_to_texture(self.bg_color, &scene, &surface_texture.texture);
 
         surface_texture.present();
     }
