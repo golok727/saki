@@ -14,8 +14,7 @@ use crate::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
-    math::Rect,
-    scene::{Quad, Scene},
+    scene::{quad, Scene},
     Renderer,
 };
 
@@ -56,6 +55,7 @@ pub struct Window {
     pub(crate) surface: GpuSurface,
     pub(crate) renderer: Renderer,
     pub(crate) handle: Arc<WinitWindow>,
+    pub(crate) scene: Scene,
     bg_color: wgpu::Color,
 }
 
@@ -86,6 +86,7 @@ impl Window {
 
         Ok(Self {
             bg_color: wgpu::Color::WHITE,
+            scene: Scene::default(),
             handle,
             renderer,
             surface,
@@ -112,27 +113,53 @@ impl Window {
         &self.handle
     }
 
+    // for now
+    pub fn build_scene(&mut self) {
+        self.scene.clear();
+
+        let size = self.winit_handle().inner_size();
+        let width = size.width as f32;
+        let height = size.height as f32;
+
+        self.scene.add(
+            quad()
+                .with_pos((width / 2.) - 100.0, (height / 2.) - 100.0)
+                .with_size(200., 200.)
+                .with_bgcolor(1., 0., 0., 1.), // green
+        );
+
+        self.scene.add(
+            quad()
+                .with_pos(100.0, 200.0)
+                .with_size(250., 250.)
+                .with_bgcolor(0., 1., 0., 1.), // green
+        );
+
+        self.scene.add(
+            quad()
+                .with_pos(100.0, 500.0)
+                .with_size(300.0, 100.0)
+                .with_bgcolor(0.3, 0.3, 0.9, 1.0),
+        );
+
+        let bar_height: f32 = 50.0;
+        let margin_bottom: f32 = 30.0;
+
+        self.scene.add(
+            quad()
+                .with_pos(0.0, (height - bar_height) - margin_bottom)
+                .with_size(width, bar_height)
+                .with_bgcolor(0.04, 0.04, 0.07, 1.0),
+        );
+    }
+
     pub(crate) fn paint(&mut self) {
         let surface_texture = self.surface.surface.get_current_texture().unwrap();
-        let mut scene = Scene::default();
 
-        scene.add(Quad {
-            bounds: Rect {
-                x: 0.,
-                y: 0.,
-                width: 1.,
-                height: 1.,
-            },
-            background_color: wgpu::Color {
-                r: 1.0,
-                g: 0.4,
-                b: 0.6,
-                a: 1.0,
-            },
-        });
+        self.build_scene();
 
         self.renderer
-            .render_to_texture(self.bg_color, &scene, &surface_texture.texture);
+            .render_to_texture(self.bg_color, &self.scene, &surface_texture.texture);
 
         surface_texture.present();
     }

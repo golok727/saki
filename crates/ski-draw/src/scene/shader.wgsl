@@ -5,35 +5,25 @@ struct Globals {
 @group(0) @binding(0) var<uniform> globals: Globals;
 
 
-struct QuadOut {
+struct SceneVertex {
+    @location(0) position: vec2f,
+    @location(1) color: vec4f,
+};
+
+struct VsOut {
     @builtin(position) position: vec4f,
     @location(0) color: vec4f,
 };
 
-@vertex fn vs(@builtin(vertex_index) vertexIndex: u32) -> QuadOut {
-    let pos = array(
-            vec2f(-0.5, 0.5), 
-            vec2f(-0.5, -0.5), 
-            vec2f(0.5, -0.5), 
-           
-            vec2f(0.5, -0.5), 
-            vec2f(0.5, 0.5), 
-            vec2f(-0.5, 0.5), 
-        );
-
-    
-    var out: QuadOut; 
+@vertex fn vs(in: SceneVertex) -> VsOut {
+    var out: VsOut; 
     let proj = transpose(globals.proj);
-    out.position = proj * vec4f(pos[vertexIndex], 1.0, 1.0); 
-    out.color = vec4f(1.0, 0.3 , 0.4, 1.0);
+    out.position = proj * vec4f(in.position, 1.0, 1.0); 
+    out.color = in.color; 
     return out; 
 }
 
-@fragment fn fs(in: QuadOut)-> @location(0) vec4f {
+@fragment fn fs(in: VsOut)-> @location(0) vec4f {
     return in.color; 
 }
 
-struct SceneVertex {
-    @builtin(position) position: vec4f,
-    @location(0) color: vec4f,
-};
