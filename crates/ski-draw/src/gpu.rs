@@ -71,4 +71,22 @@ impl GpuContext {
     pub fn create_texture(&self, descriptor: &wgpu::TextureDescriptor) -> wgpu::Texture {
         self.device.create_texture(descriptor)
     }
+
+    pub fn create_vertex_buffer(&self, size: u64) -> wgpu::Buffer {
+        self.device.create_buffer(&wgpu::BufferDescriptor { 
+            label: Some("ski_draw_vertex_buffer"), 
+            mapped_at_creation: false, 
+            usage: wgpu::BufferUsages::VERTEX, 
+            size,
+        })
+    }
+   
+    pub fn create_index_buffer(&self, size: u64) -> wgpu::Buffer {
+        self.device.create_buffer(&wgpu::BufferDescriptor { 
+            label: Some("ski_draw_index_buffer"), 
+            mapped_at_creation: false, 
+            usage: wgpu::BufferUsages::INDEX, 
+            size,
+        })
+    }
 }

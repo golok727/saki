@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Range, sync::Arc};
 
 use crate::{
     gpu::GpuContext,
@@ -12,10 +12,16 @@ pub mod render_target;
 use render_target::{RenderTarget, RenderTargetSpecification};
 use wgpu::util::DeviceExt;
 
+static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<SceneVertex>() * 1024) as u64;
+static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) as u64;
+
 #[derive(Debug)]
-pub struct ScenePipe {
-    pub pipeline: wgpu::RenderPipeline,
-    pub shader: wgpu::ShaderModule,
+struct ScenePipe {
+    pipeline: wgpu::RenderPipeline,
+    #[allow(unused)]
+    vertex_buffer: BatchBuffer,
+    #[allow(unused)]
+    index_buffer: BatchBuffer,
 }
 
 impl ScenePipe {
@@ -76,7 +82,23 @@ impl ScenePipe {
                 cache: None,
             });
 
-        Self { pipeline, shader }
+        let vertex_buffer = BatchBuffer {
+            buffer: gpu.create_vertex_buffer(INITIAL_VERTEX_BUFFER_SIZE),
+            slices: Vec::with_capacity(64),
+            capacity: INITIAL_VERTEX_BUFFER_SIZE,
+        };
+
+        let index_buffer = BatchBuffer {
+            buffer: gpu.create_index_buffer(INITIAL_INDEX_BUFFER_SIZE),
+            slices: Vec::with_capacity(64),
+            capacity: INITIAL_INDEX_BUFFER_SIZE,
+        };
+
+        Self {
+            pipeline,
+            vertex_buffer,
+            index_buffer,
+        }
     }
 
     pub fn with_scene<F>(&mut self, gpu: &GpuContext, scene: &Scene, f: F)
@@ -302,4 +324,11 @@ impl Renderer {
 
         log::trace!("Render Complete!");
     }
+}
+
+#[derive(Debug)]
+struct BatchBuffer {
+    buffer: wgpu::Buffer,
+    slices: Vec<Range<usize>>,
+    capacity: wgpu::BufferAddress,
 }
