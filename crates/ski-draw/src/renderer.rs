@@ -2,39 +2,15 @@ use std::sync::Arc;
 
 use crate::{
     gpu::GpuContext,
-    math::{Mat3, Rect, Vec2},
-    scene::{Primitive, Scene},
+    math::Mat3,
+    paint::{DrawList, PrimitiveKind, SceneVertex},
+    scene::Scene,
 };
 
 pub mod render_target;
 
 use render_target::{RenderTarget, RenderTargetSpecification};
 use wgpu::util::DeviceExt;
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
-struct SceneVertex {
-    position: [f32; 2],
-    color: [f32; 4],
-}
-
-fn wgpu_color_to_array(color: wgpu::Color) -> [f32; 4] {
-    [
-        color.r as f32,
-        color.g as f32,
-        color.b as f32,
-        color.a as f32,
-    ]
-}
-
-impl SceneVertex {
-    fn new(pos: Vec2<f32>, color: wgpu::Color) -> Self {
-        Self {
-            position: pos.into(),
-            color: wgpu_color_to_array(color),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct ScenePipe {
@@ -57,7 +33,7 @@ impl ScenePipe {
         let vbo_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<SceneVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x4],
+            attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4],
         };
 
         let pipeline = gpu
@@ -103,40 +79,16 @@ impl ScenePipe {
         Self { pipeline, shader }
     }
 
-    pub fn use_scene<F>(&mut self, gpu: &GpuContext, scene: &Scene, f: F)
+    pub fn with_scene<F>(&mut self, gpu: &GpuContext, scene: &Scene, f: F)
     where
         F: FnOnce(&wgpu::RenderPipeline, &wgpu::Buffer, &wgpu::Buffer, u32),
     {
-        let mut vertices: Vec<SceneVertex> = Vec::new();
-        let mut indices: Vec<u16> = Vec::new();
-        let mut index_offset: u16 = 0;
+        let mut drawlist = DrawList::default();
 
-        for prim in &scene.prims {
-            match prim {
-                Primitive::Quad(quad) => {
-                    let Rect {
-                        x,
-                        y,
-                        width,
-                        height,
-                    } = quad.bounds;
-
-                    let color = quad.background_color;
-                    vertices.push(SceneVertex::new((x, y).into(), color)); // Top-left
-                    vertices.push(SceneVertex::new((x + width, y).into(), color)); // Top-right
-                    vertices.push(SceneVertex::new((x, y + height).into(), color)); // Bottom-left
-                    vertices.push(SceneVertex::new((x + width, y + height).into(), color)); // Bottom-right
-
-                    indices.extend_from_slice(&[
-                        index_offset,
-                        index_offset + 1,
-                        index_offset + 2,
-                        index_offset + 2,
-                        index_offset + 1,
-                        index_offset + 3,
-                    ]);
-
-                    index_offset += 4;
+        for prim in &scene.items {
+            match &prim.kind {
+                PrimitiveKind::Quad(quad) => {
+                    drawlist.push_quad(quad, prim.texture.is_some());
                 }
             }
         }
@@ -145,23 +97,19 @@ impl ScenePipe {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Scene pipe vbo"),
-                contents: bytemuck::cast_slice(&vertices),
-                usage: wgpu::BufferUsages::VERTEX
-                    | wgpu::BufferUsages::COPY_SRC
-                    | wgpu::BufferUsages::COPY_DST,
+                contents: bytemuck::cast_slice(&drawlist.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
             });
 
         let ibo = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Scene pipe ibo"),
-                contents: bytemuck::cast_slice(&indices),
-                usage: wgpu::BufferUsages::INDEX
-                    | wgpu::BufferUsages::COPY_SRC
-                    | wgpu::BufferUsages::COPY_DST,
+                contents: bytemuck::cast_slice(&drawlist.indices),
+                usage: wgpu::BufferUsages::INDEX,
             });
 
-        f(&self.pipeline, &vbo, &ibo, indices.len() as u32);
+        f(&self.pipeline, &vbo, &ibo, drawlist.indices.len() as u32);
     }
 
     pub fn dispose(&mut self) {}
@@ -241,6 +189,9 @@ pub struct Renderer {
     scene_pipe: ScenePipe,
 
     pub(crate) gpu: Arc<GpuContext>,
+
+    #[allow(unused)]
+    pub(crate) texture_bindgroup_layout: wgpu::BindGroupLayout,
 }
 
 impl Renderer {
@@ -257,6 +208,30 @@ impl Renderer {
         let uniform_buffer =
             GlobalUniformsBuffer::new(&gpu, GlobalUniformData { proj: proj.into() });
 
+        let texture_bindgroup_layout =
+            gpu.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Ski wgpu::Renderer texture bindgroup layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
+
         let scene_pipe = ScenePipe::new(&gpu, &[&uniform_buffer.bing_group_layout]);
 
         Self {
@@ -264,6 +239,7 @@ impl Renderer {
             render_target,
             scene_pipe,
             global_uniforms: uniform_buffer,
+            texture_bindgroup_layout,
         }
     }
 
@@ -295,7 +271,7 @@ impl Renderer {
         let view = destination_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         self.scene_pipe
-            .use_scene(gpu, scene, |pipeline, vbo, ibo, indices| {
+            .with_scene(gpu, scene, |pipeline, vbo, ibo, indices| {
                 {
                     let mut pass = encoder.begin_render_pass(
                         &(wgpu::RenderPassDescriptor {
@@ -315,10 +291,12 @@ impl Renderer {
                     );
                     pass.set_pipeline(pipeline);
                     pass.set_vertex_buffer(0, vbo.slice(..));
-                    pass.set_index_buffer(ibo.slice(..), wgpu::IndexFormat::Uint16);
+                    pass.set_index_buffer(ibo.slice(..), wgpu::IndexFormat::Uint32);
                     pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
+                    // pass.set_bind_group(1, None, &[]);
                     pass.draw_indexed(0..indices, 0, 0..1);
                 }
+
                 gpu.queue.submit(std::iter::once(encoder.finish()));
             });
 

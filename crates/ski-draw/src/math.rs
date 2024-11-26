@@ -244,6 +244,12 @@ impl From<Vec2<f32>> for [f32; 4] {
     }
 }
 
+impl<T> From<Vec2<T>> for (T, T) {
+    fn from(Vec2 { x, y }: Vec2<T>) -> Self {
+        (x, y)
+    }
+}
+
 impl<T> From<(T, T)> for Vec2<T> {
     fn from((x, y): (T, T)) -> Self {
         Self { x, y }

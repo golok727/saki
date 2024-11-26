@@ -5,7 +5,11 @@ pub use context::AppContext;
 
 pub(crate) mod events;
 
-use crate::window::{WindowContext, WindowId, WindowSpecification};
+use crate::{
+    paint::quad,
+    scene::Scene,
+    window::{WindowContext, WindowId, WindowSpecification},
+};
 
 use winit::event_loop::EventLoop;
 
@@ -68,4 +72,52 @@ pub(crate) enum AppUpdateEvent {
 
 pub(crate) enum Effect {
     UserEvent(AppAction),
+}
+
+// TODO remove
+#[allow(unused)]
+fn batch_test() {
+    let mut scene = Scene::default();
+
+    let width = 100.0;
+    let height = 200.0;
+
+    scene.add(
+        quad()
+            .with_pos((width / 2.) - 100.0, (height / 2.) - 100.0)
+            .with_size(200., 200.)
+            .with_bgcolor(1., 0., 0., 1.), // green,
+        None,
+    );
+
+    scene.add(
+        quad()
+            .with_pos(100.0, 200.0)
+            .with_size(250., 250.)
+            .with_bgcolor(0., 1., 0., 1.), // green,
+        None,
+    );
+
+    scene.add(
+        quad()
+            .with_pos(100.0, 500.0)
+            .with_size(300.0, 100.0)
+            .with_bgcolor(0.3, 0.3, 0.9, 1.0),
+        Some(crate::paint::TextureId::User(1)),
+    );
+
+    let bar_height: f32 = 50.0;
+    let margin_bottom: f32 = 30.0;
+
+    scene.add(
+        quad()
+            .with_pos(0.0, (height - bar_height) - margin_bottom)
+            .with_size(width, bar_height)
+            .with_bgcolor(0.04, 0.04, 0.07, 1.0),
+        Some(crate::paint::TextureId::User(2)),
+    );
+
+    let thing = scene.batches().collect::<Vec<_>>();
+
+    dbg!(thing.len());
 }

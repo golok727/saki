@@ -5,25 +5,34 @@ struct Globals {
 @group(0) @binding(0) var<uniform> globals: Globals;
 
 
-struct SceneVertex {
+struct VertexIn {
     @location(0) position: vec2f,
-    @location(1) color: vec4f,
+    @location(1) uv: vec2f, 
+    @location(2) color: vec4f,
 };
 
-struct VsOut {
+struct VertexOut {
     @builtin(position) position: vec4f,
+    @location(1) uv: vec2f,
     @location(0) color: vec4f,
 };
 
-@vertex fn vs(in: SceneVertex) -> VsOut {
-    var out: VsOut; 
+@vertex fn vs(in: VertexIn) -> VertexOut {
+    var out: VertexOut; 
     let proj = transpose(globals.proj);
     out.position = proj * vec4f(in.position, 1.0, 1.0); 
+    out.uv = in.uv; 
     out.color = in.color; 
+    
     return out; 
 }
 
-@fragment fn fs(in: VsOut)-> @location(0) vec4f {
+// @group(1) @binding(0) var tex: texture_2d<f32>; 
+// @group(1) @binding(1) var tex_sampler: sampler; 
+
+@fragment fn fs(in: VertexOut)-> @location(0) vec4f {
+    // let tex_color = textureSample(tex, tex_sampler, in.uv); 
+    // return in.color * tex_color; 
     return in.color; 
 }
 

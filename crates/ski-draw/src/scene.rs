@@ -1,13 +1,19 @@
-use crate::math::Rect;
+use std::collections::HashMap;
+
+use crate::paint::DrawList;
+use crate::paint::Mesh;
+use crate::paint::PrimitiveKind;
+use crate::paint::TextureId;
 
 #[derive(Debug, Clone)]
-pub enum Primitive {
-    Quad(Quad),
+pub struct Primitive {
+    pub kind: PrimitiveKind,
+    pub texture: Option<TextureId>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
-    pub(crate) prims: Vec<Primitive>,
+    pub(crate) items: Vec<Primitive>,
 }
 
 impl Scene {
@@ -19,66 +25,72 @@ impl Scene {
         todo!()
     }
 
-    pub fn add(&mut self, prim: impl Into<Primitive>) {
-        self.prims.push(prim.into())
+    pub fn add(&mut self, prim: impl Into<PrimitiveKind>, texture: Option<TextureId>) {
+        self.items.push(Primitive {
+            kind: prim.into(),
+            texture,
+        })
     }
 
     pub fn clear(&mut self) -> Vec<Primitive> {
-        let old: Vec<Primitive> = std::mem::take(&mut self.prims);
+        let old: Vec<Primitive> = std::mem::take(&mut self.items);
         old
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct Quad {
-    pub bounds: Rect<f32>,
-    pub background_color: wgpu::Color,
-}
-
-impl Quad {
-    pub fn with_bgcolor(mut self, r: f64, g: f64, b: f64, a: f64) -> Self {
-        self.background_color = wgpu::Color { r, g, b, a };
-        self
-    }
-    pub fn with_size(mut self, width: f32, height: f32) -> Self {
-        self.bounds.width = width;
-        self.bounds.height = height;
-        self
-    }
-
-    pub fn with_pos(mut self, x: f32, y: f32) -> Self {
-        self.bounds.x = x;
-        self.bounds.y = y;
-        self
+    pub fn batches(&self) -> impl Iterator<Item = Mesh> + '_ {
+        SceneBatchIterator::new(self)
     }
 }
 
-impl Default for Quad {
-    fn default() -> Self {
+// A simple batcher for now in future we will expand this.
+struct SceneBatchIterator<'a> {
+    scene: &'a Scene,
+    groups: Vec<(Option<TextureId>, Vec<usize>)>,
+    cur_group: usize,
+}
+
+impl<'a> SceneBatchIterator<'a> {
+    pub fn new(scene: &'a Scene) -> Self {
+        let mut tex_to_item_idx: HashMap<Option<TextureId>, Vec<usize>> = HashMap::new();
+
+        for (i, prim) in scene.items.iter().enumerate() {
+            tex_to_item_idx.entry(prim.texture).or_default().push(i);
+        }
+
+        let groups = tex_to_item_idx.into_iter().collect();
+
         Self {
-            bounds: Rect {
-                x: 0.,
-                y: 0.,
-                width: 1.,
-                height: 1.,
-            },
-            background_color: wgpu::Color::RED,
+            scene,
+            cur_group: 0,
+            groups,
         }
     }
 }
 
-pub fn quad() -> Quad {
-    Quad::default()
-}
+impl<'a> Iterator for SceneBatchIterator<'a> {
+    type Item = Mesh;
 
-macro_rules! impl_into_primitive {
-    ($t: ty, $kind: tt) => {
-        impl From<$t> for Primitive {
-            fn from(val: $t) -> Self {
-                Primitive::$kind(val)
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_group >= self.groups.len() {
+            return None;
+        }
+        let mut drawlist = DrawList::default();
+
+        let group = &self.groups[self.cur_group];
+        let texture = group.0;
+
+        for idx in &group.1 {
+            let idx = *idx;
+            let prim = &self.scene.items[idx];
+            match &prim.kind {
+                PrimitiveKind::Quad(quad) => drawlist.push_quad(quad, prim.texture.is_some()),
             }
         }
-    };
-}
 
-impl_into_primitive!(Quad, Quad);
+        let mut mesh: Mesh = drawlist.into();
+        mesh.texture = texture;
+
+        self.cur_group += 1;
+        Some(mesh)
+    }
+}

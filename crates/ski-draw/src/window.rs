@@ -14,7 +14,8 @@ use crate::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
-    scene::{quad, Scene},
+    paint::quad,
+    scene::Scene,
     Renderer,
 };
 
@@ -125,14 +126,16 @@ impl Window {
             quad()
                 .with_pos((width / 2.) - 100.0, (height / 2.) - 100.0)
                 .with_size(200., 200.)
-                .with_bgcolor(1., 0., 0., 1.), // green
+                .with_bgcolor(1., 0., 0., 1.), // green,
+            None,
         );
 
         self.scene.add(
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250., 250.)
-                .with_bgcolor(0., 1., 0., 1.), // green
+                .with_bgcolor(0., 1., 0., 1.), // green,
+            None,
         );
 
         self.scene.add(
@@ -140,6 +143,7 @@ impl Window {
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
                 .with_bgcolor(0.3, 0.3, 0.9, 1.0),
+            None,
         );
 
         let bar_height: f32 = 50.0;
@@ -150,6 +154,7 @@ impl Window {
                 .with_pos(0.0, (height - bar_height) - margin_bottom)
                 .with_size(width, bar_height)
                 .with_bgcolor(0.04, 0.04, 0.07, 1.0),
+            None,
         );
     }
 
