@@ -33,6 +33,7 @@ impl SceneVertex {
 pub struct Mesh {
     pub vertices: Vec<SceneVertex>,
     pub indices: Vec<u32>,
+    // TODO default to white texture instead of optional
     pub texture: Option<TextureId>,
 }
 

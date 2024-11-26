@@ -2,6 +2,12 @@ use std::io::Write;
 
 use ski_draw::{app::App, window::WindowSpecification};
 
+/*
+TODO
+ - [] Texture manager
+ - [] Use texture in shader
+*/
+
 fn main() {
     println!("Radhe Shyam!");
 

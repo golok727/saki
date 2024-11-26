@@ -230,11 +230,11 @@ impl ApplicationHandler<AppAction> for AppContext {
                 let width = size.width;
                 let height = size.height;
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.handle_resize(width, height);
+                window.handle_resize(&self.gpu, width, height);
             }
             WindowEvent::RedrawRequested => {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.paint();
+                window.paint(&self.gpu);
             }
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {

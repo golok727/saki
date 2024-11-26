@@ -1,9 +1,9 @@
-use std::{ops::Range, sync::Arc};
+use std::{num::NonZeroU64, ops::Range};
 
 use crate::{
     gpu::GpuContext,
     math::Mat3,
-    paint::{DrawList, PrimitiveKind, SceneVertex},
+    paint::{DrawList, Mesh, PrimitiveKind, SceneVertex},
     scene::Scene,
 };
 
@@ -15,12 +15,11 @@ use wgpu::util::DeviceExt;
 static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<SceneVertex>() * 1024) as u64;
 static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) as u64;
 
+// FIXME may be move this to the renderer
 #[derive(Debug)]
 struct ScenePipe {
     pipeline: wgpu::RenderPipeline,
-    #[allow(unused)]
     vertex_buffer: BatchBuffer,
-    #[allow(unused)]
     index_buffer: BatchBuffer,
 }
 
@@ -100,41 +99,6 @@ impl ScenePipe {
             index_buffer,
         }
     }
-
-    pub fn with_scene<F>(&mut self, gpu: &GpuContext, scene: &Scene, f: F)
-    where
-        F: FnOnce(&wgpu::RenderPipeline, &wgpu::Buffer, &wgpu::Buffer, u32),
-    {
-        let mut drawlist = DrawList::default();
-
-        for prim in &scene.items {
-            match &prim.kind {
-                PrimitiveKind::Quad(quad) => {
-                    drawlist.push_quad(quad, prim.texture.is_some());
-                }
-            }
-        }
-
-        let vbo = gpu
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Scene pipe vbo"),
-                contents: bytemuck::cast_slice(&drawlist.vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-        let ibo = gpu
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Scene pipe ibo"),
-                contents: bytemuck::cast_slice(&drawlist.indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-
-        f(&self.pipeline, &vbo, &ibo, drawlist.indices.len() as u32);
-    }
-
-    pub fn dispose(&mut self) {}
 }
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -210,14 +174,12 @@ pub struct Renderer {
 
     scene_pipe: ScenePipe,
 
-    pub(crate) gpu: Arc<GpuContext>,
-
     #[allow(unused)]
     pub(crate) texture_bindgroup_layout: wgpu::BindGroupLayout,
 }
 
 impl Renderer {
-    pub fn new(gpu: Arc<GpuContext>, width: u32, height: u32) -> Self {
+    pub fn new(gpu: &GpuContext, width: u32, height: u32) -> Self {
         let render_target_spec = RenderTargetSpecification::default()
             .with_size(width, height)
             .with_label("render target")
@@ -257,7 +219,6 @@ impl Renderer {
         let scene_pipe = ScenePipe::new(&gpu, &[&uniform_buffer.bing_group_layout]);
 
         Self {
-            gpu,
             render_target,
             scene_pipe,
             global_uniforms: uniform_buffer,
@@ -265,62 +226,149 @@ impl Renderer {
         }
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.render_target.resize(&self.gpu, width, height);
+    pub fn resize(&mut self, gpu: &GpuContext, width: u32, height: u32) {
+        self.render_target.resize(gpu, width, height);
 
         let proj = Mat3::ortho(0., 0., height as f32, width as f32);
         self.global_uniforms.data.proj = proj.into();
-        self.global_uniforms.sync(&self.gpu);
+        self.global_uniforms.sync(gpu);
     }
 
     pub fn destroy(&mut self) {
         // todo
     }
 
-    pub fn render(&mut self) {
-        todo!()
+    pub fn update_buffers(&mut self, gpu: &GpuContext, data: &[Mesh]) {
+        let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
+            (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
+        });
+
+        if vertex_count > 0 {
+            let vb = &mut self.scene_pipe.vertex_buffer;
+            vb.slices.clear();
+
+            let required_vertex_buffer_size =
+                (std::mem::size_of::<SceneVertex>() * vertex_count) as wgpu::BufferAddress;
+
+            if vb.capacity < required_vertex_buffer_size {
+                vb.capacity = (vb.capacity * 2).max(required_vertex_buffer_size);
+                vb.buffer = gpu.create_vertex_buffer(vb.capacity);
+            }
+
+            let mut staging_vertex = gpu
+                .queue
+                .write_buffer_with(
+                    &vb.buffer,
+                    0,
+                    NonZeroU64::new(required_vertex_buffer_size).unwrap(),
+                )
+                .expect("failed to create staging vertex buffer");
+
+            let mut vertex_offset = 0;
+            for mesh in data {
+                let size = mesh.vertices.len() * std::mem::size_of::<SceneVertex>();
+                let slice = vertex_offset..(size + vertex_offset);
+                staging_vertex[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.vertices));
+                vb.slices.push(slice);
+                vertex_offset += size;
+            }
+        }
+
+        if index_count > 0 {
+            let ib = &mut self.scene_pipe.index_buffer;
+            ib.slices.clear();
+
+            let required_index_buffer_size =
+                (std::mem::size_of::<u32>() * index_count) as wgpu::BufferAddress;
+
+            if ib.capacity < required_index_buffer_size {
+                ib.capacity = (ib.capacity * 2).max(required_index_buffer_size);
+                ib.buffer = gpu.create_index_buffer(ib.capacity);
+            }
+
+            let mut staging_index = gpu
+                .queue
+                .write_buffer_with(
+                    &ib.buffer,
+                    0,
+                    NonZeroU64::new(required_index_buffer_size).unwrap(),
+                )
+                .expect("failed to create staging vertex buffer");
+
+            let mut index_offset = 0;
+            for mesh in data {
+                let size = mesh.indices.len() * std::mem::size_of::<u32>();
+                let slice = index_offset..(size + index_offset);
+                staging_index[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.indices));
+                ib.slices.push(slice);
+                index_offset += size;
+            }
+        }
     }
 
-    pub fn render_to_texture(
+    pub fn render(
         &mut self,
+        gpu: &GpuContext,
         clear_color: wgpu::Color,
-        scene: &Scene,
+        batches: &[Mesh],
         destination_texture: &wgpu::Texture,
     ) {
-        let gpu = &self.gpu;
-
         let mut encoder = gpu.create_command_encoder(Some("my encoder"));
         let view = destination_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.scene_pipe
-            .with_scene(gpu, scene, |pipeline, vbo, ibo, indices| {
-                {
-                    let mut pass = encoder.begin_render_pass(
-                        &(wgpu::RenderPassDescriptor {
-                            label: Some("RenderTarget Pass"),
-                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                view: &view,
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(clear_color),
-                                    store: wgpu::StoreOp::Store,
-                                },
-                            })],
-                            depth_stencil_attachment: None,
-                            occlusion_query_set: None,
-                            timestamp_writes: None,
-                        }),
-                    );
-                    pass.set_pipeline(pipeline);
-                    pass.set_vertex_buffer(0, vbo.slice(..));
-                    pass.set_index_buffer(ibo.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
-                    // pass.set_bind_group(1, None, &[]);
-                    pass.draw_indexed(0..indices, 0, 0..1);
-                }
+        let mut vb_slices = self.scene_pipe.vertex_buffer.slices.iter();
+        let mut ib_slices = self.scene_pipe.index_buffer.slices.iter();
 
-                gpu.queue.submit(std::iter::once(encoder.finish()));
-            });
+        {
+            let mut pass = encoder.begin_render_pass(
+                &(wgpu::RenderPassDescriptor {
+                    label: Some("RenderTarget Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear_color),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                }),
+            );
+            pass.set_pipeline(&self.scene_pipe.pipeline);
+            pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
+
+            for mesh in batches {
+                // TODO will be removed after adding texture system
+                if mesh.texture.is_some() {
+                    let _ = vb_slices.next().expect("No next thing vb_slice");
+                    let _ = ib_slices.next().expect("No next thing ib_slice");
+                    log::error!("Textures are not supported yet")
+                } else {
+                    let vb_slice = vb_slices.next().expect("No next thing vb_slice");
+                    let ib_slice = ib_slices.next().expect("No next thing ib_slice");
+
+                    // TODO texture bind group
+                    pass.set_vertex_buffer(
+                        0,
+                        self.scene_pipe
+                            .vertex_buffer
+                            .buffer
+                            .slice(vb_slice.start as u64..vb_slice.end as u64),
+                    );
+                    pass.set_index_buffer(
+                        self.scene_pipe
+                            .index_buffer
+                            .buffer
+                            .slice(ib_slice.start as u64..ib_slice.end as u64),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                }
+            }
+        }
+        gpu.queue.submit(std::iter::once(encoder.finish()));
 
         log::trace!("Render Complete!");
     }

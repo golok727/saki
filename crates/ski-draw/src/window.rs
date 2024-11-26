@@ -83,7 +83,7 @@ impl Window {
             )
             .unwrap(); // TODO handle error
 
-        let renderer = Renderer::new(gpu, width, height);
+        let renderer = Renderer::new(&gpu, width, height);
 
         Ok(Self {
             bg_color: wgpu::Color::WHITE,
@@ -105,9 +105,9 @@ impl Window {
         self.handle.id()
     }
 
-    pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
-        self.surface.resize(&self.renderer.gpu, width, height);
-        self.renderer.resize(width, height);
+    pub(crate) fn handle_resize(&mut self, gpu: &GpuContext, width: u32, height: u32) {
+        self.surface.resize(gpu, width, height);
+        self.renderer.resize(gpu, width, height);
     }
 
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
@@ -158,13 +158,16 @@ impl Window {
         );
     }
 
-    pub(crate) fn paint(&mut self) {
+    pub(crate) fn paint(&mut self, gpu: &GpuContext) {
         let surface_texture = self.surface.surface.get_current_texture().unwrap();
 
         self.build_scene();
 
+        // TODO check if dirty
+        let batches = self.scene.batches().collect::<Vec<_>>();
+        self.renderer.update_buffers(gpu, &batches);
         self.renderer
-            .render_to_texture(self.bg_color, &self.scene, &surface_texture.texture);
+            .render(gpu, self.bg_color, &batches, &surface_texture.texture);
 
         surface_texture.present();
     }

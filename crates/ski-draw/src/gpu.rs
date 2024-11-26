@@ -76,7 +76,7 @@ impl GpuContext {
         self.device.create_buffer(&wgpu::BufferDescriptor { 
             label: Some("ski_draw_vertex_buffer"), 
             mapped_at_creation: false, 
-            usage: wgpu::BufferUsages::VERTEX, 
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST, 
             size,
         })
     }
@@ -85,7 +85,7 @@ impl GpuContext {
         self.device.create_buffer(&wgpu::BufferDescriptor { 
             label: Some("ski_draw_index_buffer"), 
             mapped_at_creation: false, 
-            usage: wgpu::BufferUsages::INDEX, 
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST, 
             size,
         })
     }
