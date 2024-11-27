@@ -1,9 +1,9 @@
 use std::{cell::Cell, collections::HashMap, num::NonZeroU64, ops::Range};
 
 use crate::{
-    gpu::GpuContext,
+    gpu::{GpuContext, WHITE_TEX_ID},
     math::Mat3,
-    paint::{Mesh, TextureId, Vertex, WHITE_TEX_ID},
+    paint::{Mesh, TextureId, Vertex},
 };
 
 pub mod render_target;
@@ -102,14 +102,12 @@ impl GlobalUniformsBuffer {
 }
 
 #[derive(Debug)]
-struct RendererTexture {
-    #[allow(unused)]
-    raw: Option<wgpu::Texture>,
+pub struct RendererTexture {
+    pub raw: Option<wgpu::Texture>,
 
-    #[allow(unused)]
-    id: TextureId,
+    pub id: TextureId,
 
-    bindgroup: wgpu::BindGroup,
+    pub bindgroup: wgpu::BindGroup,
 }
 
 #[derive(Debug)]
@@ -124,6 +122,8 @@ pub struct Renderer {
     next_texture_id: usize,
 
     scene_pipe: ScenePipe,
+
+    clear_color: wgpu::Color,
 
     pub(crate) texture_bindgroup_layout: wgpu::BindGroupLayout,
 }
@@ -171,14 +171,27 @@ impl Renderer {
             &[&uniform_buffer.bing_group_layout, &texture_bindgroup_layout],
         );
 
-        Self {
+        let mut renderer = Self {
             render_target,
             scene_pipe,
+            clear_color: wgpu::Color::WHITE,
             textures: HashMap::new(),
             next_texture_id: 1,
             global_uniforms: uniform_buffer,
             texture_bindgroup_layout,
-        }
+        };
+
+        let default_texture_view = gpu
+            .default_texture()
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        renderer.set_native_texture_impl(gpu, WHITE_TEX_ID, &default_texture_view);
+
+        renderer
+    }
+
+    pub fn get_texture(&self, id: &TextureId) -> Option<&RendererTexture> {
+        self.textures.get(id)
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -197,7 +210,8 @@ impl Renderer {
         self.set_native_texture_impl(gpu, TextureId::User(tick), view)
     }
 
-    pub fn set_native_texture_impl(
+    #[inline]
+    fn set_native_texture_impl(
         &mut self,
         gpu: &GpuContext,
         id: TextureId,
@@ -322,10 +336,13 @@ impl Renderer {
         }
     }
 
+    pub fn set_clear_color(&mut self, color: wgpu::Color) {
+        self.clear_color = color;
+    }
+
     pub fn render(
         &mut self,
         gpu: &GpuContext,
-        clear_color: wgpu::Color,
         batches: &[Mesh],
         destination_texture: &wgpu::Texture,
     ) {
@@ -343,7 +360,7 @@ impl Renderer {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(clear_color),
+                            load: wgpu::LoadOp::Clear(self.clear_color),
                             store: wgpu::StoreOp::Store,
                         },
                     })],

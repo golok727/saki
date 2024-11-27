@@ -1,12 +1,20 @@
-// this provides an abstraction over the wgpu api; too lazy to move to another crate
+use crate::paint::TextureId;
+
 pub mod error;
 pub mod surface;
 
+
+pub const WHITE_TEX_ID: TextureId = TextureId::Internal(1);
+
 #[derive(Debug)]
 pub struct GpuContext {
+    // white texture
+    default_texture: wgpu::Texture,
+
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub instance: wgpu::Instance,
+
+    pub(crate) instance: wgpu::Instance,
     pub(crate) adapter: wgpu::Adapter,
 }
 
@@ -39,12 +47,22 @@ impl GpuContext {
             .await
             .map_err(error::GpuContextCreateError::RequestDeviceError)?;
 
+
+
+        let default_texture =  Self::create_texture_init_impl(&device, &queue, wgpu::TextureFormat::Rgba8UnormSrgb, 1, 1, &[255u8, 255u8, 255u8, 255u8]); 
+        
         Ok(Self {
             device,
             queue,
             instance,
             adapter,
+            default_texture
         })
+    }
+
+    
+    pub fn default_texture(&self) -> &wgpu::Texture {
+        &self.default_texture
     }
 
     pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
@@ -72,6 +90,16 @@ impl GpuContext {
         self.device.create_texture(descriptor)
     }
 
+    pub fn create_texture_init(
+        &self,
+        format: wgpu::TextureFormat,
+        width: u32,
+        height: u32,
+        data: &[u8],
+    ) -> wgpu::Texture {
+        Self::create_texture_init_impl(&self.device, &self.queue, format, width, height, data)
+    }
+
     pub fn create_vertex_buffer(&self, size: u64) -> wgpu::Buffer {
         self.device.create_buffer(
             &(wgpu::BufferDescriptor {
@@ -93,4 +121,52 @@ impl GpuContext {
             }),
         )
     }
+
+    #[inline]
+    pub fn create_texture_init_impl(
+            device: &wgpu::Device,
+            queue: &wgpu::Queue,
+            format: wgpu::TextureFormat,
+            width: u32,
+            height: u32,
+            data: &[u8],
+        ) -> wgpu::Texture {
+
+            let texture_size = wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            };
+
+            let texture = device.create_texture(
+                &(wgpu::TextureDescriptor {
+                    label: Some("Check Texture"),
+                    size: texture_size,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                }),
+            );
+
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &texture,
+                    aspect: wgpu::TextureAspect::All,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                data,
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * width),
+                    rows_per_image: None,
+                },
+                texture_size,
+            );
+
+            texture
+        }
 }
