@@ -1,9 +1,9 @@
-use std::{cell::Cell, num::NonZeroU64, ops::Range};
+use std::{cell::Cell, collections::HashMap, num::NonZeroU64, ops::Range};
 
 use crate::{
     gpu::GpuContext,
     math::Mat3,
-    paint::{Mesh, SceneVertex},
+    paint::{Mesh, TextureId, Vertex},
 };
 
 pub mod render_target;
@@ -11,94 +11,8 @@ pub mod render_target;
 use render_target::{RenderTarget, RenderTargetSpecification};
 use wgpu::util::DeviceExt;
 
-static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<SceneVertex>() * 1024) as u64;
+static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<Vertex>() * 1024) as u64;
 static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) as u64;
-
-// FIXME may be move this to the renderer
-#[derive(Debug)]
-struct ScenePipe {
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: BatchBuffer,
-    index_buffer: BatchBuffer,
-}
-
-impl ScenePipe {
-    pub fn new(gpu: &GpuContext, bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self {
-        let shader = gpu.create_shader_labeled(include_str!("./scene/shader.wgsl"), "Scene Shader");
-
-        let layout = gpu
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Scenepipe layout"),
-                bind_group_layouts,
-                push_constant_ranges: &[],
-            });
-
-        let vbo_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<SceneVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4],
-        };
-
-        let pipeline = gpu
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Scene pipeline"),
-                layout: Some(&layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vs"),
-                    buffers: &[vbo_layout],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs"),
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::default(),
-                    cull_mode: None,
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-                cache: None,
-            });
-
-        let vertex_buffer = BatchBuffer {
-            buffer: gpu.create_vertex_buffer(INITIAL_VERTEX_BUFFER_SIZE),
-            slices: Vec::with_capacity(64),
-            capacity: INITIAL_VERTEX_BUFFER_SIZE,
-        };
-
-        let index_buffer = BatchBuffer {
-            buffer: gpu.create_index_buffer(INITIAL_INDEX_BUFFER_SIZE),
-            slices: Vec::with_capacity(64),
-            capacity: INITIAL_INDEX_BUFFER_SIZE,
-        };
-
-        Self {
-            pipeline,
-            vertex_buffer,
-            index_buffer,
-        }
-    }
-}
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
 #[repr(C)]
@@ -186,11 +100,22 @@ impl GlobalUniformsBuffer {
 }
 
 #[derive(Debug)]
+struct RendererTexture {
+    raw: Option<wgpu::Texture>,
+    id: TextureId,
+    bindgroup: wgpu::BindGroup,
+}
+
+#[derive(Debug)]
 pub struct Renderer {
     // TODO maybe switch renderer to a enum variant Renderer::Windowed Renderer::Default
     render_target: RenderTarget,
 
     global_uniforms: GlobalUniformsBuffer,
+
+    textures: HashMap<TextureId, RendererTexture>,
+
+    next_texture_id: usize,
 
     scene_pipe: ScenePipe,
 
@@ -241,6 +166,8 @@ impl Renderer {
         Self {
             render_target,
             scene_pipe,
+            textures: HashMap::new(),
+            next_texture_id: 1,
             global_uniforms: uniform_buffer,
             texture_bindgroup_layout,
         }
@@ -255,8 +182,61 @@ impl Renderer {
         });
     }
 
-    pub fn destroy(&mut self) {
-        // todo
+    pub fn set_native_texture(&mut self, gpu: &GpuContext, view: &wgpu::TextureView) -> TextureId {
+        let tick = self.next_texture_id;
+        self.next_texture_id += 1;
+
+        self.set_native_texture_impl(gpu, TextureId::User(tick), view)
+    }
+
+    pub(crate) fn set_native_texture_impl(
+        &mut self,
+        gpu: &GpuContext,
+        id: TextureId,
+        view: &wgpu::TextureView,
+        // TODO texture options
+    ) -> TextureId {
+        // TODO make it configurable
+        let sampler = gpu.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("ski_draw texture sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            lod_min_clamp: Default::default(),
+            lod_max_clamp: Default::default(),
+            compare: None,
+            anisotropy_clamp: Default::default(),
+            border_color: None,
+        });
+
+        let bindgroup = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("ski_draw texture bind group"),
+            layout: &self.texture_bindgroup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+        });
+
+        self.textures.insert(
+            id,
+            RendererTexture {
+                raw: None,
+                id,
+                bindgroup,
+            },
+        );
+
+        id
     }
 
     // call this before rendering
@@ -273,7 +253,7 @@ impl Renderer {
             vb.slices.clear();
 
             let required_vertex_buffer_size =
-                (std::mem::size_of::<SceneVertex>() * vertex_count) as wgpu::BufferAddress;
+                (std::mem::size_of::<Vertex>() * vertex_count) as wgpu::BufferAddress;
 
             if vb.capacity < required_vertex_buffer_size {
                 vb.capacity = (vb.capacity * 2).max(required_vertex_buffer_size);
@@ -291,7 +271,7 @@ impl Renderer {
 
             let mut vertex_offset = 0;
             for mesh in data {
-                let size = mesh.vertices.len() * std::mem::size_of::<SceneVertex>();
+                let size = mesh.vertices.len() * std::mem::size_of::<Vertex>();
                 let slice = vertex_offset..(size + vertex_offset);
                 staging_vertex[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.vertices));
                 vb.slices.push(slice);
@@ -405,4 +385,90 @@ struct BatchBuffer {
     buffer: wgpu::Buffer,
     slices: Vec<Range<usize>>,
     capacity: wgpu::BufferAddress,
+}
+
+#[derive(Debug)]
+struct ScenePipe {
+    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: BatchBuffer,
+    index_buffer: BatchBuffer,
+}
+
+impl ScenePipe {
+    pub fn new(gpu: &GpuContext, bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self {
+        let shader = gpu.create_shader_labeled(include_str!("./scene/shader.wgsl"), "Scene Shader");
+
+        let layout = gpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Scenepipe layout"),
+                bind_group_layouts,
+                push_constant_ranges: &[],
+            });
+
+        let vbo_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4],
+        };
+
+        let pipeline = gpu
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Scene pipeline"),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs"),
+                    buffers: &[vbo_layout],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::default(),
+                    cull_mode: None,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+                cache: None,
+            });
+
+        let vertex_buffer = BatchBuffer {
+            buffer: gpu.create_vertex_buffer(INITIAL_VERTEX_BUFFER_SIZE),
+            slices: Vec::with_capacity(64),
+            capacity: INITIAL_VERTEX_BUFFER_SIZE,
+        };
+
+        let index_buffer = BatchBuffer {
+            buffer: gpu.create_index_buffer(INITIAL_INDEX_BUFFER_SIZE),
+            slices: Vec::with_capacity(64),
+            capacity: INITIAL_INDEX_BUFFER_SIZE,
+        };
+
+        Self {
+            pipeline,
+            vertex_buffer,
+            index_buffer,
+        }
+    }
 }

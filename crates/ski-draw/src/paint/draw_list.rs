@@ -4,7 +4,7 @@ use crate::math::{Rect, Vec2};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct SceneVertex {
+pub struct Vertex {
     position: [f32; 2],
     uv: [f32; 2],
     color: [f32; 4],
@@ -19,7 +19,7 @@ fn wgpu_color_to_array(color: wgpu::Color) -> [f32; 4] {
     ]
 }
 
-impl SceneVertex {
+impl Vertex {
     pub fn new(pos: Vec2<f32>, color: wgpu::Color, uv: (f32, f32)) -> Self {
         Self {
             position: pos.into(),
@@ -31,7 +31,7 @@ impl SceneVertex {
 
 #[derive(Debug)]
 pub struct Mesh {
-    pub vertices: Vec<SceneVertex>,
+    pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     // TODO default to white texture instead of optional
     pub texture: Option<TextureId>,
@@ -39,7 +39,7 @@ pub struct Mesh {
 
 impl From<DrawList> for Mesh {
     fn from(mut dl: DrawList) -> Self {
-        let vertices: Vec<SceneVertex> = std::mem::take(&mut dl.vertices);
+        let vertices: Vec<Vertex> = std::mem::take(&mut dl.vertices);
         let indices: Vec<u32> = std::mem::take(&mut dl.indices);
 
         Self {
@@ -52,7 +52,7 @@ impl From<DrawList> for Mesh {
 
 #[derive(Debug, Default)]
 pub struct DrawList {
-    pub vertices: Vec<SceneVertex>,
+    pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     index_offset: u32,
 }
@@ -82,14 +82,10 @@ impl DrawList {
         };
 
         let color = quad.background_color;
-        vertices.push(SceneVertex::new((x, y).into(), color, uvs[0])); // Top-left
-        vertices.push(SceneVertex::new((x + width, y).into(), color, uvs[1])); // Top-right
-        vertices.push(SceneVertex::new((x, y + height).into(), color, uvs[2])); // Bottom-left
-        vertices.push(SceneVertex::new(
-            (x + width, y + height).into(),
-            color,
-            uvs[3],
-        )); // Bottom-right
+        vertices.push(Vertex::new((x, y).into(), color, uvs[0])); // Top-left
+        vertices.push(Vertex::new((x + width, y).into(), color, uvs[1])); // Top-right
+        vertices.push(Vertex::new((x, y + height).into(), color, uvs[2])); // Bottom-left
+        vertices.push(Vertex::new((x + width, y + height).into(), color, uvs[3])); // Bottom-right
 
         self.indices.extend_from_slice(&[
             index_offset,
