@@ -105,9 +105,9 @@ impl Window {
         self.handle.id()
     }
 
-    pub(crate) fn handle_resize(&mut self, gpu: &GpuContext, width: u32, height: u32) {
-        self.surface.resize(gpu, width, height);
-        self.renderer.resize(gpu, width, height);
+    pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
+        self.surface.resize(width, height);
+        self.renderer.resize(width, height);
     }
 
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
@@ -159,13 +159,17 @@ impl Window {
     }
 
     pub(crate) fn paint(&mut self, gpu: &GpuContext) {
-        let surface_texture = self.surface.surface.get_current_texture().unwrap();
-
+        // for now
         self.build_scene();
 
-        // TODO check if dirty
+        self.surface.sync(gpu);
+
         let batches = self.scene.batches().collect::<Vec<_>>();
+
+        let surface_texture = self.surface.surface.get_current_texture().unwrap();
+
         self.renderer.update_buffers(gpu, &batches);
+
         self.renderer
             .render(gpu, self.bg_color, &batches, &surface_texture.texture);
 

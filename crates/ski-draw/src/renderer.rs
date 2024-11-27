@@ -1,10 +1,9 @@
-use std::{num::NonZeroU64, ops::Range};
+use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::{
     gpu::GpuContext,
     math::Mat3,
-    paint::{DrawList, Mesh, PrimitiveKind, SceneVertex},
-    scene::Scene,
+    paint::{Mesh, SceneVertex},
 };
 
 pub mod render_target;
@@ -113,6 +112,7 @@ pub struct GlobalUniformsBuffer {
     pub gpu_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub bing_group_layout: wgpu::BindGroupLayout,
+    dirty: Cell<bool>,
 }
 
 impl GlobalUniformsBuffer {
@@ -157,17 +157,37 @@ impl GlobalUniformsBuffer {
             gpu_buffer,
             bind_group,
             bing_group_layout: layout,
+            dirty: Cell::new(false),
         }
     }
 
+    pub fn set_data(&mut self, data: GlobalUniformData) {
+        self.data = data;
+        self.dirty.set(true);
+    }
+
+    pub fn map(&mut self, f: impl FnOnce(&mut GlobalUniformData)) {
+        f(&mut self.data);
+        self.dirty.set(true);
+    }
+
     pub fn sync(&self, gpu: &GpuContext) {
+        if !self.dirty.get() {
+            return;
+        }
+
+        log::trace!("Global uniform buffer sync");
+
         gpu.queue
-            .write_buffer(&self.gpu_buffer, 0, bytemuck::cast_slice(&[self.data]))
+            .write_buffer(&self.gpu_buffer, 0, bytemuck::cast_slice(&[self.data]));
+
+        self.dirty.set(false);
     }
 }
 
 #[derive(Debug)]
 pub struct Renderer {
+    // TODO maybe switch renderer to a enum variant Renderer::Windowed Renderer::Default
     render_target: RenderTarget,
 
     global_uniforms: GlobalUniformsBuffer,
@@ -183,14 +203,14 @@ impl Renderer {
         let render_target_spec = RenderTargetSpecification::default()
             .with_size(width, height)
             .with_label("render target")
-            .with_format(wgpu::TextureFormat::Bgra8UnormSrgb);
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb);
 
-        let render_target = RenderTarget::new(&gpu, &render_target_spec);
+        let render_target = RenderTarget::new(gpu, &render_target_spec);
 
         let proj = Mat3::ortho(0., 0., height as f32, width as f32);
 
         let uniform_buffer =
-            GlobalUniformsBuffer::new(&gpu, GlobalUniformData { proj: proj.into() });
+            GlobalUniformsBuffer::new(gpu, GlobalUniformData { proj: proj.into() });
 
         let texture_bindgroup_layout =
             gpu.device
@@ -216,7 +236,7 @@ impl Renderer {
                     ],
                 });
 
-        let scene_pipe = ScenePipe::new(&gpu, &[&uniform_buffer.bing_group_layout]);
+        let scene_pipe = ScenePipe::new(gpu, &[&uniform_buffer.bing_group_layout]);
 
         Self {
             render_target,
@@ -226,19 +246,24 @@ impl Renderer {
         }
     }
 
-    pub fn resize(&mut self, gpu: &GpuContext, width: u32, height: u32) {
-        self.render_target.resize(gpu, width, height);
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.render_target.resize(width, height);
 
         let proj = Mat3::ortho(0., 0., height as f32, width as f32);
-        self.global_uniforms.data.proj = proj.into();
-        self.global_uniforms.sync(gpu);
+        self.global_uniforms.map(|data| {
+            data.proj = proj.into();
+        });
     }
 
     pub fn destroy(&mut self) {
         // todo
     }
 
+    // call this before rendering
     pub fn update_buffers(&mut self, gpu: &GpuContext, data: &[Mesh]) {
+        self.global_uniforms.sync(gpu);
+        self.render_target.sync(gpu);
+
         let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
             (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
         });
@@ -368,6 +393,7 @@ impl Renderer {
                 }
             }
         }
+
         gpu.queue.submit(std::iter::once(encoder.finish()));
 
         log::trace!("Render Complete!");

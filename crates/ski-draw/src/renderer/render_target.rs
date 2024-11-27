@@ -46,6 +46,7 @@ pub struct RenderTarget {
     height: u32,
     texture_view: wgpu::TextureView,
     texture: wgpu::Texture,
+    dirty: bool,
 }
 
 impl RenderTarget {
@@ -58,6 +59,7 @@ impl RenderTarget {
             texture,
             width: specs.width,
             height: specs.height,
+            dirty: false,
         }
     }
 
@@ -92,7 +94,7 @@ impl RenderTarget {
         })
     }
 
-    pub fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {
+    pub fn resize(&mut self, new_width: u32, new_height: u32) {
         if self.width == new_width && self.height == new_height {
             return;
         }
@@ -100,14 +102,17 @@ impl RenderTarget {
         let new_width = new_width.max(1);
         let new_height = new_height.max(1);
 
-        log::trace!(
-            "render target resize: width = {} height = {}",
-            new_width,
-            new_height
-        );
-
         self.width = new_width;
         self.height = new_height;
+
+        self.dirty = true;
+    }
+
+    pub fn sync(&mut self, gpu: &GpuContext) {
+        if !self.dirty {
+            return;
+        }
+        self.dirty = false;
 
         let spec = RenderTargetSpecification::default()
             .with_size(self.width, self.height)
@@ -117,6 +122,12 @@ impl RenderTarget {
         self.texture_view = self
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        log::trace!(
+            "Render target resize: width = {} height = {}",
+            self.width,
+            self.height
+        );
     }
 
     pub fn texture(&self) -> &wgpu::Texture {
