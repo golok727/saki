@@ -1982,6 +1982,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "saki"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "env_logger",
+ "log",
+ "ski",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2069,28 +2079,25 @@ dependencies = [
 name = "ski"
 version = "0.1.0"
 dependencies = [
- "chrono",
- "env_logger",
+ "async-task",
+ "calloop 0.14.1",
+ "flume",
  "log",
+ "parking_lot",
+ "pollster",
  "ski-draw",
+ "thiserror 2.0.3",
+ "wgpu",
+ "winit",
 ]
-
-[[package]]
-name = "ski-core"
-version = "0.1.0"
 
 [[package]]
 name = "ski-draw"
 version = "0.1.0"
 dependencies = [
- "async-task",
  "bytemuck",
- "calloop 0.14.1",
- "flume",
  "image",
  "log",
- "parking_lot",
- "pollster",
  "thiserror 2.0.3",
  "wgpu",
  "winit",

@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
-default-members = ["crates/ski"]
+members = ["crates/*", "ski/*"]
+default-members = ["crates/saki"]
 
 [workspace.dependencies]
-ski-draw = { path = "./crates/ski-draw" }
+ski = { path = "./ski/ski" }
 winit = "0.30.5"
 wgpu = "23.0.0"
 pollster = "0.4.0"

@@ -1,20 +1,17 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{ HashMap, HashSet, VecDeque };
 use std::future::Future;
 use std::sync::Arc;
 
-use crate::gpu::GpuContext;
-use crate::jobs::{Job, Jobs};
+use ski_draw::gpu::GpuContext;
+use crate::jobs::{ Job, Jobs };
 use crate::window::error::CreateWindowError;
-use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
+use crate::window::{ Window, WindowContext, WindowId, WindowSpecification };
 
 use winit::application::ApplicationHandler;
-use winit::{
-    event::{KeyEvent, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
-};
+use winit::{ event::{ KeyEvent, WindowEvent }, keyboard::{ KeyCode, PhysicalKey } };
 
 use super::events::AppEvents;
-use super::{AppAction, AppUpdateEvent, Effect, InitCallback, OpenWindowCallback};
+use super::{ AppAction, AppUpdateEvent, Effect, InitCallback, OpenWindowCallback };
 
 pub struct AppContext {
     pub(super) init_callback: Option<InitCallback>,
@@ -31,7 +28,6 @@ pub struct AppContext {
     windows: HashMap<WindowId, Window>,
     pub(crate) gpu: Arc<GpuContext>,
 }
-
 
 impl AppContext {
     #[allow(clippy::new_without_default)]
@@ -95,7 +91,7 @@ impl AppContext {
     }
 
     pub(crate) fn push_app_event(&mut self, event: AppUpdateEvent) {
-        self.app_events.push_event(event); 
+        self.app_events.push_event(event);
         self.push_effect(Effect::UserEvent(AppAction::AppUpdate))
     }
 
@@ -105,48 +101,42 @@ impl AppContext {
         })
     }
 
-    pub fn spawn<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
-    where
-        T: 'static {
+    pub fn spawn<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T> where T: 'static {
         self.jobs.spawn_local(future)
     }
 
     pub fn spawn_bg<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
-    where
-        T: Send + 'static {
+        where T: Send + 'static
+    {
         self.jobs.spawn(future)
     }
 
     pub fn set_timeout(
         &mut self,
         f: impl FnOnce(&mut Self) + 'static,
-        timeout: std::time::Duration,
+        timeout: std::time::Duration
     ) {
         let jobs = self.jobs.clone();
-        let events = self.app_events.clone(); 
+        let events = self.app_events.clone();
 
-        self.
-            spawn(async move {
-                jobs.timer(timeout).await;
-                events.push_event(AppUpdateEvent::AppContextCallback {
-                    callback: Box::new(f),
-                });
-                events.notify(AppAction::AppUpdate); 
-            })
-            .detach();
+        self.spawn(async move {
+            jobs.timer(timeout).await;
+            events.push_event(AppUpdateEvent::AppContextCallback {
+                callback: Box::new(f),
+            });
+            events.notify(AppAction::AppUpdate);
+        }).detach();
     }
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
-    where
-        F: Fn(&mut WindowContext) + 'static,
+        where F: Fn(&mut WindowContext) + 'static
     {
         self.update(|app| app.request_create_window(specs, f));
     }
 
     #[inline]
     fn request_create_window<F>(&mut self, specs: WindowSpecification, f: F)
-    where
-        F: Fn(&mut WindowContext) + 'static,
+        where F: Fn(&mut WindowContext) + 'static
     {
         self.push_app_event(AppUpdateEvent::CreateWindow {
             specs,
@@ -157,7 +147,7 @@ impl AppContext {
     fn create_window(
         &mut self,
         specs: &WindowSpecification,
-        event_loop: &winit::event_loop::ActiveEventLoop,
+        event_loop: &winit::event_loop::ActiveEventLoop
     ) -> Result<(WindowId, Window), CreateWindowError> {
         let window = Window::new(event_loop, specs, &self.gpu)?;
         let window_id = window.handle.id();
@@ -168,16 +158,16 @@ impl AppContext {
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for event in self.app_events.drain() {
             match event {
-                 AppUpdateEvent::CreateWindow { specs, callback } => {
+                AppUpdateEvent::CreateWindow { specs, callback } => {
                     self.handle_window_create_event(event_loop, specs, callback);
                 }
                 AppUpdateEvent::AppContextCallback { callback } => callback(self),
                 AppUpdateEvent::WindowContextCallback { callback, window_id } => {
-                    let window = self.windows.remove(&window_id); 
+                    let window = self.windows.remove(&window_id);
                     if let Some(mut window) = window {
-                        let mut cx = WindowContext::new(self, &mut window); 
-                        callback(&mut cx); 
-                        self.windows.insert(window.id(), window); 
+                        let mut cx = WindowContext::new(self, &mut window);
+                        callback(&mut cx);
+                        self.windows.insert(window.id(), window);
                     }
                 }
             }
@@ -188,8 +178,8 @@ impl AppContext {
     fn handle_window_create_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        specs: WindowSpecification, 
-        callback: OpenWindowCallback, 
+        specs: WindowSpecification,
+        callback: OpenWindowCallback
     ) {
         log::info!("Creating window. \n Spec: {:#?}", &specs);
         if let Ok((id, mut window)) = self.create_window(&specs, event_loop) {
@@ -212,7 +202,7 @@ impl ApplicationHandler<AppAction> for AppContext {
             AppAction::AppUpdate => self.handle_app_update_event(event_loop),
             AppAction::Quit => {
                 event_loop.exit();
-                self.app_events.dispose(); 
+                self.app_events.dispose();
                 log::info!("Bye!");
             }
         }
@@ -222,7 +212,7 @@ impl ApplicationHandler<AppAction> for AppContext {
         &mut self,
         _event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
+        event: winit::event::WindowEvent
     ) {
         match event {
             WindowEvent::Resized(size) => {
@@ -235,15 +225,11 @@ impl ApplicationHandler<AppAction> for AppContext {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
                 window.paint(&self.gpu);
             }
-            WindowEvent::CloseRequested
+            | WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(KeyCode::Escape),
-                        ..
-                    },
-                ..
-            } => {
+                  event: KeyEvent { physical_key: PhysicalKey::Code(KeyCode::Escape), .. },
+                  ..
+              } => {
                 self.windows.remove(&window_id);
                 if self.windows.is_empty() {
                     self.quit();

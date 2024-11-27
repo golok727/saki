@@ -8,13 +8,11 @@ use std::sync::Arc;
 use error::CreateWindowError;
 pub(crate) use winit::window::Window as WinitWindow;
 
-use crate::{
-    app::AppContext,
-    gpu::{
-        surface::{GpuSurface, GpuSurfaceSpecification},
-        GpuContext,
-    },
-    paint::{quad, TextureId, WHITE_TEX_ID},
+use crate::app::AppContext;
+
+use ski_draw::{
+    gpu::{ surface::{ GpuSurface, GpuSurfaceSpecification }, GpuContext },
+    paint::{ quad, TextureId, WHITE_TEX_ID },
     scene::Scene,
     Renderer,
 };
@@ -58,16 +56,18 @@ fn create_native_texture(gpu: &GpuContext, data: &[u8], width: u32, height: u32)
         depth_or_array_layers: 1,
     };
 
-    let texture = gpu.create_texture(&wgpu::TextureDescriptor {
-        label: Some("Check Texture"),
-        size: texture_size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
+    let texture = gpu.create_texture(
+        &(wgpu::TextureDescriptor {
+            label: Some("Check Texture"),
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        })
+    );
 
     gpu.queue.write_texture(
         wgpu::ImageCopyTexture {
@@ -82,7 +82,7 @@ fn create_native_texture(gpu: &GpuContext, data: &[u8], width: u32, height: u32)
             bytes_per_row: Some(4 * width),
             rows_per_image: None,
         },
-        texture_size,
+        texture_size
     );
 
     texture
@@ -144,12 +144,13 @@ impl Window {
     pub(crate) fn new(
         event_loop: &winit::event_loop::ActiveEventLoop,
         specs: &WindowSpecification,
-        gpu: &GpuContext,
+        gpu: &GpuContext
     ) -> Result<Self, CreateWindowError> {
         let width = specs.width;
         let height = specs.height;
 
-        let attr = winit::window::WindowAttributes::default()
+        let attr = winit::window::WindowAttributes
+            ::default()
             .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
             .with_title(specs.title);
 
@@ -157,10 +158,7 @@ impl Window {
         let handle = Arc::new(winit_window);
 
         let surface = gpu
-            .create_surface(
-                Arc::clone(&handle),
-                &GpuSurfaceSpecification { width, height },
-            )
+            .create_surface(Arc::clone(&handle), &(GpuSurfaceSpecification { width, height }))
             .unwrap(); // TODO handle error
 
         let mut renderer = Renderer::new(gpu, width, height);
@@ -174,7 +172,7 @@ impl Window {
         let checker_texture = create_native_texture(gpu, &checker_data, 250, 250);
         let checker_texture_id = renderer.set_native_texture(
             gpu,
-            &checker_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+            &checker_texture.create_view(&wgpu::TextureViewDescriptor::default())
         );
 
         Ok(Self {
@@ -219,26 +217,20 @@ impl Window {
 
         self.scene.add(
             quad()
-                .with_pos((width / 2.) - 150.0, (height / 2.) - 150.0)
-                .with_size(300., 300.)
-                .with_bgcolor(1., 0., 0., 1.), // green,
-            Some(self.checker_texture_id),
+                .with_pos(width / 2.0 - 150.0, height / 2.0 - 150.0)
+                .with_size(300.0, 300.0)
+                .with_bgcolor(1.0, 0.0, 0.0, 1.0), // green,
+            Some(self.checker_texture_id)
         );
 
         self.scene.add(
-            quad()
-                .with_pos(100.0, 200.0)
-                .with_size(250., 250.)
-                .with_bgcolor(1., 1., 0., 1.),
-            Some(self.checker_texture_id),
+            quad().with_pos(100.0, 200.0).with_size(250.0, 250.0).with_bgcolor(1.0, 1.0, 0.0, 1.0),
+            Some(self.checker_texture_id)
         );
 
         self.scene.add(
-            quad()
-                .with_pos(100.0, 500.0)
-                .with_size(300.0, 100.0)
-                .with_bgcolor(0.3, 0.3, 0.9, 1.0),
-            None,
+            quad().with_pos(100.0, 500.0).with_size(300.0, 100.0).with_bgcolor(0.3, 0.3, 0.9, 1.0),
+            None
         );
 
         let bar_height: f32 = 50.0;
@@ -246,10 +238,10 @@ impl Window {
 
         self.scene.add(
             quad()
-                .with_pos(0.0, (height - bar_height) - margin_bottom)
+                .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
                 .with_bgcolor(0.04, 0.04, 0.07, 1.0),
-            None,
+            None
         );
     }
 
@@ -265,8 +257,7 @@ impl Window {
 
         self.renderer.update_buffers(gpu, &batches);
 
-        self.renderer
-            .render(gpu, self.bg_color, &batches, &surface_texture.texture);
+        self.renderer.render(gpu, self.bg_color, &batches, &surface_texture.texture);
 
         surface_texture.present();
     }
@@ -283,29 +274,24 @@ impl<'a> WindowContext<'a> {
     }
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
-    where
-        F: Fn(&mut WindowContext) + 'static,
+        where F: Fn(&mut WindowContext) + 'static
     {
         self.app.open_window(specs, f)
     }
 
     pub fn set_timeout<F>(&mut self, f: F, timeout: std::time::Duration)
-    where
-        F: FnOnce(&mut WindowContext) + 'static,
+        where F: FnOnce(&mut WindowContext) + 'static
     {
         let window_id = self.window.id();
 
-        self.app.set_timeout(
-            move |app| {
-                app.update(|app| {
-                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
-                        callback: Box::new(f),
-                        window_id,
-                    });
-                })
-            },
-            timeout,
-        );
+        self.app.set_timeout(move |app| {
+            app.update(|app| {
+                app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
+                    callback: Box::new(f),
+                    window_id,
+                });
+            })
+        }, timeout);
     }
 
     pub fn change_bg() {}

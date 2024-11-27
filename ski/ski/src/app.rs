@@ -5,11 +5,8 @@ pub use context::AppContext;
 
 pub(crate) mod events;
 
-use crate::{
-    paint::quad,
-    scene::Scene,
-    window::{WindowContext, WindowId, WindowSpecification},
-};
+use crate::window::{ WindowContext, WindowId, WindowSpecification };
+use ski_draw::{ paint::{ quad, TextureId }, scene::Scene };
 
 use winit::event_loop::EventLoop;
 
@@ -24,10 +21,7 @@ impl App {
         Self(AppContext::new())
     }
 
-    pub fn run<F>(&mut self, f: F)
-    where
-        F: FnOnce(&mut AppContext) + 'static,
-    {
+    pub fn run<F>(&mut self, f: F) where F: FnOnce(&mut AppContext) + 'static {
         self.0.init_callback = Some(Box::new(f));
 
         let event_loop: EventLoop<AppAction> = EventLoop::with_user_event()
@@ -84,26 +78,20 @@ fn batch_test() {
 
     scene.add(
         quad()
-            .with_pos((width / 2.) - 100.0, (height / 2.) - 100.0)
-            .with_size(200., 200.)
-            .with_bgcolor(1., 0., 0., 1.), // green,
-        None,
+            .with_pos(width / 2.0 - 100.0, height / 2.0 - 100.0)
+            .with_size(200.0, 200.0)
+            .with_bgcolor(1.0, 0.0, 0.0, 1.0), // green,
+        None
     );
 
     scene.add(
-        quad()
-            .with_pos(100.0, 200.0)
-            .with_size(250., 250.)
-            .with_bgcolor(0., 1., 0., 1.), // green,
-        None,
+        quad().with_pos(100.0, 200.0).with_size(250.0, 250.0).with_bgcolor(0.0, 1.0, 0.0, 1.0), // green,
+        None
     );
 
     scene.add(
-        quad()
-            .with_pos(100.0, 500.0)
-            .with_size(300.0, 100.0)
-            .with_bgcolor(0.3, 0.3, 0.9, 1.0),
-        Some(crate::paint::TextureId::User(1)),
+        quad().with_pos(100.0, 500.0).with_size(300.0, 100.0).with_bgcolor(0.3, 0.3, 0.9, 1.0),
+        Some(TextureId::User(1))
     );
 
     let bar_height: f32 = 50.0;
@@ -111,10 +99,10 @@ fn batch_test() {
 
     scene.add(
         quad()
-            .with_pos(0.0, (height - bar_height) - margin_bottom)
+            .with_pos(0.0, height - bar_height - margin_bottom)
             .with_size(width, bar_height)
             .with_bgcolor(0.04, 0.04, 0.07, 1.0),
-        Some(crate::paint::TextureId::User(2)),
+        Some(TextureId::User(2))
     );
 
     let thing = scene.batches().collect::<Vec<_>>();

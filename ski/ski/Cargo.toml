@@ -1,0 +1,16 @@
+[package]
+name = "ski"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ski-draw = { path = "../ski-draw" }
+pollster.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+log.workspace = true
+thiserror.workspace = true
+async-task.workspace = true
+parking_lot.workspace = true
+flume.workspace = true
+calloop.workspace = true
