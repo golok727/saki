@@ -20,8 +20,9 @@ impl GpuContext {
                     power_preference: wgpu::PowerPreference::default(),
                     force_fallback_adapter: false,
                     compatible_surface: None,
-                })
-            ).await
+                }),
+            )
+            .await
             .ok_or(error::GpuContextCreateError::AdapterMissing)?;
 
         let (device, queue) = adapter
@@ -29,13 +30,13 @@ impl GpuContext {
                 &(wgpu::DeviceDescriptor {
                     label: Some("GPUContext device"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits
-                        ::downlevel_webgl2_defaults()
+                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
                         .using_resolution(adapter.limits()),
                     memory_hints: wgpu::MemoryHints::MemoryUsage,
                 }),
-                None
-            ).await
+                None,
+            )
+            .await
             .map_err(error::GpuContextCreateError::RequestDeviceError)?;
 
         Ok(Self {
@@ -47,21 +48,24 @@ impl GpuContext {
     }
 
     pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
-        self.device.create_command_encoder(&(wgpu::CommandEncoderDescriptor { label }))
+        self.device
+            .create_command_encoder(&(wgpu::CommandEncoderDescriptor { label }))
     }
 
     pub fn create_shader(&self, source: &str) -> wgpu::ShaderModule {
-        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(source.into()),
-        })
+        self.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
     }
 
     pub fn create_shader_labeled(&self, source: &str, label: &str) -> wgpu::ShaderModule {
-        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(label),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
-        })
+        self.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(label),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
     }
 
     pub fn create_texture(&self, descriptor: &wgpu::TextureDescriptor) -> wgpu::Texture {
@@ -75,7 +79,7 @@ impl GpuContext {
                 mapped_at_creation: false,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 size,
-            })
+            }),
         )
     }
 
@@ -86,7 +90,7 @@ impl GpuContext {
                 mapped_at_creation: false,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 size,
-            })
+            }),
         )
     }
 }

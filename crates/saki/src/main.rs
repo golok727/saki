@@ -1,13 +1,15 @@
 use std::io::Write;
 
-use ski::{ app::App, window::WindowSpecification };
+use ski::{app::App, window::WindowSpecification};
 
 /*
 TODO
- - [] Texture manager
- - [] Use texture in shader
+ - [] Texture Atlas
+ - [] More Primitives
+ - [] Text System
+ - [] Dom
+ - [] Layout system
 */
-
 fn main() {
     println!("Radhe Shyam!");
 
@@ -24,18 +26,21 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
-            cx.set_timeout(move |cx| {
-                cx.window.set_bg_color(1.0, 1.0, 1.0);
-            }, std::time::Duration::from_secs(2));
+            cx.set_timeout(
+                move |cx| {
+                    cx.window.set_bg_color(1.0, 1.0, 1.0);
+                },
+                std::time::Duration::from_secs(2),
+            );
 
             cx.set_timeout(
                 move |cx| cx.window.set_bg_color(1.0, 1.0, 0.0),
-                std::time::Duration::from_secs(4)
+                std::time::Duration::from_secs(4),
             );
 
             cx.set_timeout(
                 move |cx| cx.window.set_bg_color(0.01, 0.01, 0.01),
-                std::time::Duration::from_secs(6)
+                std::time::Duration::from_secs(6),
             );
 
             cx.window.set_bg_color(0.01, 0.01, 0.01);
@@ -44,11 +49,10 @@ fn main() {
 }
 
 fn init_stdout_logger() {
-    env_logger::Builder
-        ::new()
+    env_logger::Builder::new()
         .parse_default_env()
         .format(|buf, record| {
-            use env_logger::fmt::style::{ AnsiColor, Style };
+            use env_logger::fmt::style::{AnsiColor, Style};
 
             // Subtle style for the whole date part, dimmed color
             let dimmed = Style::new().fg_color(Some(AnsiColor::BrightBlack.into()));
