@@ -15,3 +15,12 @@ pub enum TextureId {
     Internal(usize),
     User(usize),
 }
+
+impl std::fmt::Display for TextureId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Internal(id) => write!(f, "Texture::Internal({})", id),
+            Self::User(id) => write!(f, "Texture::User({})", id),
+        }
+    }
+}

@@ -14,7 +14,7 @@ use crate::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
-    paint::quad,
+    paint::{quad, TextureId, WHITE_TEX_ID},
     scene::Scene,
     Renderer,
 };
@@ -51,20 +51,100 @@ impl WindowSpecification {
     }
 }
 
+fn create_native_texture(gpu: &GpuContext, data: &[u8], width: u32, height: u32) -> wgpu::Texture {
+    let texture_size = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
+
+    let texture = gpu.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Check Texture"),
+        size: texture_size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+
+    gpu.queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture: &texture,
+            aspect: wgpu::TextureAspect::All,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+        },
+        data,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * width),
+            rows_per_image: None,
+        },
+        texture_size,
+    );
+
+    texture
+}
+
+fn create_check_texture(width: usize, height: usize, tile_size: usize) -> Vec<u8> {
+    let mut texture_data = vec![0u8; width * height * 4];
+
+    for y in 0..height {
+        for x in 0..width {
+            let tile_x = x / tile_size;
+            let tile_y = y / tile_size;
+            let is_black = (tile_x + tile_y) % 2 == 0;
+
+            let offset = (y * width + x) * 4;
+            if is_black {
+                texture_data[offset] = 0; // Red
+                texture_data[offset + 1] = 0; // Green
+                texture_data[offset + 2] = 0; // Blue
+                texture_data[offset + 3] = 255; // Alpha
+            } else {
+                texture_data[offset] = 255; // Red
+                texture_data[offset + 1] = 255; // Green
+                texture_data[offset + 2] = 255; // Blue
+                texture_data[offset + 3] = 255; // Alpha
+            }
+        }
+    }
+
+    texture_data
+}
+
+fn create_white_texture(gpu: &GpuContext) -> wgpu::Texture {
+    let image_data = [255u8, 255u8, 255u8, 255u8];
+    create_native_texture(gpu, &image_data, 1, 1)
+}
+
 #[derive(Debug)]
 pub struct Window {
     pub(crate) surface: GpuSurface,
     pub(crate) renderer: Renderer,
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
+
     bg_color: wgpu::Color,
+
+    // FIXME add asset system
+    #[allow(unused)]
+    white_texture: wgpu::Texture,
+
+    #[allow(unused)]
+    checker_texture: wgpu::Texture,
+
+    #[allow(unused)]
+    checker_texture_id: TextureId,
 }
 
 impl Window {
     pub(crate) fn new(
         event_loop: &winit::event_loop::ActiveEventLoop,
         specs: &WindowSpecification,
-        gpu: Arc<GpuContext>,
+        gpu: &GpuContext,
     ) -> Result<Self, CreateWindowError> {
         let width = specs.width;
         let height = specs.height;
@@ -83,7 +163,19 @@ impl Window {
             )
             .unwrap(); // TODO handle error
 
-        let renderer = Renderer::new(&gpu, width, height);
+        let mut renderer = Renderer::new(gpu, width, height);
+
+        let white_texture = create_white_texture(gpu);
+        let view = white_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        renderer.set_native_texture_impl(gpu, WHITE_TEX_ID, &view);
+
+        let checker_data = create_check_texture(250, 250, 25);
+        let checker_texture = create_native_texture(gpu, &checker_data, 250, 250);
+        let checker_texture_id = renderer.set_native_texture(
+            gpu,
+            &checker_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+        );
 
         Ok(Self {
             bg_color: wgpu::Color::WHITE,
@@ -91,6 +183,9 @@ impl Window {
             handle,
             renderer,
             surface,
+            checker_texture,
+            checker_texture_id,
+            white_texture,
         })
     }
 
@@ -124,18 +219,18 @@ impl Window {
 
         self.scene.add(
             quad()
-                .with_pos((width / 2.) - 100.0, (height / 2.) - 100.0)
-                .with_size(200., 200.)
+                .with_pos((width / 2.) - 150.0, (height / 2.) - 150.0)
+                .with_size(300., 300.)
                 .with_bgcolor(1., 0., 0., 1.), // green,
-            None,
+            Some(self.checker_texture_id),
         );
 
         self.scene.add(
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250., 250.)
-                .with_bgcolor(0., 1., 0., 1.), // green,
-            None,
+                .with_bgcolor(1., 1., 0., 1.),
+            Some(self.checker_texture_id),
         );
 
         self.scene.add(

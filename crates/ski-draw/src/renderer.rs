@@ -3,7 +3,7 @@ use std::{cell::Cell, collections::HashMap, num::NonZeroU64, ops::Range};
 use crate::{
     gpu::GpuContext,
     math::Mat3,
-    paint::{Mesh, TextureId, Vertex},
+    paint::{Mesh, TextureId, Vertex, WHITE_TEX_ID},
 };
 
 pub mod render_target;
@@ -101,8 +101,12 @@ impl GlobalUniformsBuffer {
 
 #[derive(Debug)]
 struct RendererTexture {
+    #[allow(unused)]
     raw: Option<wgpu::Texture>,
+
+    #[allow(unused)]
     id: TextureId,
+
     bindgroup: wgpu::BindGroup,
 }
 
@@ -119,7 +123,6 @@ pub struct Renderer {
 
     scene_pipe: ScenePipe,
 
-    #[allow(unused)]
     pub(crate) texture_bindgroup_layout: wgpu::BindGroupLayout,
 }
 
@@ -161,7 +164,10 @@ impl Renderer {
                     ],
                 });
 
-        let scene_pipe = ScenePipe::new(gpu, &[&uniform_buffer.bing_group_layout]);
+        let scene_pipe = ScenePipe::new(
+            gpu,
+            &[&uniform_buffer.bing_group_layout, &texture_bindgroup_layout],
+        );
 
         Self {
             render_target,
@@ -208,7 +214,7 @@ impl Renderer {
             lod_min_clamp: Default::default(),
             lod_max_clamp: Default::default(),
             compare: None,
-            anisotropy_clamp: Default::default(),
+            anisotropy_clamp: 1,
             border_color: None,
         });
 
@@ -345,16 +351,12 @@ impl Renderer {
             pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
 
             for mesh in batches {
-                // TODO will be removed after adding texture system
-                if mesh.texture.is_some() {
-                    let _ = vb_slices.next().expect("No next thing vb_slice");
-                    let _ = ib_slices.next().expect("No next thing ib_slice");
-                    log::error!("Textures are not supported yet")
-                } else {
+                let texture = mesh.texture.unwrap_or(WHITE_TEX_ID);
+                if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(&texture) {
                     let vb_slice = vb_slices.next().expect("No next thing vb_slice");
                     let ib_slice = ib_slices.next().expect("No next thing ib_slice");
 
-                    // TODO texture bind group
+                    pass.set_bind_group(1, bindgroup, &[]);
                     pass.set_vertex_buffer(
                         0,
                         self.scene_pipe
@@ -370,6 +372,10 @@ impl Renderer {
                         wgpu::IndexFormat::Uint32,
                     );
                     pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                } else {
+                    let _ = vb_slices.next().expect("No next thing vb_slice");
+                    let _ = ib_slices.next().expect("No next thing ib_slice");
+                    log::error!("Texture: {} not found skipping", texture);
                 }
             }
         }

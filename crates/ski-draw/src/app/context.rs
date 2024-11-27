@@ -16,7 +16,6 @@ use winit::{
 use super::events::AppEvents;
 use super::{AppAction, AppUpdateEvent, Effect, InitCallback, OpenWindowCallback};
 
-
 pub struct AppContext {
     pub(super) init_callback: Option<InitCallback>,
 
@@ -160,7 +159,7 @@ impl AppContext {
         specs: &WindowSpecification,
         event_loop: &winit::event_loop::ActiveEventLoop,
     ) -> Result<(WindowId, Window), CreateWindowError> {
-        let window = Window::new(event_loop, specs, Arc::clone(&self.gpu))?;
+        let window = Window::new(event_loop, specs, &self.gpu)?;
         let window_id = window.handle.id();
 
         Ok((window_id, window))

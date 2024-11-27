@@ -57,8 +57,12 @@ impl<'a> SceneBatchIterator<'a> {
             tex_to_item_idx.entry(prim.texture).or_default().push(i);
         }
 
-        let groups = tex_to_item_idx.into_iter().collect();
+        let mut groups: Vec<(Option<TextureId>, Vec<usize>)> =
+            tex_to_item_idx.into_iter().collect();
 
+        groups.sort_by_key(|(_, indices)| indices.first().copied().unwrap_or_default());
+
+        log::trace!("Batches: {}", groups.len());
         Self {
             scene,
             cur_group: 0,

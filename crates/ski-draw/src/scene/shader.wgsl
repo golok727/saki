@@ -27,12 +27,11 @@ struct VertexOut {
     return out; 
 }
 
-// @group(1) @binding(0) var tex: texture_2d<f32>; 
-// @group(1) @binding(1) var tex_sampler: sampler; 
+@group(1) @binding(0) var tex: texture_2d<f32>; 
+@group(1) @binding(1) var tex_sampler: sampler; 
 
 @fragment fn fs(in: VertexOut)-> @location(0) vec4f {
-    // let tex_color = textureSample(tex, tex_sampler, in.uv); 
-    // return in.color * tex_color; 
-    return in.color; 
+    let tex_color = textureSample(tex, tex_sampler, in.uv); 
+    return in.color * tex_color; 
 }
 
