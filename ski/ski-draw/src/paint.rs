@@ -22,3 +22,6 @@ impl std::fmt::Display for TextureId {
         }
     }
 }
+
+pub type TextureFormat = wgpu::TextureFormat;
+pub type WgpuTexture = wgpu::Texture;

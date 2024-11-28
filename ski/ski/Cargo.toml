@@ -13,4 +13,5 @@ thiserror.workspace = true
 async-task.workspace = true
 parking_lot.workspace = true
 flume.workspace = true
+image.workspace = true
 calloop.workspace = true

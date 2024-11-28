@@ -2082,6 +2082,7 @@ dependencies = [
  "async-task",
  "calloop 0.14.1",
  "flume",
+ "image",
  "log",
  "parking_lot",
  "pollster",
@@ -2096,7 +2097,6 @@ name = "ski-draw"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "image",
  "log",
  "thiserror 2.0.3",
  "wgpu",

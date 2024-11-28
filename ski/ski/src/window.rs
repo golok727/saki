@@ -12,7 +12,7 @@ use ski_draw::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
-    paint::{quad, TextureId},
+    paint::{quad, TextureId, WgpuTexture},
     scene::Scene,
     Renderer,
 };
@@ -56,10 +56,15 @@ pub struct Window {
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
 
-    // FIXME remove
+    // FIXME will be removed after adding atlas
     #[allow(unused)]
-    checker_texture: wgpu::Texture,
+    thing_texture: WgpuTexture,
+
     #[allow(unused)]
+    thing_texture_id: TextureId,
+
+    #[allow(unused)]
+    checker_texture: WgpuTexture,
     checker_texture_id: TextureId,
 }
 
@@ -97,11 +102,19 @@ impl Window {
             &checker_texture.create_view(&wgpu::TextureViewDescriptor::default()),
         );
 
+        let thing_texture = load_thing(gpu);
+        let thing_texture_id = renderer.set_native_texture(
+            gpu,
+            &thing_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+        );
+
         Ok(Self {
             scene: Scene::default(),
             handle,
             renderer,
             surface,
+            thing_texture,
+            thing_texture_id,
             checker_texture,
             checker_texture_id,
         })
@@ -149,6 +162,13 @@ impl Window {
                 .with_size(250.0, 250.0)
                 .with_bgcolor(1.0, 1.0, 0.0, 1.0),
             Some(self.checker_texture_id),
+        );
+
+        self.scene.add(
+            quad()
+                .with_pos(width / 2.0 + 300.0, 400.0)
+                .with_size(500.0, 500.0),
+            Some(self.thing_texture_id),
         );
 
         self.scene.add(
@@ -252,4 +272,19 @@ fn create_checker_texture(width: usize, height: usize, tile_size: usize) -> Vec<
     }
 
     texture_data
+}
+
+fn load_thing(gpu: &GpuContext) -> WgpuTexture {
+    let thing_buffer = include_bytes!("../../../assets/thing2.png");
+
+    let thing = image::load_from_memory(thing_buffer).unwrap();
+    let data = thing.into_rgba8();
+
+    // FIXME color
+    gpu.create_texture_init(
+        ski_draw::paint::TextureFormat::Rgba8UnormSrgb,
+        data.width(),
+        data.height(),
+        &data,
+    )
 }

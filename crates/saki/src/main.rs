@@ -4,8 +4,8 @@ use ski::{app::App, window::WindowSpecification};
 
 /*
 TODO
- - [] Color correction
  - [] Texture Atlas
+ - [] Color correction
  - [] More Primitives
  - [] Text System
  - [] Dom
@@ -25,6 +25,11 @@ fn main() {
             height: 1023,
             ..Default::default()
         };
+
+        // app.open_window(window_specs.clone(), move |cx| {
+        //     cx.window
+        //         .set_bg_color(24.0 / 255.0, 24.0 / 255.0, 24.0 / 255.0);
+        // });
 
         app.open_window(window_specs.clone(), move |cx| {
             cx.set_timeout(
