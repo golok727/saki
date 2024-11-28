@@ -4,6 +4,7 @@ use ski::{app::App, window::WindowSpecification};
 
 /*
 TODO
+ - [] Color correction
  - [] Texture Atlas
  - [] More Primitives
  - [] Text System

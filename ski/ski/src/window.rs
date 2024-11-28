@@ -139,7 +139,7 @@ impl Window {
             quad()
                 .with_pos(width / 2.0 - 150.0, height / 2.0 - 150.0)
                 .with_size(300.0, 300.0)
-                .with_bgcolor(1.0, 0.0, 0.0, 1.0), // green,
+                .with_bgcolor(1.0, 0.0, 0.0, 1.0),
             Some(self.checker_texture_id),
         );
 
