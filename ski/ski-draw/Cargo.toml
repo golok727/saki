@@ -8,4 +8,8 @@ wgpu.workspace = true
 winit.workspace = true
 log.workspace = true
 thiserror.workspace = true
+ahash.workspace = true
+parking_lot.workspace = true
+derive_more.workspace = true
 bytemuck = { version = "1.20.0", features = ["derive"] }
+etagere = "0.2.13"

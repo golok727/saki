@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::paint::DrawList;
 use crate::paint::Mesh;
 use crate::paint::PrimitiveKind;
@@ -51,7 +49,8 @@ struct SceneBatchIterator<'a> {
 
 impl<'a> SceneBatchIterator<'a> {
     pub fn new(scene: &'a Scene) -> Self {
-        let mut tex_to_item_idx: HashMap<Option<TextureId>, Vec<usize>> = HashMap::new();
+        let mut tex_to_item_idx: ahash::AHashMap<Option<TextureId>, Vec<usize>> =
+            Default::default();
 
         for (i, prim) in scene.items.iter().enumerate() {
             tex_to_item_idx.entry(prim.texture).or_default().push(i);

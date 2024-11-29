@@ -27,6 +27,7 @@ struct VertexOut {
     return out; 
 }
 
+// TODO add polychrome and monochrome
 @group(1) @binding(0) var tex: texture_2d<f32>; 
 @group(1) @binding(1) var tex_sampler: sampler; 
 

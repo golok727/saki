@@ -1,4 +1,4 @@
-use std::{cell::Cell, collections::HashMap, num::NonZeroU64, ops::Range};
+use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::{
     gpu::{GpuContext, WHITE_TEX_ID},
@@ -117,7 +117,7 @@ pub struct Renderer {
 
     global_uniforms: GlobalUniformsBuffer,
 
-    textures: HashMap<TextureId, RendererTexture>,
+    textures: ahash::AHashMap<TextureId, RendererTexture>,
 
     next_texture_id: usize,
 
@@ -175,7 +175,7 @@ impl Renderer {
             render_target,
             scene_pipe,
             clear_color: wgpu::Color::WHITE,
-            textures: HashMap::new(),
+            textures: ahash::AHashMap::new(),
             next_texture_id: 1,
             global_uniforms: uniform_buffer,
             texture_bindgroup_layout,

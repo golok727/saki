@@ -1,3 +1,11 @@
+pub mod rect;
+pub mod size;
+pub mod unit;
+
+pub use rect::Rect;
+pub use size::Size;
+pub use unit::{DevicePixels, ScaledPixels};
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Mat3 {
@@ -407,14 +415,6 @@ where
 #[inline]
 pub fn vec2<T>(x: T, y: T) -> Vec2<T> {
     Vec2 { x, y }
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Rect<T: std::fmt::Debug + Clone + Default> {
-    pub x: T,
-    pub y: T,
-    pub width: T,
-    pub height: T,
 }
 
 #[cfg(test)]

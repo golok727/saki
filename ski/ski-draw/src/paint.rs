@@ -1,27 +1,12 @@
+pub mod atlas;
 pub mod draw_list;
 pub mod primitives;
+pub mod texture;
 
 pub use draw_list::*;
 pub use primitives::*;
+pub use texture::*;
 
 use crate::math::Vec2;
 
 pub const DEFAULT_UV_COORD: Vec2<f32> = Vec2 { x: 0.0, y: 0.0 };
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum TextureId {
-    Internal(usize),
-    User(usize),
-}
-
-impl std::fmt::Display for TextureId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Internal(id) => write!(f, "Texture::Internal({})", id),
-            Self::User(id) => write!(f, "Texture::User({})", id),
-        }
-    }
-}
-
-pub type TextureFormat = wgpu::TextureFormat;
-pub type WgpuTexture = wgpu::Texture;
