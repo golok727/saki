@@ -128,6 +128,7 @@ impl_from_as!(f64, ScaledPixels, f32);
     Display,
     Clone,
     Copy,
+    Eq,
     PartialEq,
     PartialOrd,
     Add,
@@ -156,6 +157,18 @@ impl_from_as!(i64, DevicePixels, i32);
 
 impl_from_as!(f32, DevicePixels, i32);
 impl_from_as!(f64, DevicePixels, i32);
+
+impl From<DevicePixels> for u32 {
+    fn from(val: DevicePixels) -> Self {
+        val.0 as u32
+    }
+}
+
+impl From<DevicePixels> for i32 {
+    fn from(val: DevicePixels) -> Self {
+        val.0
+    }
+}
 
 impl DevicePixels {
     /// Converts DevicePixels to ScreenPixels based on a scale factor (e.g., from device to screen)

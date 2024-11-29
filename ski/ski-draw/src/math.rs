@@ -6,6 +6,10 @@ pub use rect::Rect;
 pub use size::Size;
 pub use unit::{DevicePixels, ScaledPixels};
 
+pub trait Half {
+    fn half(&self) -> Self;
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Mat3 {

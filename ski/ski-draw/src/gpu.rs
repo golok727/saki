@@ -48,7 +48,6 @@ impl GpuContext {
             .map_err(error::GpuContextCreateError::RequestDeviceError)?;
 
 
-
         let default_texture =  Self::create_texture_init_impl(&device, &queue, wgpu::TextureFormat::Rgba8UnormSrgb, 1, 1, &[255u8, 255u8, 255u8, 255u8]); 
         
         Ok(Self {

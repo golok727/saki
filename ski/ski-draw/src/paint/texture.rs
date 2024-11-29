@@ -26,7 +26,7 @@ impl std::fmt::Display for TextureId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
 #[repr(usize)]
 pub enum TextureKind {
     Grayscale = 0,
@@ -34,11 +34,18 @@ pub enum TextureKind {
 }
 
 impl TextureKind {
-    pub fn get_format(&self) -> TextureFormat {
+    pub fn get_texture_format(&self) -> TextureFormat {
         match self {
             Self::Grayscale => TextureFormat::R8Unorm,
             // FIXME should we use Bgara ?
             Self::Color => TextureFormat::Rgba8UnormSrgb,
+        }
+    }
+
+    pub fn bytes_per_pixel(&self) -> u32 {
+        match self {
+            TextureKind::Color => 4,
+            TextureKind::Grayscale => 1,
         }
     }
 
