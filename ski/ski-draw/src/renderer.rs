@@ -1,5 +1,8 @@
+use std::sync::Arc;
 use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
+use crate::gpu::error::GpuSurfaceCreateError;
+use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
 use crate::{
     gpu::{GpuContext, WHITE_TEX_ID},
     math::Mat3,
@@ -111,9 +114,10 @@ pub struct RendererTexture {
 }
 
 #[derive(Debug)]
-pub struct Renderer {
-    // TODO maybe switch renderer to a enum variant Renderer::Windowed Renderer::Default
-    render_target: RenderTarget,
+struct RendererState {
+    gpu: Arc<GpuContext>,
+
+    clear_color: wgpu::Color,
 
     global_uniforms: GlobalUniformsBuffer,
 
@@ -123,24 +127,359 @@ pub struct Renderer {
 
     scene_pipe: ScenePipe,
 
-    clear_color: wgpu::Color,
-
-    pub(crate) texture_bindgroup_layout: wgpu::BindGroupLayout,
+    texture_bindgroup_layout: wgpu::BindGroupLayout,
 }
 
-impl Renderer {
-    pub fn new(gpu: &GpuContext, width: u32, height: u32) -> Self {
+impl RendererState {
+    #[inline]
+    fn sync_global_uniforms(&self) {
+        self.global_uniforms.sync(&self.gpu);
+    }
+
+    #[inline]
+    fn insert_texture(&mut self, tex_id: TextureId, val: RendererTexture) {
+        self.textures.insert(tex_id, val);
+    }
+}
+
+// TODO more surface configuration
+#[derive(Debug, Clone)]
+pub struct WgpuRendererSpecs {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug)]
+enum SurfaceMode {
+    Offscreen { render_target: RenderTarget },
+    Windowed { surface: GpuSurface },
+}
+
+#[derive(Debug)]
+pub struct WgpuRenderer {
+    surface_mode: SurfaceMode,
+    state: RendererState,
+}
+
+impl WgpuRenderer {
+    /// Creates a new Windowed renderer
+    pub fn windowed(
+        gpu: Arc<GpuContext>,
+        screen: impl Into<wgpu::SurfaceTarget<'static>>,
+        specs: &WgpuRendererSpecs,
+    ) -> Result<Self, GpuSurfaceCreateError> {
+        let width = specs.width;
+        let height = specs.height;
+        let surface = gpu.create_surface(screen, &GpuSurfaceSpecification { width, height })?;
+        let surface_mode = SurfaceMode::Windowed { surface };
+
+        // FIXME should be able to remove this after completing texture atlas
+        let default_texture_view = gpu
+            .default_texture()
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let state = Self::create_state(gpu, specs);
+
+        let mut renderer = Self {
+            surface_mode,
+            state,
+        };
+
+        renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
+
+        Ok(renderer)
+    }
+    /// Creates a new offscreen renderer
+    pub fn offscreen(gpu: Arc<GpuContext>, specs: &WgpuRendererSpecs) -> Self {
+        let width = specs.width;
+        let height = specs.height;
+
         let render_target_spec = RenderTargetSpecification::default()
             .with_size(width, height)
             .with_label("render target")
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb);
 
-        let render_target = RenderTarget::new(gpu, &render_target_spec);
+        let render_target = RenderTarget::new(&gpu, &render_target_spec);
+
+        let surface_mode = SurfaceMode::Offscreen { render_target };
+
+        let default_texture_view = gpu
+            .default_texture()
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let state = Self::create_state(gpu, specs);
+
+        let mut renderer = Self {
+            surface_mode,
+            state,
+        };
+
+        renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
+
+        renderer
+    }
+
+    pub fn copy_to_image(&mut self) {
+        match &self.surface_mode {
+            SurfaceMode::Offscreen { .. } => todo!(),
+            SurfaceMode::Windowed { .. } => {
+                panic!("WgpuRenderer::copy_to_image is only availabkle in offscreen renderer")
+            }
+        }
+    }
+
+    pub fn get_texture(&self, id: &TextureId) -> Option<&RendererTexture> {
+        self.state.textures.get(id)
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        match &mut self.surface_mode {
+            SurfaceMode::Windowed { surface } => surface.resize(width, height),
+            SurfaceMode::Offscreen { render_target } => render_target.resize(width, height),
+        }
 
         let proj = Mat3::ortho(0.0, 0.0, height as f32, width as f32);
+        self.state.global_uniforms.map(|data| {
+            data.proj = proj.into();
+        });
+    }
+
+    pub fn set_native_texture(&mut self, view: &wgpu::TextureView) -> TextureId {
+        let tick = self.state.next_texture_id;
+        self.state.next_texture_id += 1;
+
+        self.set_native_texture_impl(TextureId::User(tick), view)
+    }
+
+    #[inline]
+    fn set_native_texture_impl(
+        &mut self,
+        id: TextureId,
+        view: &wgpu::TextureView, // TODO texture options
+    ) -> TextureId {
+        // TODO make it configurable
+        let sampler = self.state.gpu.device.create_sampler(
+            &(wgpu::SamplerDescriptor {
+                label: Some("ski_draw texture sampler"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                lod_min_clamp: Default::default(),
+                lod_max_clamp: Default::default(),
+                compare: None,
+                anisotropy_clamp: 1,
+                border_color: None,
+            }),
+        );
+
+        let bindgroup = self.state.gpu.device.create_bind_group(
+            &(wgpu::BindGroupDescriptor {
+                label: Some("ski_draw texture bind group"),
+                layout: &self.state.texture_bindgroup_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                ],
+            }),
+        );
+
+        self.state.insert_texture(
+            id,
+            RendererTexture {
+                raw: None,
+                id,
+                bindgroup,
+            },
+        );
+
+        id
+    }
+
+    pub fn update_buffers(&mut self, data: &[Mesh]) {
+        self.state.sync_global_uniforms();
+
+        match &mut self.surface_mode {
+            SurfaceMode::Offscreen { render_target } => render_target.sync(&self.state.gpu),
+            SurfaceMode::Windowed { surface } => surface.sync(&self.state.gpu),
+        }
+
+        let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
+            (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
+        });
+
+        if vertex_count > 0 {
+            let vb = &mut self.state.scene_pipe.vertex_buffer;
+            vb.slices.clear();
+
+            let required_vertex_buffer_size =
+                (std::mem::size_of::<Vertex>() * vertex_count) as wgpu::BufferAddress;
+
+            if vb.capacity < required_vertex_buffer_size {
+                vb.capacity = (vb.capacity * 2).max(required_vertex_buffer_size);
+                vb.buffer = self.state.gpu.create_vertex_buffer(vb.capacity);
+            }
+
+            let mut staging_vertex = self
+                .state
+                .gpu
+                .queue
+                .write_buffer_with(
+                    &vb.buffer,
+                    0,
+                    NonZeroU64::new(required_vertex_buffer_size).unwrap(),
+                )
+                .expect("failed to create staging vertex buffer");
+
+            let mut vertex_offset = 0;
+            for mesh in data {
+                let size = mesh.vertices.len() * std::mem::size_of::<Vertex>();
+                let slice = vertex_offset..size + vertex_offset;
+                staging_vertex[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.vertices));
+                vb.slices.push(slice);
+                vertex_offset += size;
+            }
+        }
+
+        if index_count > 0 {
+            let ib = &mut self.state.scene_pipe.index_buffer;
+            ib.slices.clear();
+
+            let required_index_buffer_size =
+                (std::mem::size_of::<u32>() * index_count) as wgpu::BufferAddress;
+
+            if ib.capacity < required_index_buffer_size {
+                ib.capacity = (ib.capacity * 2).max(required_index_buffer_size);
+                ib.buffer = self.state.gpu.create_index_buffer(ib.capacity);
+            }
+
+            let mut staging_index = self
+                .state
+                .gpu
+                .queue
+                .write_buffer_with(
+                    &ib.buffer,
+                    0,
+                    NonZeroU64::new(required_index_buffer_size).unwrap(),
+                )
+                .expect("failed to create staging vertex buffer");
+
+            let mut index_offset = 0;
+            for mesh in data {
+                let size = mesh.indices.len() * std::mem::size_of::<u32>();
+                let slice = index_offset..size + index_offset;
+                staging_index[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.indices));
+                ib.slices.push(slice);
+                index_offset += size;
+            }
+        }
+    }
+
+    pub fn render(&mut self, batches: &[Mesh]) {
+        let mut encoder = self.state.gpu.create_command_encoder(Some("my encoder"));
+
+        let mut maybe_surface_texture = match &self.surface_mode {
+            SurfaceMode::Offscreen { .. } => None,
+            SurfaceMode::Windowed { surface } => {
+                Some(surface.surface.get_current_texture().unwrap()) // FIXME error handling
+            }
+        };
+
+        let view = match &self.surface_mode {
+            SurfaceMode::Offscreen { render_target } => render_target.texture_view(),
+            SurfaceMode::Windowed { .. } => {
+                let texture = maybe_surface_texture.as_ref().expect("Not a surface");
+
+                &texture
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default())
+            }
+        };
+
+        let mut vb_slices = self.state.scene_pipe.vertex_buffer.slices.iter();
+        let mut ib_slices = self.state.scene_pipe.index_buffer.slices.iter();
+
+        {
+            let mut pass = encoder.begin_render_pass(
+                &(wgpu::RenderPassDescriptor {
+                    label: Some("RenderTarget Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(self.state.clear_color),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                }),
+            );
+            pass.set_pipeline(&self.state.scene_pipe.pipeline);
+            pass.set_bind_group(0, &self.state.global_uniforms.bind_group, &[]);
+
+            for mesh in batches {
+                let texture = mesh.texture.unwrap_or(WHITE_TEX_ID);
+                if let Some(RendererTexture { bindgroup, .. }) = self.state.textures.get(&texture) {
+                    let vb_slice = vb_slices.next().expect("No next vb_slice");
+                    let ib_slice = ib_slices.next().expect("No next ib_slice");
+
+                    pass.set_bind_group(1, bindgroup, &[]);
+                    pass.set_vertex_buffer(
+                        0,
+                        self.state
+                            .scene_pipe
+                            .vertex_buffer
+                            .buffer
+                            .slice(vb_slice.start as u64..vb_slice.end as u64),
+                    );
+                    pass.set_index_buffer(
+                        self.state
+                            .scene_pipe
+                            .index_buffer
+                            .buffer
+                            .slice(ib_slice.start as u64..ib_slice.end as u64),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                } else {
+                    let _ = vb_slices.next().expect("No next vb_slice");
+                    let _ = ib_slices.next().expect("No next ib_slice");
+                    log::error!("Texture: {} not found skipping", texture);
+                }
+            }
+        }
+
+        self.state
+            .gpu
+            .queue
+            .submit(std::iter::once(encoder.finish()));
+
+        if let Some(surface) = maybe_surface_texture.take() {
+            surface.present()
+        }
+
+        log::trace!("Render Complete!");
+    }
+
+    pub fn set_clear_color(&mut self, color: wgpu::Color) {
+        self.state.clear_color = color;
+    }
+
+    fn create_state(gpu: Arc<GpuContext>, specs: &WgpuRendererSpecs) -> RendererState {
+        let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let uniform_buffer =
-            GlobalUniformsBuffer::new(gpu, GlobalUniformData { proj: proj.into() });
+            GlobalUniformsBuffer::new(&gpu, GlobalUniformData { proj: proj.into() });
 
         let texture_bindgroup_layout = gpu.device.create_bind_group_layout(
             &(wgpu::BindGroupLayoutDescriptor {
@@ -167,244 +506,19 @@ impl Renderer {
         );
 
         let scene_pipe = ScenePipe::new(
-            gpu,
+            &gpu,
             &[&uniform_buffer.bing_group_layout, &texture_bindgroup_layout],
         );
 
-        let mut renderer = Self {
-            render_target,
+        RendererState {
+            gpu,
             scene_pipe,
             clear_color: wgpu::Color::WHITE,
             textures: ahash::AHashMap::new(),
             next_texture_id: 1,
             global_uniforms: uniform_buffer,
             texture_bindgroup_layout,
-        };
-
-        let default_texture_view = gpu
-            .default_texture()
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        renderer.set_native_texture_impl(gpu, WHITE_TEX_ID, &default_texture_view);
-
-        renderer
-    }
-
-    pub fn get_texture(&self, id: &TextureId) -> Option<&RendererTexture> {
-        self.textures.get(id)
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.render_target.resize(width, height);
-
-        let proj = Mat3::ortho(0.0, 0.0, height as f32, width as f32);
-        self.global_uniforms.map(|data| {
-            data.proj = proj.into();
-        });
-    }
-
-    pub fn set_native_texture(&mut self, gpu: &GpuContext, view: &wgpu::TextureView) -> TextureId {
-        let tick = self.next_texture_id;
-        self.next_texture_id += 1;
-
-        self.set_native_texture_impl(gpu, TextureId::User(tick), view)
-    }
-
-    #[inline]
-    fn set_native_texture_impl(
-        &mut self,
-        gpu: &GpuContext,
-        id: TextureId,
-        view: &wgpu::TextureView, // TODO texture options
-    ) -> TextureId {
-        // TODO make it configurable
-        let sampler = gpu.device.create_sampler(
-            &(wgpu::SamplerDescriptor {
-                label: Some("ski_draw texture sampler"),
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
-                lod_min_clamp: Default::default(),
-                lod_max_clamp: Default::default(),
-                compare: None,
-                anisotropy_clamp: 1,
-                border_color: None,
-            }),
-        );
-
-        let bindgroup = gpu.device.create_bind_group(
-            &(wgpu::BindGroupDescriptor {
-                label: Some("ski_draw texture bind group"),
-                layout: &self.texture_bindgroup_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
-                    },
-                ],
-            }),
-        );
-
-        self.textures.insert(
-            id,
-            RendererTexture {
-                raw: None,
-                id,
-                bindgroup,
-            },
-        );
-
-        id
-    }
-
-    // call this before rendering
-    pub fn update_buffers(&mut self, gpu: &GpuContext, data: &[Mesh]) {
-        self.global_uniforms.sync(gpu);
-        self.render_target.sync(gpu);
-
-        let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
-            (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
-        });
-
-        if vertex_count > 0 {
-            let vb = &mut self.scene_pipe.vertex_buffer;
-            vb.slices.clear();
-
-            let required_vertex_buffer_size =
-                (std::mem::size_of::<Vertex>() * vertex_count) as wgpu::BufferAddress;
-
-            if vb.capacity < required_vertex_buffer_size {
-                vb.capacity = (vb.capacity * 2).max(required_vertex_buffer_size);
-                vb.buffer = gpu.create_vertex_buffer(vb.capacity);
-            }
-
-            let mut staging_vertex = gpu
-                .queue
-                .write_buffer_with(
-                    &vb.buffer,
-                    0,
-                    NonZeroU64::new(required_vertex_buffer_size).unwrap(),
-                )
-                .expect("failed to create staging vertex buffer");
-
-            let mut vertex_offset = 0;
-            for mesh in data {
-                let size = mesh.vertices.len() * std::mem::size_of::<Vertex>();
-                let slice = vertex_offset..size + vertex_offset;
-                staging_vertex[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.vertices));
-                vb.slices.push(slice);
-                vertex_offset += size;
-            }
         }
-
-        if index_count > 0 {
-            let ib = &mut self.scene_pipe.index_buffer;
-            ib.slices.clear();
-
-            let required_index_buffer_size =
-                (std::mem::size_of::<u32>() * index_count) as wgpu::BufferAddress;
-
-            if ib.capacity < required_index_buffer_size {
-                ib.capacity = (ib.capacity * 2).max(required_index_buffer_size);
-                ib.buffer = gpu.create_index_buffer(ib.capacity);
-            }
-
-            let mut staging_index = gpu
-                .queue
-                .write_buffer_with(
-                    &ib.buffer,
-                    0,
-                    NonZeroU64::new(required_index_buffer_size).unwrap(),
-                )
-                .expect("failed to create staging vertex buffer");
-
-            let mut index_offset = 0;
-            for mesh in data {
-                let size = mesh.indices.len() * std::mem::size_of::<u32>();
-                let slice = index_offset..size + index_offset;
-                staging_index[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.indices));
-                ib.slices.push(slice);
-                index_offset += size;
-            }
-        }
-    }
-
-    pub fn set_clear_color(&mut self, color: wgpu::Color) {
-        self.clear_color = color;
-    }
-
-    pub fn render(
-        &mut self,
-        gpu: &GpuContext,
-        batches: &[Mesh],
-        destination_texture: &wgpu::Texture,
-    ) {
-        let mut encoder = gpu.create_command_encoder(Some("my encoder"));
-        let view = destination_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut vb_slices = self.scene_pipe.vertex_buffer.slices.iter();
-        let mut ib_slices = self.scene_pipe.index_buffer.slices.iter();
-
-        {
-            let mut pass = encoder.begin_render_pass(
-                &(wgpu::RenderPassDescriptor {
-                    label: Some("RenderTarget Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(self.clear_color),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    occlusion_query_set: None,
-                    timestamp_writes: None,
-                }),
-            );
-            pass.set_pipeline(&self.scene_pipe.pipeline);
-            pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
-
-            for mesh in batches {
-                let texture = mesh.texture.unwrap_or(WHITE_TEX_ID);
-                if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(&texture) {
-                    let vb_slice = vb_slices.next().expect("No next thing vb_slice");
-                    let ib_slice = ib_slices.next().expect("No next thing ib_slice");
-
-                    pass.set_bind_group(1, bindgroup, &[]);
-                    pass.set_vertex_buffer(
-                        0,
-                        self.scene_pipe
-                            .vertex_buffer
-                            .buffer
-                            .slice(vb_slice.start as u64..vb_slice.end as u64),
-                    );
-                    pass.set_index_buffer(
-                        self.scene_pipe
-                            .index_buffer
-                            .buffer
-                            .slice(ib_slice.start as u64..ib_slice.end as u64),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
-                } else {
-                    let _ = vb_slices.next().expect("No next thing vb_slice");
-                    let _ = ib_slices.next().expect("No next thing ib_slice");
-                    log::error!("Texture: {} not found skipping", texture);
-                }
-            }
-        }
-
-        gpu.queue.submit(std::iter::once(encoder.finish()));
-
-        log::trace!("Render Complete!");
     }
 }
 

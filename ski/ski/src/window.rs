@@ -8,13 +8,10 @@ pub(crate) use winit::window::Window as WinitWindow;
 use crate::app::AppContext;
 
 use ski_draw::{
-    gpu::{
-        surface::{GpuSurface, GpuSurfaceSpecification},
-        GpuContext,
-    },
+    gpu::GpuContext,
     paint::{quad, TextureId, WgpuTexture},
     scene::Scene,
-    Renderer,
+    WgpuRenderer, WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -51,8 +48,7 @@ impl WindowSpecification {
 
 #[derive(Debug)]
 pub struct Window {
-    pub(crate) surface: GpuSurface,
-    pub(crate) renderer: Renderer,
+    pub(crate) renderer: WgpuRenderer,
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
 
@@ -71,8 +67,8 @@ pub struct Window {
 impl Window {
     pub(crate) fn new(
         event_loop: &winit::event_loop::ActiveEventLoop,
+        gpu: Arc<GpuContext>,
         specs: &WindowSpecification,
-        gpu: &GpuContext,
     ) -> Result<Self, CreateWindowError> {
         let width = specs.width;
         let height = specs.height;
@@ -84,27 +80,25 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
-        let surface = gpu
-            .create_surface(
-                Arc::clone(&handle),
-                &(GpuSurfaceSpecification { width, height }),
-            )
-            .unwrap(); // TODO handle error
-
-        let mut renderer = Renderer::new(gpu, width, height);
+        // FIXME remove after adding atlas
+        let thing_texture = load_thing(&gpu);
 
         let checker_data = create_checker_texture(250, 250, 25);
         let checker_texture =
             gpu.create_texture_init(wgpu::TextureFormat::Rgba8UnormSrgb, 250, 250, &checker_data);
 
-        let checker_texture_id = renderer.set_native_texture(
+        let mut renderer = WgpuRenderer::windowed(
             gpu,
+            Arc::clone(&handle),
+            &WgpuRendererSpecs { width, height },
+        )
+        .unwrap();
+
+        let checker_texture_id = renderer.set_native_texture(
             &checker_texture.create_view(&wgpu::TextureViewDescriptor::default()),
         );
 
-        let thing_texture = load_thing(gpu);
         let thing_texture_id = renderer.set_native_texture(
-            gpu,
             &thing_texture.create_view(&wgpu::TextureViewDescriptor::default()),
         );
 
@@ -112,7 +106,6 @@ impl Window {
             scene: Scene::default(),
             handle,
             renderer,
-            surface,
             thing_texture,
             thing_texture_id,
             checker_texture,
@@ -132,7 +125,6 @@ impl Window {
     }
 
     pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
-        self.surface.resize(width, height);
         self.renderer.resize(width, height);
     }
 
@@ -191,22 +183,15 @@ impl Window {
         );
     }
 
-    pub(crate) fn paint(&mut self, gpu: &GpuContext) {
+    pub(crate) fn paint(&mut self) {
         // FIXME for now
         self.build_scene();
 
-        self.surface.sync(gpu);
-
         let batches = self.scene.batches().collect::<Vec<_>>();
 
-        let surface_texture = self.surface.surface.get_current_texture().unwrap();
+        self.renderer.update_buffers(&batches);
 
-        self.renderer.update_buffers(gpu, &batches);
-
-        self.renderer
-            .render(gpu, &batches, &surface_texture.texture);
-
-        surface_texture.present();
+        self.renderer.render(&batches);
     }
 }
 

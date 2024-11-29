@@ -159,7 +159,7 @@ impl AppContext {
         specs: &WindowSpecification,
         event_loop: &winit::event_loop::ActiveEventLoop,
     ) -> Result<(WindowId, Window), CreateWindowError> {
-        let window = Window::new(event_loop, specs, &self.gpu)?;
+        let window = Window::new(event_loop, Arc::clone(&self.gpu), specs)?;
         let window_id = window.handle.id();
 
         Ok((window_id, window))
@@ -236,7 +236,7 @@ impl ApplicationHandler<AppAction> for AppContext {
             }
             WindowEvent::RedrawRequested => {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.paint(&self.gpu);
+                window.paint();
             }
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
