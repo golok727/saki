@@ -60,3 +60,4 @@ impl TextureKind {
 
 pub type TextureFormat = wgpu::TextureFormat;
 pub type WgpuTexture = wgpu::Texture;
+pub type WgpuTextureView = wgpu::TextureView;

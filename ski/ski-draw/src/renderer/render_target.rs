@@ -3,14 +3,14 @@ use crate::gpu::GpuContext;
 pub type TextureFormat = wgpu::TextureFormat;
 
 #[derive(Debug)]
-pub struct RenderTargetSpecification {
+pub struct OffscreenRenderTargetSpec {
     width: u32,
     height: u32,
     label: Option<&'static str>,
     format: wgpu::TextureFormat,
 }
 
-impl Default for RenderTargetSpecification {
+impl Default for OffscreenRenderTargetSpec {
     fn default() -> Self {
         Self {
             width: 1,
@@ -21,7 +21,7 @@ impl Default for RenderTargetSpecification {
     }
 }
 
-impl RenderTargetSpecification {
+impl OffscreenRenderTargetSpec {
     pub fn with_size(mut self, width: u32, height: u32) -> Self {
         self.width = width;
         self.height = height;
@@ -41,7 +41,7 @@ impl RenderTargetSpecification {
 
 #[allow(unused)]
 #[derive(Debug)]
-pub struct RenderTarget {
+pub struct OffscreenRenderTarget {
     width: u32,
     height: u32,
     texture_view: wgpu::TextureView,
@@ -49,9 +49,9 @@ pub struct RenderTarget {
     dirty: bool,
 }
 
-impl RenderTarget {
-    pub fn new(gpu: &GpuContext, specs: &RenderTargetSpecification) -> Self {
-        let texture = RenderTarget::create_render_target_texture(gpu, specs);
+impl OffscreenRenderTarget {
+    pub fn new(gpu: &GpuContext, specs: &OffscreenRenderTargetSpec) -> Self {
+        let texture = OffscreenRenderTarget::create_render_target_texture(gpu, specs);
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         Self {
@@ -74,7 +74,7 @@ impl RenderTarget {
     #[inline]
     fn create_render_target_texture(
         gpu: &GpuContext,
-        specs: &RenderTargetSpecification,
+        specs: &OffscreenRenderTargetSpec,
     ) -> wgpu::Texture {
         gpu.create_texture(&wgpu::TextureDescriptor {
             label: specs.label,
@@ -114,7 +114,7 @@ impl RenderTarget {
         }
         self.dirty = false;
 
-        let spec = RenderTargetSpecification::default()
+        let spec = OffscreenRenderTargetSpec::default()
             .with_size(self.width, self.height)
             .with_format(self.texture.format());
 

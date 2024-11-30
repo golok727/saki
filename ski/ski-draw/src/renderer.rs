@@ -3,6 +3,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::gpu::error::GpuSurfaceCreateError;
 use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
+use crate::paint::WgpuTextureView;
 use crate::{
     gpu::{GpuContext, WHITE_TEX_ID},
     math::Mat3,
@@ -11,7 +12,7 @@ use crate::{
 
 pub mod render_target;
 
-use render_target::{RenderTarget, RenderTargetSpecification};
+use render_target::{OffscreenRenderTarget, OffscreenRenderTargetSpec};
 use wgpu::util::DeviceExt;
 
 static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<Vertex>() * 1024) as u64;
@@ -149,15 +150,17 @@ pub struct WgpuRendererSpecs {
     pub height: u32,
 }
 
-#[derive(Debug)]
-enum SurfaceMode {
-    Offscreen { render_target: RenderTarget },
-    Windowed { surface: GpuSurface },
+pub trait RenderTarget: std::fmt::Debug {
+    fn pre_render(&mut self, gpu: &GpuContext);
+    fn begin_frame(&mut self) -> &WgpuTextureView;
+    fn end_frame(&mut self);
+    fn resize(&mut self, width: u32, height: u32);
 }
 
 #[derive(Debug)]
 pub struct WgpuRenderer {
-    surface_mode: SurfaceMode,
+    // TODO dyn ?
+    render_target: DefaultRenderTarget,
     state: RendererState,
 }
 
@@ -171,7 +174,11 @@ impl WgpuRenderer {
         let width = specs.width;
         let height = specs.height;
         let surface = gpu.create_surface(screen, &GpuSurfaceSpecification { width, height })?;
-        let surface_mode = SurfaceMode::Windowed { surface };
+        let surface_mode = DefaultRenderTarget::Windowed {
+            surface,
+            current_texture: None,
+            current_texture_view: None,
+        };
 
         // FIXME should be able to remove this after completing texture atlas
         let default_texture_view = gpu
@@ -181,7 +188,7 @@ impl WgpuRenderer {
         let state = Self::create_state(gpu, specs);
 
         let mut renderer = Self {
-            surface_mode,
+            render_target: surface_mode,
             state,
         };
 
@@ -194,14 +201,14 @@ impl WgpuRenderer {
         let width = specs.width;
         let height = specs.height;
 
-        let render_target_spec = RenderTargetSpecification::default()
+        let render_target_spec = OffscreenRenderTargetSpec::default()
             .with_size(width, height)
             .with_label("render target")
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb);
 
-        let render_target = RenderTarget::new(&gpu, &render_target_spec);
+        let render_target = OffscreenRenderTarget::new(&gpu, &render_target_spec);
 
-        let surface_mode = SurfaceMode::Offscreen { render_target };
+        let surface_mode = DefaultRenderTarget::Offscreen { render_target };
 
         let default_texture_view = gpu
             .default_texture()
@@ -210,7 +217,7 @@ impl WgpuRenderer {
         let state = Self::create_state(gpu, specs);
 
         let mut renderer = Self {
-            surface_mode,
+            render_target: surface_mode,
             state,
         };
 
@@ -219,11 +226,11 @@ impl WgpuRenderer {
         renderer
     }
 
-    pub fn copy_to_image(&mut self) {
-        match &self.surface_mode {
-            SurfaceMode::Offscreen { .. } => todo!(),
-            SurfaceMode::Windowed { .. } => {
-                panic!("WgpuRenderer::copy_to_image is only availabkle in offscreen renderer")
+    pub fn get_capture(&mut self) {
+        match &self.render_target {
+            DefaultRenderTarget::Offscreen { .. } => todo!(),
+            DefaultRenderTarget::Windowed { .. } => {
+                panic!("WgpuRenderer::get_capture is only availabkle in offscreen renderer")
             }
         }
     }
@@ -233,10 +240,7 @@ impl WgpuRenderer {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        match &mut self.surface_mode {
-            SurfaceMode::Windowed { surface } => surface.resize(width, height),
-            SurfaceMode::Offscreen { render_target } => render_target.resize(width, height),
-        }
+        self.render_target.resize(width, height);
 
         let proj = Mat3::ortho(0.0, 0.0, height as f32, width as f32);
         self.state.global_uniforms.map(|data| {
@@ -307,10 +311,7 @@ impl WgpuRenderer {
     pub fn update_buffers(&mut self, data: &[Mesh]) {
         self.state.sync_global_uniforms();
 
-        match &mut self.surface_mode {
-            SurfaceMode::Offscreen { render_target } => render_target.sync(&self.state.gpu),
-            SurfaceMode::Windowed { surface } => surface.sync(&self.state.gpu),
-        }
+        self.render_target.pre_render(&self.state.gpu);
 
         let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
             (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
@@ -386,23 +387,7 @@ impl WgpuRenderer {
     pub fn render(&mut self, batches: &[Mesh]) {
         let mut encoder = self.state.gpu.create_command_encoder(Some("my encoder"));
 
-        let mut maybe_surface_texture = match &self.surface_mode {
-            SurfaceMode::Offscreen { .. } => None,
-            SurfaceMode::Windowed { surface } => {
-                Some(surface.surface.get_current_texture().unwrap()) // FIXME error handling
-            }
-        };
-
-        let view = match &self.surface_mode {
-            SurfaceMode::Offscreen { render_target } => render_target.texture_view(),
-            SurfaceMode::Windowed { .. } => {
-                let texture = maybe_surface_texture.as_ref().expect("Not a surface");
-
-                &texture
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default())
-            }
-        };
+        let view = self.render_target.begin_frame();
 
         let mut vb_slices = self.state.scene_pipe.vertex_buffer.slices.iter();
         let mut ib_slices = self.state.scene_pipe.index_buffer.slices.iter();
@@ -464,9 +449,7 @@ impl WgpuRenderer {
             .queue
             .submit(std::iter::once(encoder.finish()));
 
-        if let Some(surface) = maybe_surface_texture.take() {
-            surface.present()
-        }
+        self.render_target.end_frame();
 
         log::trace!("Render Complete!");
     }
@@ -518,6 +501,74 @@ impl WgpuRenderer {
             next_texture_id: 1,
             global_uniforms: uniform_buffer,
             texture_bindgroup_layout,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum DefaultRenderTarget {
+    Offscreen {
+        render_target: OffscreenRenderTarget,
+    },
+
+    Windowed {
+        surface: GpuSurface,
+        current_texture: Option<wgpu::SurfaceTexture>,
+        current_texture_view: Option<wgpu::TextureView>,
+    },
+}
+
+impl RenderTarget for DefaultRenderTarget {
+    fn begin_frame(&mut self) -> &WgpuTextureView {
+        match self {
+            Self::Offscreen { render_target } => render_target.texture_view(),
+            DefaultRenderTarget::Windowed {
+                surface,
+                current_texture,
+                current_texture_view,
+            } => {
+                let surface_texture = surface.surface.get_current_texture().unwrap();
+                let view = surface_texture
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+
+                *current_texture_view = Some(view);
+                *current_texture = Some(surface_texture); // FIXME error handling
+
+                current_texture_view.as_ref().unwrap()
+            }
+        }
+    }
+
+    fn end_frame(&mut self) {
+        match self {
+            Self::Offscreen { .. } => {
+                // NOOP
+            }
+            DefaultRenderTarget::Windowed {
+                current_texture,
+                current_texture_view,
+                ..
+            } => {
+                *current_texture_view = None;
+                if let Some(texture) = current_texture.take() {
+                    texture.present()
+                }
+            }
+        }
+    }
+
+    fn pre_render(&mut self, gpu: &GpuContext) {
+        match self {
+            DefaultRenderTarget::Offscreen { render_target } => render_target.sync(gpu),
+            DefaultRenderTarget::Windowed { surface, .. } => surface.sync(gpu),
+        }
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        match self {
+            DefaultRenderTarget::Windowed { surface, .. } => surface.resize(width, height),
+            DefaultRenderTarget::Offscreen { render_target } => render_target.resize(width, height),
         }
     }
 }
