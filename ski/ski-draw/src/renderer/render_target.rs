@@ -1,13 +1,11 @@
-use crate::gpu::GpuContext;
-
-pub type TextureFormat = wgpu::TextureFormat;
+use crate::{gpu::GpuContext, paint::TextureFormat};
 
 #[derive(Debug)]
 pub struct OffscreenRenderTargetSpec {
+    label: Option<&'static str>,
     width: u32,
     height: u32,
-    label: Option<&'static str>,
-    format: wgpu::TextureFormat,
+    format: TextureFormat,
 }
 
 impl Default for OffscreenRenderTargetSpec {

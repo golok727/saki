@@ -174,7 +174,8 @@ impl WgpuRenderer {
         let width = specs.width;
         let height = specs.height;
         let surface = gpu.create_surface(screen, &GpuSurfaceSpecification { width, height })?;
-        let surface_mode = DefaultRenderTarget::Windowed {
+
+        let render_target = DefaultRenderTarget::Windowed {
             surface,
             current_texture: None,
             current_texture_view: None,
@@ -188,7 +189,7 @@ impl WgpuRenderer {
         let state = Self::create_state(gpu, specs);
 
         let mut renderer = Self {
-            render_target: surface_mode,
+            render_target,
             state,
         };
 
@@ -208,7 +209,7 @@ impl WgpuRenderer {
 
         let render_target = OffscreenRenderTarget::new(&gpu, &render_target_spec);
 
-        let surface_mode = DefaultRenderTarget::Offscreen { render_target };
+        let render_target = DefaultRenderTarget::Offscreen { render_target };
 
         let default_texture_view = gpu
             .default_texture()
@@ -217,7 +218,7 @@ impl WgpuRenderer {
         let state = Self::create_state(gpu, specs);
 
         let mut renderer = Self {
-            render_target: surface_mode,
+            render_target,
             state,
         };
 
