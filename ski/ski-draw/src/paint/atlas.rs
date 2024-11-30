@@ -4,12 +4,32 @@ use crate::math::{DevicePixels, Rect, Size};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-use super::{TextureFormat, TextureKind};
+use super::{TextureFormat, TextureKind, WgpuTexture, WgpuTextureView};
 
 #[derive(Debug, Default)]
 struct AtlasTextureList<T: std::fmt::Debug> {
     slots: Vec<T>,
     free_slots: Vec<usize>,
+}
+
+impl<T: std::fmt::Debug> AtlasTextureList<T> {
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
+        self.slots.iter_mut()
+    }
+}
+
+impl<T: std::fmt::Debug> std::ops::Index<usize> for AtlasTextureList<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.slots[index]
+    }
+}
+
+impl<T: std::fmt::Debug> std::ops::IndexMut<usize> for AtlasTextureList<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.slots[index]
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -33,17 +53,98 @@ impl AtlasSystem {
         })))
     }
 
-    pub fn get() {}
+    pub fn get_or_insert() {}
 
-    pub fn allocate_texture(&self, _size: Size<DevicePixels>, _kind: TextureKind) {
-        let _lock = self.0.lock();
+    /// Allocates a tile of given size on an available texture slot and returns the tile
+    /// use the `upload_texture` method to upload data into tile
+    pub fn create_texture(&self, size: Size<DevicePixels>, kind: TextureKind) -> AtlasTile {
+        let mut lock = self.0.lock();
+        let storage = lock.get_storage_write(&kind);
+
+        if let Some(tile) = storage
+            .iter_mut()
+            .flatten()
+            .rev()
+            .find_map(|texture| texture.allocate(size))
+        {
+            return tile;
+        }
+
+        let texture = lock.new_texture(size, kind);
+        texture.allocate(size).expect("Error allocating texture!")
     }
 
-    pub fn insert() {}
+    /// Combination of `create_texture` and `upload_texture`
+    pub fn create_texture_init(
+        &self,
+        size: Size<DevicePixels>,
+        kind: TextureKind,
+        data: &[u8],
+    ) -> AtlasTile {
+        let tile = self.create_texture(size, kind);
+        self.upload_texture(&tile, data);
+        tile
+    }
+
+    /// Uploads data for the given tile
+    pub fn upload_texture(&self, tile: &AtlasTile, data: &[u8]) {
+        let lock = self.0.lock();
+        let storage = lock.get_storage_read(&tile.texture.kind);
+        let texture = storage[tile.texture.slot].as_ref();
+
+        if let Some(texture) = texture {
+            lock.gpu.queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &texture.raw,
+                    aspect: wgpu::TextureAspect::All,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: tile.bounds.x.into(),
+                        y: tile.bounds.y.into(),
+                        z: 0,
+                    },
+                },
+                data,
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(
+                        texture.kind.bytes_per_pixel() * u32::from(texture.size.width),
+                    ),
+                    rows_per_image: None,
+                },
+                wgpu::Extent3d {
+                    width: texture.width().into(),
+                    height: texture.height().into(),
+                    depth_or_array_layers: 1,
+                },
+            );
+        } else {
+            log::error!("TEX_NOT_FOUND: Texture upload failed");
+        }
+    }
 }
 
 impl AtlasSystemState {
-    pub fn new_texture(&mut self, size: Size<DevicePixels>, kind: TextureKind) -> AtlasTextureId {
+    #[inline]
+    fn get_storage_write(
+        &mut self,
+        kind: &TextureKind,
+    ) -> &mut AtlasTextureList<Option<AtlasTexture>> {
+        match kind {
+            TextureKind::Grayscale => &mut self.gray_textures,
+            TextureKind::Color => &mut self.color_textures,
+        }
+    }
+
+    #[inline]
+    fn get_storage_read(&self, kind: &TextureKind) -> &AtlasTextureList<Option<AtlasTexture>> {
+        match kind {
+            TextureKind::Grayscale => &self.gray_textures,
+            TextureKind::Color => &self.color_textures,
+        }
+    }
+
+    fn new_texture(&mut self, size: Size<DevicePixels>, kind: TextureKind) -> &mut AtlasTexture {
         const DEFAULT_SIZE: Size<DevicePixels> = Size {
             width: DevicePixels(1024),
             height: DevicePixels(1024),
@@ -96,10 +197,16 @@ impl AtlasSystemState {
         );
 
         let view = raw.create_view(&wgpu::TextureViewDescriptor::default());
-
         let allocator = etagere::BucketedAtlasAllocator::new(size.into());
 
+        let storage = self.get_storage_write(&kind);
+        let slot = storage.free_slots.pop();
+
         let atlas_tex = AtlasTexture {
+            id: AtlasTextureId {
+                kind,
+                slot: slot.unwrap_or(storage.slots.len()),
+            },
             allocator,
             kind,
             raw,
@@ -107,25 +214,84 @@ impl AtlasSystemState {
             format,
             size,
         };
-
-        AtlasTextureId {
-            kind,
-            slot: todo!(),
+        if let Some(slot) = slot {
+            storage[slot] = Some(atlas_tex);
+            storage.slots.get_mut(slot).unwrap().as_mut().unwrap()
+        } else {
+            storage.slots.push(Some(atlas_tex));
+            storage.slots.last_mut().unwrap().as_mut().unwrap()
         }
     }
 }
 
-struct AtlasTexture {
+pub struct AtlasTexture {
+    id: AtlasTextureId,
     allocator: etagere::BucketedAtlasAllocator,
-    // FIXME Only TextureKind::Color is supported by renderer for now
-    kind: TextureKind,
     raw: wgpu::Texture,
     view: wgpu::TextureView,
+    kind: TextureKind,
     format: TextureFormat,
     size: Size<DevicePixels>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+impl AtlasTexture {
+    fn allocate(&mut self, size: Size<DevicePixels>) -> Option<AtlasTile> {
+        let allocation = self.allocator.allocate(size.into())?;
+        let id = allocation.id;
+
+        let alloc_rect = allocation.rectangle;
+
+        let bounds: Rect<DevicePixels> = Rect {
+            x: (alloc_rect.min.x).into(),
+            y: (alloc_rect.min.y).into(),
+            width: size.width,
+            height: size.height,
+        };
+
+        Some(AtlasTile {
+            id: id.into(),
+            texture: self.id,
+            bounds,
+        })
+    }
+
+    #[inline]
+    pub fn kind(&self) -> TextureKind {
+        self.kind
+    }
+
+    #[inline]
+    pub fn format(&self) -> TextureFormat {
+        self.format
+    }
+
+    #[inline]
+    pub fn size(&self) -> Size<DevicePixels> {
+        self.size
+    }
+
+    #[inline]
+    pub fn width(&self) -> DevicePixels {
+        self.size.width
+    }
+
+    #[inline]
+    pub fn height(&self) -> DevicePixels {
+        self.size.height
+    }
+
+    #[inline]
+    pub fn raw(&self) -> &WgpuTexture {
+        &self.raw
+    }
+
+    #[inline]
+    pub fn view(&self) -> &WgpuTextureView {
+        &self.view
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct AtlasTextureId {
     kind: TextureKind,
     slot: usize,
