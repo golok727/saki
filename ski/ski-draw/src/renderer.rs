@@ -3,7 +3,9 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::gpu::error::GpuSurfaceCreateError;
 use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
-use crate::paint::WgpuTextureView;
+use crate::math::Size;
+use crate::paint::atlas::AtlasSystem;
+use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
     gpu::{GpuContext, WHITE_TEX_ID},
     math::Mat3,
@@ -118,6 +120,8 @@ pub struct RendererTexture {
 struct RendererState {
     gpu: Arc<GpuContext>,
 
+    texture_system: AtlasSystem,
+
     clear_color: wgpu::Color,
 
     global_uniforms: GlobalUniformsBuffer,
@@ -168,6 +172,7 @@ impl WgpuRenderer {
     /// Creates a new Windowed renderer
     pub fn windowed(
         gpu: Arc<GpuContext>,
+        texture_system: AtlasSystem,
         screen: impl Into<wgpu::SurfaceTarget<'static>>,
         specs: &WgpuRendererSpecs,
     ) -> Result<Self, GpuSurfaceCreateError> {
@@ -186,19 +191,40 @@ impl WgpuRenderer {
             .default_texture()
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let state = Self::create_state(gpu, specs);
+        let state = Self::create_state(gpu, texture_system, specs);
 
         let mut renderer = Self {
             render_target,
             state,
         };
 
+        let tile = renderer
+            .state
+            .texture_system
+            .get_or_insert(&WHITE_TEX_ID, || {
+                (
+                    TextureKind::Color,
+                    Size {
+                        width: 1.into(),
+                        height: 1.into(),
+                    },
+                    &[255, 255, 255, 255],
+                )
+            });
+
+        // TODO remove
+        dbg!(tile);
+
         renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
 
         Ok(renderer)
     }
     /// Creates a new offscreen renderer
-    pub fn offscreen(gpu: Arc<GpuContext>, specs: &WgpuRendererSpecs) -> Self {
+    pub fn offscreen(
+        gpu: Arc<GpuContext>,
+        texture_system: AtlasSystem,
+        specs: &WgpuRendererSpecs,
+    ) -> Self {
         let width = specs.width;
         let height = specs.height;
 
@@ -215,7 +241,7 @@ impl WgpuRenderer {
             .default_texture()
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let state = Self::create_state(gpu, specs);
+        let state = Self::create_state(gpu, texture_system, specs);
 
         let mut renderer = Self {
             render_target,
@@ -225,6 +251,10 @@ impl WgpuRenderer {
         renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
 
         renderer
+    }
+
+    pub fn texture_system(&self) -> &AtlasSystem {
+        &self.state.texture_system
     }
 
     pub fn get_capture(&mut self) {
@@ -339,7 +369,7 @@ impl WgpuRenderer {
                     0,
                     NonZeroU64::new(required_vertex_buffer_size).unwrap(),
                 )
-                .expect("failed to create staging vertex buffer");
+                .expect("Failed to create stating buffer for vertex");
 
             let mut vertex_offset = 0;
             for mesh in data {
@@ -372,7 +402,7 @@ impl WgpuRenderer {
                     0,
                     NonZeroU64::new(required_index_buffer_size).unwrap(),
                 )
-                .expect("failed to create staging vertex buffer");
+                .expect("Failed to create staging buffer for");
 
             let mut index_offset = 0;
             for mesh in data {
@@ -410,6 +440,7 @@ impl WgpuRenderer {
                     timestamp_writes: None,
                 }),
             );
+
             pass.set_pipeline(&self.state.scene_pipe.pipeline);
             pass.set_bind_group(0, &self.state.global_uniforms.bind_group, &[]);
 
@@ -459,7 +490,11 @@ impl WgpuRenderer {
         self.state.clear_color = color;
     }
 
-    fn create_state(gpu: Arc<GpuContext>, specs: &WgpuRendererSpecs) -> RendererState {
+    fn create_state(
+        gpu: Arc<GpuContext>,
+        texture_system: AtlasSystem,
+        specs: &WgpuRendererSpecs,
+    ) -> RendererState {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let uniform_buffer =
@@ -498,6 +533,7 @@ impl WgpuRenderer {
             gpu,
             scene_pipe,
             clear_color: wgpu::Color::WHITE,
+            texture_system,
             textures: ahash::AHashMap::new(),
             next_texture_id: 1,
             global_uniforms: uniform_buffer,

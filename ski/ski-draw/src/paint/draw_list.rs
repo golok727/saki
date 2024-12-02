@@ -50,14 +50,46 @@ impl From<DrawList> for Mesh {
     }
 }
 
-#[derive(Debug, Default)]
+pub type DrawListMiddleware = Box<dyn Fn(Vertex) -> Vertex>;
+
+#[derive(Default)]
 pub struct DrawList {
     pub vertices: Vec<Vertex>,
+
     pub indices: Vec<u32>,
+
+    // TODO may be allow only one middleware
+    middlewares: Vec<DrawListMiddleware>,
+
     index_offset: u32,
 }
 
 impl DrawList {
+    pub fn with_middlewares(middlewares: impl IntoIterator<Item = DrawListMiddleware>) -> Self {
+        let middlewares: Vec<DrawListMiddleware> =
+            middlewares.into_iter().map(Into::into).collect();
+
+        Self {
+            middlewares,
+            ..Default::default()
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.vertices.clear();
+        self.indices.clear();
+        self.index_offset = 0;
+    }
+
+    #[inline]
+    pub fn apply_mw(&self, vertex: Vertex) -> Vertex {
+        let mut vertex = vertex;
+        for middleware in &self.middlewares {
+            vertex = middleware(vertex);
+        }
+        vertex
+    }
+
     pub fn push_quad(&mut self, quad: &Quad, has_texture: bool) {
         let index_offset = self.index_offset;
 
@@ -67,8 +99,6 @@ impl DrawList {
             width,
             height,
         } = quad.bounds;
-
-        let vertices = &mut self.vertices;
 
         let uvs: [(f32, f32); 4] = if has_texture {
             [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
@@ -82,10 +112,21 @@ impl DrawList {
         };
 
         let color = quad.background_color;
-        vertices.push(Vertex::new((x, y).into(), color, uvs[0])); // Top-left
-        vertices.push(Vertex::new((x + width, y).into(), color, uvs[1])); // Top-right
-        vertices.push(Vertex::new((x, y + height).into(), color, uvs[2])); // Bottom-left
-        vertices.push(Vertex::new((x + width, y + height).into(), color, uvs[3])); // Bottom-right
+
+        self.vertices
+            .push(self.apply_mw(Vertex::new((x, y).into(), color, uvs[0]))); // Top-left
+
+        self.vertices
+            .push(self.apply_mw(Vertex::new((x + width, y).into(), color, uvs[1]))); // Top-right
+                                                                                     //
+        self.vertices
+            .push(self.apply_mw(Vertex::new((x, y + height).into(), color, uvs[2]))); // Bottom-left
+                                                                                      //
+        self.vertices.push(self.apply_mw(Vertex::new(
+            (x + width, y + height).into(),
+            color,
+            uvs[3],
+        ))); // Bottom-right
 
         self.indices.extend_from_slice(&[
             index_offset,
@@ -97,5 +138,16 @@ impl DrawList {
         ]);
 
         self.index_offset += 4;
+    }
+}
+
+impl std::fmt::Display for DrawList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DrawList")
+            .field("vertices", &self.vertices)
+            .field("indices", &self.indices)
+            .field("indices", &self.index_offset)
+            .field("middlewares", &format!("n = {}", self.middlewares.len()))
+            .finish()
     }
 }

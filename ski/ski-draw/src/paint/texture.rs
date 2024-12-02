@@ -4,7 +4,6 @@ use crate::math::{DevicePixels, Size};
 pub enum TextureId {
     Internal(usize),
     User(usize),
-    AtlasTile {},
 }
 
 pub struct Texture2DSpecs {
@@ -19,9 +18,6 @@ impl std::fmt::Display for TextureId {
         match self {
             Self::Internal(id) => write!(f, "Texture::Internal({})", id),
             Self::User(id) => write!(f, "Texture::User({})", id),
-            Self::AtlasTile { .. } => {
-                write!(f, "Texture::AtlasTile()")
-            }
         }
     }
 }

@@ -1,7 +1,10 @@
+use crate::gpu::WHITE_TEX_ID;
 use crate::paint::DrawList;
+use crate::paint::DrawListMiddleware;
 use crate::paint::Mesh;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
+use crate::paint::Vertex;
 
 #[derive(Debug, Clone)]
 pub struct Primitive {
@@ -33,6 +36,10 @@ impl Scene {
     pub fn clear(&mut self) -> Vec<Primitive> {
         let old: Vec<Primitive> = std::mem::take(&mut self.items);
         old
+    }
+
+    pub fn get_dependencies(&self) -> impl Iterator<Item = TextureId> + '_ {
+        self.items.iter().map(|f| f.texture.unwrap_or(WHITE_TEX_ID))
     }
 
     pub fn batches(&self) -> impl Iterator<Item = Mesh> + '_ {
@@ -77,7 +84,10 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
         if self.cur_group >= self.groups.len() {
             return None;
         }
-        let mut drawlist = DrawList::default();
+
+        let uv_middleware: DrawListMiddleware = Box::new(|vertex: Vertex| vertex);
+
+        let mut drawlist = DrawList::with_middlewares([uv_middleware]);
 
         let group = &self.groups[self.cur_group];
         let texture = group.0;

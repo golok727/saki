@@ -7,6 +7,7 @@ use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 use ski_draw::gpu::GpuContext;
 
+use ski_draw::paint::atlas::AtlasSystem;
 use winit::application::ApplicationHandler;
 use winit::{
     event::{KeyEvent, WindowEvent},
@@ -28,6 +29,8 @@ pub struct AppContext {
 
     pub(crate) app_events: AppEvents,
 
+    pub(crate) texture_system: AtlasSystem,
+
     windows: HashMap<WindowId, Window>,
     pub(crate) gpu: Arc<GpuContext>,
 }
@@ -36,10 +39,12 @@ impl AppContext {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         // TODO handle error
-        let gpu = pollster::block_on(GpuContext::new()).unwrap();
+        let gpu = Arc::new(pollster::block_on(GpuContext::new()).unwrap());
 
         // FIXME
         let jobs = Jobs::new(Some(7));
+
+        let texture_system = AtlasSystem::new(gpu.clone());
 
         Self {
             init_callback: None,
@@ -50,10 +55,12 @@ impl AppContext {
             flushing_effects: false,
             effects: VecDeque::new(),
 
+            texture_system,
+
             jobs,
 
+            gpu,
             windows: HashMap::new(),
-            gpu: Arc::new(gpu),
         }
     }
 
@@ -159,7 +166,12 @@ impl AppContext {
         specs: &WindowSpecification,
         event_loop: &winit::event_loop::ActiveEventLoop,
     ) -> Result<(WindowId, Window), CreateWindowError> {
-        let window = Window::new(event_loop, Arc::clone(&self.gpu), specs)?;
+        let window = Window::new(
+            event_loop,
+            Arc::clone(&self.gpu),
+            self.texture_system.clone(),
+            specs,
+        )?;
         let window_id = window.handle.id();
 
         Ok((window_id, window))

@@ -26,11 +26,6 @@ fn main() {
             ..Default::default()
         };
 
-        // app.open_window(window_specs.clone(), move |cx| {
-        //     cx.window
-        //         .set_bg_color(24.0 / 255.0, 24.0 / 255.0, 24.0 / 255.0);
-        // });
-
         app.open_window(window_specs.clone(), move |cx| {
             cx.set_timeout(
                 move |cx| {

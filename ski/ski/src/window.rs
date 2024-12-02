@@ -9,7 +9,7 @@ use crate::app::AppContext;
 
 use ski_draw::{
     gpu::GpuContext,
-    paint::{quad, TextureId, WgpuTexture},
+    paint::{atlas::AtlasSystem, quad, TextureId, WgpuTexture},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -52,22 +52,24 @@ pub struct Window {
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
 
-    // FIXME will be removed after adding atlas
+    // FIXME remove this after adding atlas
     #[allow(unused)]
     thing_texture: WgpuTexture,
-
-    #[allow(unused)]
     thing_texture_id: TextureId,
 
     #[allow(unused)]
     checker_texture: WgpuTexture,
     checker_texture_id: TextureId,
+
+    #[allow(unused)]
+    pub(crate) texture_system: AtlasSystem,
 }
 
 impl Window {
     pub(crate) fn new(
         event_loop: &winit::event_loop::ActiveEventLoop,
         gpu: Arc<GpuContext>,
+        texture_system: AtlasSystem,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
         let width = specs.width;
@@ -80,15 +82,16 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
-        // FIXME remove after adding atlas
         let thing_texture = load_thing(&gpu);
 
+        // FIXME remove after adding atlas
         let checker_data = create_checker_texture(250, 250, 25);
         let checker_texture =
             gpu.create_texture_init(wgpu::TextureFormat::Rgba8UnormSrgb, 250, 250, &checker_data);
 
         let mut renderer = WgpuRenderer::windowed(
             gpu,
+            texture_system.clone(),
             Arc::clone(&handle),
             &WgpuRendererSpecs { width, height },
         )
@@ -106,6 +109,7 @@ impl Window {
             scene: Scene::default(),
             handle,
             renderer,
+            texture_system,
             thing_texture,
             thing_texture_id,
             checker_texture,
@@ -186,6 +190,12 @@ impl Window {
     pub(crate) fn paint(&mut self) {
         // FIXME for now
         self.build_scene();
+
+        let dependencies = self
+            .texture_system
+            .get_texture_infos(self.scene.get_dependencies());
+
+        dbg!(dependencies);
 
         let batches = self.scene.batches().collect::<Vec<_>>();
 
