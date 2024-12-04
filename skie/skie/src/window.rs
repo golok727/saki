@@ -191,11 +191,11 @@ impl Window {
         // FIXME for now
         self.build_scene();
 
-        let _dependencies = self
+        let info_map = self
             .texture_system
-            .get_texture_infos(self.scene.get_dependencies());
+            .get_texture_infos(self.scene.get_required_textures());
 
-        let batches = self.scene.batches().collect::<Vec<_>>();
+        let batches = self.scene.batches(info_map).collect::<Vec<_>>();
 
         self.renderer.update_buffers(&batches);
 

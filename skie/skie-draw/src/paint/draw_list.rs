@@ -1,13 +1,16 @@
-use super::{Quad, TextureId, DEFAULT_UV_COORD};
+use super::{Quad, TextureId};
 
-use crate::math::{Rect, Vec2};
+use crate::{
+    gpu::WHITE_TEX_ID,
+    math::{Rect, Vec2},
+};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Vertex {
-    position: [f32; 2],
-    uv: [f32; 2],
-    color: [f32; 4],
+    pub position: [f32; 2],
+    pub uv: [f32; 2],
+    pub color: [f32; 4],
 }
 
 fn wgpu_color_to_array(color: wgpu::Color) -> [f32; 4] {
@@ -33,11 +36,10 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    // TODO default to white texture instead of optional
-    pub texture: Option<TextureId>,
+    pub texture: TextureId,
 }
 
-impl From<DrawList> for Mesh {
+impl<'a> From<DrawList<'a>> for Mesh {
     fn from(mut dl: DrawList) -> Self {
         let vertices: Vec<Vertex> = std::mem::take(&mut dl.vertices);
         let indices: Vec<u32> = std::mem::take(&mut dl.indices);
@@ -45,32 +47,31 @@ impl From<DrawList> for Mesh {
         Self {
             vertices,
             indices,
-            texture: None,
+            texture: WHITE_TEX_ID,
         }
     }
 }
 
-pub type DrawListMiddleware = Box<dyn Fn(Vertex) -> Vertex>;
+pub type DrawListMiddleware<'a> = Box<dyn Fn(Vertex) -> Vertex + 'a>;
 
 #[derive(Default)]
-pub struct DrawList {
+pub struct DrawList<'a> {
     pub vertices: Vec<Vertex>,
 
     pub indices: Vec<u32>,
 
-    // TODO may be allow only one middleware
-    middlewares: Vec<DrawListMiddleware>,
+    middleware: Option<DrawListMiddleware<'a>>,
 
     index_offset: u32,
 }
 
-impl DrawList {
-    pub fn with_middlewares(middlewares: impl IntoIterator<Item = DrawListMiddleware>) -> Self {
-        let middlewares: Vec<DrawListMiddleware> =
-            middlewares.into_iter().map(Into::into).collect();
-
+impl<'a> DrawList<'a> {
+    pub fn with_middleware<F>(middleware: F) -> Self
+    where
+        F: Fn(Vertex) -> Vertex + 'a,
+    {
         Self {
-            middlewares,
+            middleware: Some(Box::new(middleware)),
             ..Default::default()
         }
     }
@@ -84,13 +85,13 @@ impl DrawList {
     #[inline]
     pub fn apply_mw(&self, vertex: Vertex) -> Vertex {
         let mut vertex = vertex;
-        for middleware in &self.middlewares {
+        if let Some(middleware) = &self.middleware {
             vertex = middleware(vertex);
         }
         vertex
     }
 
-    pub fn push_quad(&mut self, quad: &Quad, has_texture: bool) {
+    pub fn push_quad(&mut self, quad: &Quad) {
         let index_offset = self.index_offset;
 
         let Rect {
@@ -100,16 +101,7 @@ impl DrawList {
             height,
         } = quad.bounds;
 
-        let uvs: [(f32, f32); 4] = if has_texture {
-            [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
-        } else {
-            [
-                DEFAULT_UV_COORD.into(),
-                DEFAULT_UV_COORD.into(),
-                DEFAULT_UV_COORD.into(),
-                DEFAULT_UV_COORD.into(),
-            ]
-        };
+        let uvs: [(f32, f32); 4] = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)];
 
         let color = quad.background_color;
 
@@ -118,10 +110,10 @@ impl DrawList {
 
         self.vertices
             .push(self.apply_mw(Vertex::new((x + width, y).into(), color, uvs[1]))); // Top-right
-                                                                                     //
+
         self.vertices
             .push(self.apply_mw(Vertex::new((x, y + height).into(), color, uvs[2]))); // Bottom-left
-                                                                                      //
+
         self.vertices.push(self.apply_mw(Vertex::new(
             (x + width, y + height).into(),
             color,
@@ -141,13 +133,13 @@ impl DrawList {
     }
 }
 
-impl std::fmt::Display for DrawList {
+impl std::fmt::Display for DrawList<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DrawList")
             .field("vertices", &self.vertices)
             .field("indices", &self.indices)
             .field("indices", &self.index_offset)
-            .field("middlewares", &format!("n = {}", self.middlewares.len()))
+            .field("has_middleware", &format!("{}", self.middleware.is_some()))
             .finish()
     }
 }

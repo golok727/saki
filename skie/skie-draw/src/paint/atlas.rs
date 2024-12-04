@@ -25,7 +25,7 @@ _____________________________________
 _____________________________________
 */
 
-pub type TextureInfoMap = ahash::AHashMap<TextureId, AtlasTextureInfo>;
+pub type AtlasTextureInfoMap = ahash::AHashMap<TextureId, AtlasTextureInfo>;
 
 #[derive(Debug)]
 struct AtlasStorage {
@@ -57,10 +57,8 @@ impl AtlasManager {
         lock.get_texture_info(id)
     }
 
-    pub fn get_texture_infos(&self, ids: impl Iterator<Item = TextureId>) -> TextureInfoMap {
+    pub fn get_texture_infos(&self, ids: impl Iterator<Item = TextureId>) -> AtlasTextureInfoMap {
         let lock = self.0.lock();
-
-        dbg!(&lock.texture_id_to_tile);
 
         ids.map(|id| lock.get_texture_info(&id))
             .filter_map(|info| info.map(|info| (info.id, info)))
@@ -101,7 +99,6 @@ impl AtlasManager {
 
     /// Allocates a tile of given size on an available texture slot and returns the tile
     /// use the `upload_texture` method to upload data into tile
-    #[inline]
     pub fn create_texture(
         &self,
         size: Size<DevicePixels>,
@@ -111,7 +108,6 @@ impl AtlasManager {
         lock.create_texture(size, kind, None)
     }
 
-    #[inline]
     pub fn upload_texture(&self, tile: &AtlasTile, data: &[u8]) {
         let lock = self.0.lock();
         lock.upload_texture(tile, data)
@@ -119,7 +115,6 @@ impl AtlasManager {
 }
 
 impl AtlasStorage {
-    #[inline]
     fn get_storage_write(
         &mut self,
         kind: &TextureKind,
@@ -130,7 +125,6 @@ impl AtlasStorage {
         }
     }
 
-    #[inline]
     fn get_storage_read(&self, kind: &TextureKind) -> &AtlasTextureList<Option<AtlasTexture>> {
         match kind {
             TextureKind::Grayscale => &self.gray_textures,
@@ -138,7 +132,6 @@ impl AtlasStorage {
         }
     }
 
-    #[inline]
     fn with_texture<R>(&self, id: &TextureId, f: impl FnOnce(&AtlasTexture) -> R) -> Option<R> {
         let tile = self.texture_id_to_tile.get(id)?.clone();
         let storage = self.get_storage_read(&tile.texture.kind);
@@ -357,37 +350,30 @@ impl AtlasTexture {
         })
     }
 
-    #[inline]
     pub fn kind(&self) -> TextureKind {
         self.kind
     }
 
-    #[inline]
     pub fn format(&self) -> TextureFormat {
         self.format
     }
 
-    #[inline]
     pub fn size(&self) -> Size<DevicePixels> {
         self.size
     }
 
-    #[inline]
     pub fn width(&self) -> DevicePixels {
         self.size.width
     }
 
-    #[inline]
     pub fn height(&self) -> DevicePixels {
         self.size.height
     }
 
-    #[inline]
     pub fn raw(&self) -> &WgpuTexture {
         &self.raw
     }
 
-    #[inline]
     pub fn view(&self) -> &WgpuTextureView {
         &self.view
     }
