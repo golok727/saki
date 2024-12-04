@@ -201,10 +201,6 @@ impl Window {
                 .with_bgcolor(0.04, 0.04, 0.07, 1.0),
             None,
         );
-
-        // self.scene.clear();
-        // self.scene
-        //     .add(quad().with_size(1024.0, 1024.0), Some(TextureId::Atlas(1)));
     }
 
     pub(crate) fn paint(&mut self) {

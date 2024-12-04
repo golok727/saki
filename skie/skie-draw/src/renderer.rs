@@ -4,7 +4,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 use crate::gpu::error::GpuSurfaceCreateError;
 use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
 use crate::math::Size;
-use crate::paint::atlas::AtlasManager;
+use crate::paint::atlas::{AtlasManager, AtlasTextureId};
 use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
@@ -109,7 +109,7 @@ impl GlobalUniformsBuffer {
 
 #[derive(Debug)]
 pub struct RendererTexture {
-    pub id: TextureId,
+    pub id: AtlasTextureId,
 
     pub bindgroup: wgpu::BindGroup,
 }
@@ -124,7 +124,7 @@ struct RendererState {
 
     global_uniforms: GlobalUniformsBuffer,
 
-    textures: ahash::AHashMap<TextureId, RendererTexture>,
+    textures: ahash::AHashMap<AtlasTextureId, RendererTexture>,
 
     scene_pipe: ScenePipe,
 
@@ -138,7 +138,7 @@ impl RendererState {
     }
 
     #[inline]
-    fn insert_texture(&mut self, tex_id: TextureId, val: RendererTexture) {
+    fn insert_texture(&mut self, tex_id: AtlasTextureId, val: RendererTexture) {
         self.textures.insert(tex_id, val);
     }
 }
@@ -237,7 +237,7 @@ impl WgpuRenderer {
         }
     }
 
-    pub fn get_texture(&self, id: &TextureId) -> Option<&RendererTexture> {
+    pub fn get_texture(&self, id: &AtlasTextureId) -> Option<&RendererTexture> {
         self.state.textures.get(id)
     }
 
@@ -295,28 +295,46 @@ impl WgpuRenderer {
 
     pub fn set_atlas_texture(&mut self, texture_id: &TextureId) {
         // FIXME reuse the bindgroup ?
-        let bindgroup = self
+        let contains_texture = self
             .state
             .texture_system
-            .with_texture(texture_id, |texture| {
-                Self::create_texture_bind_group(
-                    &self.state.gpu,
-                    &self.state.texture_bindgroup_layout,
-                    texture.view(),
-                )
+            .with_texture::<Option<(AtlasTextureId, wgpu::BindGroup)>>(texture_id, |texture| {
+                let atlas_tex_id = texture.id();
+                if self.state.textures.contains_key(&atlas_tex_id) {
+                    None
+                } else {
+                    Some((
+                        atlas_tex_id,
+                        Self::create_texture_bind_group(
+                            &self.state.gpu,
+                            &self.state.texture_bindgroup_layout,
+                            texture.view(),
+                        ),
+                    ))
+                }
             });
 
-        if let Some(bindgroup) = bindgroup {
+        if contains_texture.is_none() {
+            log::error!(
+                "ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {}",
+                texture_id
+            );
+            return;
+        }
+
+        let need_to_add = contains_texture.unwrap();
+
+        if let Some((atlas_tex_id, bindgroup)) = need_to_add {
             self.state.insert_texture(
-                *texture_id,
+                atlas_tex_id,
                 RendererTexture {
-                    id: *texture_id,
+                    id: atlas_tex_id,
                     bindgroup,
                 },
             );
         } else {
-            log::error!(
-                "ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {}",
+            log::trace!(
+                "set_atlas_texture: BindGroup exists for {}. skipping",
                 texture_id
             )
         }
@@ -428,33 +446,40 @@ impl WgpuRenderer {
             pass.set_bind_group(0, &self.state.global_uniforms.bind_group, &[]);
 
             for mesh in batches {
-                let texture = mesh.texture;
-                if let Some(RendererTexture { bindgroup, .. }) = self.state.textures.get(&texture) {
-                    let vb_slice = vb_slices.next().expect("No next vb_slice");
-                    let ib_slice = ib_slices.next().expect("No next ib_slice");
+                if let Some(texture) = mesh.texture {
+                    if let Some(RendererTexture { bindgroup, .. }) =
+                        self.state.textures.get(&texture)
+                    {
+                        let vb_slice = vb_slices.next().expect("No next vb_slice");
+                        let ib_slice = ib_slices.next().expect("No next ib_slice");
 
-                    pass.set_bind_group(1, bindgroup, &[]);
-                    pass.set_vertex_buffer(
-                        0,
-                        self.state
-                            .scene_pipe
-                            .vertex_buffer
-                            .buffer
-                            .slice(vb_slice.start as u64..vb_slice.end as u64),
-                    );
-                    pass.set_index_buffer(
-                        self.state
-                            .scene_pipe
-                            .index_buffer
-                            .buffer
-                            .slice(ib_slice.start as u64..ib_slice.end as u64),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                        pass.set_bind_group(1, bindgroup, &[]);
+                        pass.set_vertex_buffer(
+                            0,
+                            self.state
+                                .scene_pipe
+                                .vertex_buffer
+                                .buffer
+                                .slice(vb_slice.start as u64..vb_slice.end as u64),
+                        );
+                        pass.set_index_buffer(
+                            self.state
+                                .scene_pipe
+                                .index_buffer
+                                .buffer
+                                .slice(ib_slice.start as u64..ib_slice.end as u64),
+                            wgpu::IndexFormat::Uint32,
+                        );
+                        pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                    } else {
+                        let _ = vb_slices.next().expect("No next vb_slice");
+                        let _ = ib_slices.next().expect("No next ib_slice");
+                        log::error!("Texture: {} not found skipping", texture);
+                    }
                 } else {
                     let _ = vb_slices.next().expect("No next vb_slice");
                     let _ = ib_slices.next().expect("No next ib_slice");
-                    log::error!("Texture: {} not found skipping", texture);
+                    log::error!("Mesh has not texture attached. skipping");
                 }
             }
         }

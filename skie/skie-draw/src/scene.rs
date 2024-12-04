@@ -56,6 +56,7 @@ struct SceneBatchIterator<'a> {
 
 impl<'a> SceneBatchIterator<'a> {
     pub fn new(scene: &'a Scene, tex_info: AtlasTextureInfoMap) -> Self {
+        // FIXME use AtlasTextureId
         let mut tex_to_item_idx: ahash::AHashMap<Option<TextureId>, Vec<usize>> =
             Default::default();
 
@@ -123,9 +124,7 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
         }
 
         let mut mesh: Mesh = drawlist.into();
-        if let Some(texture) = texture {
-            mesh.texture = texture;
-        }
+        mesh.texture = info.map(|i| i.atlas_texture);
 
         self.cur_group += 1;
         Some(mesh)

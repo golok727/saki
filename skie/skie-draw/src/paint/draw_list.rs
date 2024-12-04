@@ -1,9 +1,6 @@
-use super::{Quad, TextureId};
+use super::{atlas::AtlasTextureId, Quad};
 
-use crate::{
-    math::{Rect, Vec2},
-    paint::WHITE_TEX_ID,
-};
+use crate::math::{Rect, Vec2};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -37,7 +34,7 @@ pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     // TODO use AtlasTextureId so that we can reuse the bindgroups
-    pub texture: TextureId,
+    pub texture: Option<AtlasTextureId>,
 }
 
 impl<'a> From<DrawList<'a>> for Mesh {
@@ -48,7 +45,7 @@ impl<'a> From<DrawList<'a>> for Mesh {
         Self {
             vertices,
             indices,
-            texture: WHITE_TEX_ID,
+            texture: None,
         }
     }
 }
