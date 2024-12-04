@@ -160,27 +160,34 @@ impl Window {
         let width = size.width as f32;
         let height = size.height as f32;
 
-        self.scene.add(
+        self.scene.add_textured(
             quad()
-                .with_pos(width / 2.0 - 150.0, height / 2.0 - 150.0)
-                .with_size(300.0, 300.0)
-                .with_bgcolor(1.0, 0.0, 0.0, 1.0),
-            Some(self.checker_texture_id),
+                .with_pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
+                .with_size(700.0, 700.0),
+            self.yellow_thing_texture_id,
         );
 
-        self.scene.add(
+        self.scene.add_textured(
+            quad()
+                .with_pos(100.0, height - 400.0)
+                .with_size(300.0, 300.0)
+                .with_bgcolor(1.0, 0.0, 0.0, 1.0),
+            self.checker_texture_id,
+        );
+
+        self.scene.add_textured(
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
                 .with_bgcolor(1.0, 1.0, 0.0, 1.0),
-            Some(self.checker_texture_id),
+            self.checker_texture_id,
         );
 
-        self.scene.add(
+        self.scene.add_textured(
             quad()
                 .with_pos(width / 2.0 + 300.0, 400.0)
                 .with_size(500.0, 500.0),
-            Some(self.yellow_thing_texture_id),
+            self.yellow_thing_texture_id,
         );
 
         self.scene.add(
@@ -188,7 +195,6 @@ impl Window {
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
                 .with_bgcolor(0.3, 0.3, 0.9, 1.0),
-            None,
         );
 
         let bar_height: f32 = 50.0;
@@ -199,7 +205,6 @@ impl Window {
                 .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
                 .with_bgcolor(0.04, 0.04, 0.07, 1.0),
-            None,
         );
     }
 

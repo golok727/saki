@@ -34,20 +34,7 @@ pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     // TODO use AtlasTextureId so that we can reuse the bindgroups
-    pub texture: Option<AtlasTextureId>,
-}
-
-impl<'a> From<DrawList<'a>> for Mesh {
-    fn from(mut dl: DrawList) -> Self {
-        let vertices: Vec<Vertex> = std::mem::take(&mut dl.vertices);
-        let indices: Vec<u32> = std::mem::take(&mut dl.indices);
-
-        Self {
-            vertices,
-            indices,
-            texture: None,
-        }
-    }
+    pub texture: AtlasTextureId,
 }
 
 pub type DrawListMiddleware<'a> = Box<dyn Fn(Vertex) -> Vertex + 'a>;
@@ -72,6 +59,13 @@ impl<'a> DrawList<'a> {
             middleware: Some(Box::new(middleware)),
             ..Default::default()
         }
+    }
+
+    pub fn set_middleware<F>(&mut self, middleware: F)
+    where
+        F: Fn(Vertex) -> Vertex + 'a,
+    {
+        self.middleware = Some(Box::new(middleware));
     }
 
     pub fn clear(&mut self) {
@@ -128,6 +122,18 @@ impl<'a> DrawList<'a> {
         ]);
 
         self.index_offset += 4;
+    }
+
+    pub fn build(mut self, texture: AtlasTextureId) -> Mesh {
+        self.middleware = None;
+        let vertices: Vec<Vertex> = std::mem::take(&mut self.vertices);
+        let indices: Vec<u32> = std::mem::take(&mut self.indices);
+
+        Mesh {
+            vertices,
+            indices,
+            texture,
+        }
     }
 }
 

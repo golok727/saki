@@ -1,3 +1,4 @@
+use crate::paint::atlas::AtlasTextureId;
 use crate::paint::atlas::AtlasTextureInfoMap;
 use crate::paint::DrawList;
 use crate::paint::Mesh;
@@ -9,7 +10,7 @@ use crate::paint::WHITE_TEX_ID;
 #[derive(Debug, Clone)]
 pub struct Primitive {
     pub kind: PrimitiveKind,
-    pub texture: Option<TextureId>,
+    pub texture: TextureId,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -26,10 +27,17 @@ impl Scene {
         todo!()
     }
 
-    pub fn add(&mut self, prim: impl Into<PrimitiveKind>, texture: Option<TextureId>) {
+    pub fn add_textured(&mut self, prim: impl Into<PrimitiveKind>, texture: TextureId) {
         self.items.push(Primitive {
             kind: prim.into(),
             texture,
+        })
+    }
+
+    pub fn add(&mut self, prim: impl Into<PrimitiveKind>) {
+        self.items.push(Primitive {
+            kind: prim.into(),
+            texture: WHITE_TEX_ID,
         })
     }
 
@@ -39,37 +47,58 @@ impl Scene {
     }
 
     pub fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
-        self.items.iter().map(|f| f.texture.unwrap_or(WHITE_TEX_ID))
+        self.items.iter().map(|f| f.texture)
     }
+
     pub fn batches(&self, tex_info: AtlasTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {
         SceneBatchIterator::new(self, tex_info)
     }
 }
 
+struct GroupEntry {
+    index: usize,
+    texture_id: TextureId,
+}
+
 // A simple batcher for now in future we will expand this.
 struct SceneBatchIterator<'a> {
     scene: &'a Scene,
-    groups: Vec<(Option<TextureId>, Vec<usize>)>,
+    groups: Vec<(AtlasTextureId, Vec<GroupEntry>)>,
     tex_info: AtlasTextureInfoMap,
     cur_group: usize,
 }
 
 impl<'a> SceneBatchIterator<'a> {
     pub fn new(scene: &'a Scene, tex_info: AtlasTextureInfoMap) -> Self {
-        // FIXME use AtlasTextureId
-        let mut tex_to_item_idx: ahash::AHashMap<Option<TextureId>, Vec<usize>> =
+        let mut tex_to_item_idx: ahash::AHashMap<AtlasTextureId, Vec<GroupEntry>> =
             Default::default();
 
         for (i, prim) in scene.items.iter().enumerate() {
-            tex_to_item_idx.entry(prim.texture).or_default().push(i);
+            let tex = prim.texture;
+            let info = tex_info.get(&tex);
+            let atlas_tex_id = info.map(|i| i.atlas_texture);
+
+            if let Some(atlas_tex_id) = atlas_tex_id {
+                let entry = tex_to_item_idx.entry(atlas_tex_id).or_default();
+                entry.push(GroupEntry {
+                    index: i,
+                    texture_id: tex,
+                });
+            } else {
+                log::error!("For some reason cant find texture in atlas for {}", tex);
+                continue;
+            }
         }
 
-        let mut groups: Vec<(Option<TextureId>, Vec<usize>)> =
+        let mut groups: Vec<(AtlasTextureId, Vec<GroupEntry>)> =
             tex_to_item_idx.into_iter().collect();
 
-        groups.sort_by_key(|(_, indices)| indices.first().copied().unwrap_or_default());
+        // groups.sort_by_key(|(_, val)| val.indices.first().copied().unwrap_or_default());
+        // FIXME Is this correct ?
+        groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
 
         log::trace!("Batches: {}", groups.len());
+
         Self {
             scene,
             tex_info,
@@ -89,44 +118,47 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
 
         let group = &self.groups[self.cur_group];
 
-        let texture = group.0;
+        let atlas_tex_id = group.0;
 
-        let use_default_texture = texture.is_none();
-        let info = self.tex_info.get(&texture.unwrap_or(WHITE_TEX_ID));
+        let mut drawlist = DrawList::default();
 
-        let uv_middleware = |mut vertex: Vertex| {
-            // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
-            if let Some(info) = info {
-                if use_default_texture {
-                    // FIXME to avoid leaks for now
-                    // This will be in right middle of the white texture so that there is not
-                    // bleeding
-                    let (a_u, a_v) = info.uv_to_atlas_space(0.5, 0.5);
-                    vertex.uv = [a_u, a_v];
-                } else {
-                    let [u, v] = vertex.uv;
-                    let (a_u, a_v) = info.uv_to_atlas_space(u, v);
-                    vertex.uv = [a_u, a_v];
-                }
-            }
-
-            vertex
-        };
-
-        let mut drawlist = DrawList::with_middleware(uv_middleware);
-
-        for idx in &group.1 {
-            let idx = *idx;
+        for entry in &group.1 {
+            let idx = entry.index;
             let prim = &self.scene.items[idx];
+
+            let tile_tex_id = entry.texture_id;
+            let use_default_texture = tile_tex_id == WHITE_TEX_ID;
+
+            let info = self.tex_info.get(&tile_tex_id);
+
+            let uv_middleware = move |mut vertex: Vertex| {
+                // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
+                if let Some(info) = info {
+                    if use_default_texture {
+                        // FIXME to avoid leaks for now
+                        // This will be in right middle of the white texture so that there is not
+                        // bleeding
+                        let (a_u, a_v) = info.uv_to_atlas_space(0.5, 0.5);
+                        vertex.uv = [a_u, a_v];
+                    } else {
+                        let [u, v] = vertex.uv;
+                        let (a_u, a_v) = info.uv_to_atlas_space(u, v);
+                        vertex.uv = [a_u, a_v];
+                    }
+                }
+
+                vertex
+            };
+
+            drawlist.set_middleware(uv_middleware);
+
             match &prim.kind {
                 PrimitiveKind::Quad(quad) => drawlist.push_quad(quad),
             }
         }
 
-        let mut mesh: Mesh = drawlist.into();
-        mesh.texture = info.map(|i| i.atlas_texture);
-
         self.cur_group += 1;
-        Some(mesh)
+
+        Some(drawlist.build(atlas_tex_id))
     }
 }
