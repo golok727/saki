@@ -109,8 +109,6 @@ impl GlobalUniformsBuffer {
 
 #[derive(Debug)]
 pub struct RendererTexture {
-    pub raw: Option<wgpu::Texture>,
-
     pub id: TextureId,
 
     pub bindgroup: wgpu::BindGroup,
@@ -252,12 +250,12 @@ impl WgpuRenderer {
         });
     }
 
-    #[inline]
     fn create_texture_bind_group(
         gpu: &GpuContext,
         layout: &wgpu::BindGroupLayout,
         view: &WgpuTextureView,
     ) -> wgpu::BindGroup {
+        // TODO allow configuration
         let sampler = gpu.device.create_sampler(
             &(wgpu::SamplerDescriptor {
                 label: Some("skie_draw texture sampler"),
@@ -312,7 +310,6 @@ impl WgpuRenderer {
             self.state.insert_texture(
                 *texture_id,
                 RendererTexture {
-                    raw: None,
                     id: *texture_id,
                     bindgroup,
                 },
