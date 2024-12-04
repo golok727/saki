@@ -7,7 +7,7 @@ use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 use ski_draw::gpu::GpuContext;
 
-use ski_draw::paint::atlas::AtlasSystem;
+use ski_draw::paint::atlas::AtlasManager;
 use winit::application::ApplicationHandler;
 use winit::{
     event::{KeyEvent, WindowEvent},
@@ -29,7 +29,7 @@ pub struct AppContext {
 
     pub(crate) app_events: AppEvents,
 
-    pub(crate) texture_system: AtlasSystem,
+    pub(crate) texture_system: AtlasManager,
 
     windows: HashMap<WindowId, Window>,
     pub(crate) gpu: Arc<GpuContext>,
@@ -44,7 +44,7 @@ impl AppContext {
         // FIXME
         let jobs = Jobs::new(Some(7));
 
-        let texture_system = AtlasSystem::new(gpu.clone());
+        let texture_system = AtlasManager::new(gpu.clone());
 
         Self {
             init_callback: None,

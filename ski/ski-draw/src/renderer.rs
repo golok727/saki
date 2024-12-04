@@ -4,7 +4,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 use crate::gpu::error::GpuSurfaceCreateError;
 use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
 use crate::math::Size;
-use crate::paint::atlas::AtlasSystem;
+use crate::paint::atlas::AtlasManager;
 use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
     gpu::{GpuContext, WHITE_TEX_ID},
@@ -120,7 +120,7 @@ pub struct RendererTexture {
 struct RendererState {
     gpu: Arc<GpuContext>,
 
-    texture_system: AtlasSystem,
+    texture_system: AtlasManager,
 
     clear_color: wgpu::Color,
 
@@ -172,7 +172,7 @@ impl WgpuRenderer {
     /// Creates a new Windowed renderer
     pub fn windowed(
         gpu: Arc<GpuContext>,
-        texture_system: AtlasSystem,
+        texture_system: AtlasManager,
         screen: impl Into<wgpu::SurfaceTarget<'static>>,
         specs: &WgpuRendererSpecs,
     ) -> Result<Self, GpuSurfaceCreateError> {
@@ -198,7 +198,7 @@ impl WgpuRenderer {
             state,
         };
 
-        let tile = renderer
+        let _tile = renderer
             .state
             .texture_system
             .get_or_insert(&WHITE_TEX_ID, || {
@@ -212,8 +212,7 @@ impl WgpuRenderer {
                 )
             });
 
-        // TODO remove
-        dbg!(tile);
+        // renderer.set_atlas_texture(&WHITE_TEX_ID);
 
         renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
 
@@ -222,7 +221,7 @@ impl WgpuRenderer {
     /// Creates a new offscreen renderer
     pub fn offscreen(
         gpu: Arc<GpuContext>,
-        texture_system: AtlasSystem,
+        texture_system: AtlasManager,
         specs: &WgpuRendererSpecs,
     ) -> Self {
         let width = specs.width;
@@ -253,7 +252,7 @@ impl WgpuRenderer {
         renderer
     }
 
-    pub fn texture_system(&self) -> &AtlasSystem {
+    pub fn texture_system(&self) -> &AtlasManager {
         &self.state.texture_system
     }
 
@@ -279,21 +278,13 @@ impl WgpuRenderer {
         });
     }
 
-    pub fn set_native_texture(&mut self, view: &wgpu::TextureView) -> TextureId {
-        let tick = self.state.next_texture_id;
-        self.state.next_texture_id += 1;
-
-        self.set_native_texture_impl(TextureId::User(tick), view)
-    }
-
     #[inline]
-    fn set_native_texture_impl(
-        &mut self,
-        id: TextureId,
-        view: &wgpu::TextureView, // TODO texture options
-    ) -> TextureId {
-        // TODO make it configurable
-        let sampler = self.state.gpu.device.create_sampler(
+    fn create_texture_bind_group(
+        gpu: &GpuContext,
+        layout: &wgpu::BindGroupLayout,
+        view: &WgpuTextureView,
+    ) -> wgpu::BindGroup {
+        let sampler = gpu.device.create_sampler(
             &(wgpu::SamplerDescriptor {
                 label: Some("ski_draw texture sampler"),
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -310,10 +301,10 @@ impl WgpuRenderer {
             }),
         );
 
-        let bindgroup = self.state.gpu.device.create_bind_group(
+        let bindgroup = gpu.device.create_bind_group(
             &(wgpu::BindGroupDescriptor {
                 label: Some("ski_draw texture bind group"),
-                layout: &self.state.texture_bindgroup_layout,
+                layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -327,6 +318,29 @@ impl WgpuRenderer {
             }),
         );
 
+        bindgroup
+    }
+
+    #[inline]
+    pub fn set_native_texture(&mut self, view: &wgpu::TextureView) -> TextureId {
+        let tick = self.state.next_texture_id;
+        self.state.next_texture_id += 1;
+
+        self.set_native_texture_impl(TextureId::User(tick), view)
+    }
+
+    #[inline]
+    fn set_native_texture_impl(
+        &mut self,
+        id: TextureId,
+        view: &wgpu::TextureView, // TODO texture options
+    ) -> TextureId {
+        let bindgroup = Self::create_texture_bind_group(
+            &self.state.gpu,
+            &self.state.texture_bindgroup_layout,
+            view,
+        );
+
         self.state.insert_texture(
             id,
             RendererTexture {
@@ -337,6 +351,37 @@ impl WgpuRenderer {
         );
 
         id
+    }
+
+    #[allow(unused)]
+    fn set_atlas_texture(&mut self, texture_id: &TextureId) {
+        log::debug!("hello atlas");
+        let bindgroup = self
+            .state
+            .texture_system
+            .with_texture(&WHITE_TEX_ID, |texture| {
+                Self::create_texture_bind_group(
+                    &self.state.gpu,
+                    &self.state.texture_bindgroup_layout,
+                    texture.view(),
+                )
+            });
+
+        if let Some(bindgroup) = bindgroup {
+            self.state.insert_texture(
+                *texture_id,
+                RendererTexture {
+                    raw: None,
+                    id: *texture_id,
+                    bindgroup,
+                },
+            );
+        } else {
+            log::error!(
+                "ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {}",
+                texture_id
+            )
+        }
     }
 
     pub fn update_buffers(&mut self, data: &[Mesh]) {
@@ -492,7 +537,7 @@ impl WgpuRenderer {
 
     fn create_state(
         gpu: Arc<GpuContext>,
-        texture_system: AtlasSystem,
+        texture_system: AtlasManager,
         specs: &WgpuRendererSpecs,
     ) -> RendererState {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);

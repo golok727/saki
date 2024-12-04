@@ -170,6 +170,12 @@ impl From<DevicePixels> for i32 {
     }
 }
 
+impl From<DevicePixels> for f32 {
+    fn from(val: DevicePixels) -> Self {
+        val.0 as f32
+    }
+}
+
 impl DevicePixels {
     /// Converts DevicePixels to ScreenPixels based on a scale factor (e.g., from device to screen)
     pub fn scale(self, scale_factor: f32) -> ScaledPixels {

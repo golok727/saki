@@ -9,7 +9,7 @@ use crate::app::AppContext;
 
 use ski_draw::{
     gpu::GpuContext,
-    paint::{atlas::AtlasSystem, quad, TextureId, WgpuTexture},
+    paint::{atlas::AtlasManager, quad, TextureId, WgpuTexture},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -62,14 +62,14 @@ pub struct Window {
     checker_texture_id: TextureId,
 
     #[allow(unused)]
-    pub(crate) texture_system: AtlasSystem,
+    pub(crate) texture_system: AtlasManager,
 }
 
 impl Window {
     pub(crate) fn new(
         event_loop: &winit::event_loop::ActiveEventLoop,
         gpu: Arc<GpuContext>,
-        texture_system: AtlasSystem,
+        texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
         let width = specs.width;
