@@ -93,7 +93,6 @@ impl<'a> SceneBatchIterator<'a> {
         let mut groups: Vec<(AtlasTextureId, Vec<GroupEntry>)> =
             tex_to_item_idx.into_iter().collect();
 
-        // groups.sort_by_key(|(_, val)| val.indices.first().copied().unwrap_or_default());
         // FIXME Is this correct ?
         groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
 
@@ -123,8 +122,7 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
         let mut drawlist = DrawList::default();
 
         for entry in &group.1 {
-            let idx = entry.index;
-            let prim = &self.scene.items[idx];
+            let prim = &self.scene.items[entry.index];
 
             let tile_tex_id = entry.texture_id;
             let use_default_texture = tile_tex_id == WHITE_TEX_ID;
@@ -136,14 +134,10 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
                 if let Some(info) = info {
                     if use_default_texture {
                         // FIXME to avoid leaks for now
-                        // This will be in right middle of the white texture so that there is not
-                        // bleeding
-                        let (a_u, a_v) = info.uv_to_atlas_space(0.5, 0.5);
-                        vertex.uv = [a_u, a_v];
+                        vertex.uv = info.uv_to_atlas_space(0.5, 0.5);
                     } else {
                         let [u, v] = vertex.uv;
-                        let (a_u, a_v) = info.uv_to_atlas_space(u, v);
-                        vertex.uv = [a_u, a_v];
+                        vertex.uv = info.uv_to_atlas_space(u, v);
                     }
                 }
 

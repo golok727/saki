@@ -116,6 +116,7 @@ pub struct RendererTexture {
 struct RendererState {
     gpu: Arc<GpuContext>,
 
+    //FIXME this renderer doesn't need to know about the texture source?
     texture_system: AtlasManager,
 
     clear_color: wgpu::Color,
@@ -187,7 +188,6 @@ impl WgpuRenderer {
             state,
         };
 
-        // FIXME check and do it in render stage
         renderer.set_atlas_texture(&WHITE_TEX_ID);
 
         Ok(renderer)
@@ -216,7 +216,6 @@ impl WgpuRenderer {
             state,
         };
 
-        // FIXME check and do it in render stage
         renderer.set_atlas_texture(&WHITE_TEX_ID);
 
         renderer
@@ -287,6 +286,7 @@ impl WgpuRenderer {
         bindgroup
     }
 
+    //FIXME this renderer doesn't need to know about the texture source?
     pub fn set_atlas_texture(&mut self, texture_id: &TextureId) {
         let contains_texture = self
             .state
@@ -485,7 +485,6 @@ impl WgpuRenderer {
         specs: &WgpuRendererSpecs,
     ) -> RendererState {
         // Default white texture for mesh with no texture
-        let data = vec![255u8; 4];
         texture_system.get_or_insert(&WHITE_TEX_ID, || {
             (
                 TextureKind::Color,
@@ -493,7 +492,7 @@ impl WgpuRenderer {
                     width: (1).into(),
                     height: (1).into(),
                 },
-                &data,
+                &[255, 255, 255, 255],
             )
         });
 

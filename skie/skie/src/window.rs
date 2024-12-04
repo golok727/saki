@@ -86,8 +86,8 @@ impl Window {
         )
         .unwrap();
 
-        let checker_texture_id = TextureId::User(1);
-        let yellow_thing_texture_id = TextureId::User(2);
+        let checker_texture_id = TextureId::User(1001);
+        let yellow_thing_texture_id = TextureId::User(1002);
 
         let checker_data = create_checker_texture(250, 250, 25);
 
@@ -103,11 +103,6 @@ impl Window {
         });
 
         let thing_data = load_thing();
-        log::debug!(
-            "width = {}, height = {}",
-            thing_data.width(),
-            thing_data.height()
-        );
         texture_system.get_or_insert(&yellow_thing_texture_id, || {
             (
                 TextureKind::Color,
@@ -119,7 +114,6 @@ impl Window {
             )
         });
 
-        // FIXME renderer should handle this
         renderer.set_atlas_texture(&checker_texture_id);
         renderer.set_atlas_texture(&yellow_thing_texture_id);
 
@@ -185,8 +179,8 @@ impl Window {
 
         self.scene.add_textured(
             quad()
-                .with_pos(width / 2.0 + 300.0, 400.0)
-                .with_size(500.0, 500.0),
+                .with_pos(width - 300.0, height - 300.0)
+                .with_size(200.0, 200.0),
             self.yellow_thing_texture_id,
         );
 

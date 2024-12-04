@@ -124,7 +124,6 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn build(mut self, texture: AtlasTextureId) -> Mesh {
-        self.middleware = None;
         let vertices: Vec<Vertex> = std::mem::take(&mut self.vertices);
         let indices: Vec<u32> = std::mem::take(&mut self.indices);
 

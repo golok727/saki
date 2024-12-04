@@ -40,6 +40,7 @@ struct AtlasStorage {
 
 impl AtlasManager {
     pub fn new(gpu: Arc<GpuContext>) -> Self {
+        // TODO should we initialize the white_texture in here ?
         Self(Arc::new(Mutex::new(AtlasStorage {
             gpu,
             gray_textures: Default::default(),
@@ -417,7 +418,7 @@ pub struct AtlasTextureInfo {
 }
 
 impl AtlasTextureInfo {
-    pub fn uv_to_atlas_space(&self, u: f32, v: f32) -> (f32, f32) {
+    pub fn uv_to_atlas_space(&self, u: f32, v: f32) -> [f32; 2] {
         // Scale the normalized coordinates (u, v) to the bounds of the texture tile in the atlas
         let tex_x = f32::from(self.bounds.x) + u * (f32::from(self.bounds.width));
         let tex_y = f32::from(self.bounds.y) + v * (f32::from(self.bounds.height));
@@ -426,7 +427,7 @@ impl AtlasTextureInfo {
         let atlas_x = tex_x / f32::from(self.atlas_texture_size.width);
         let atlas_y = tex_y / f32::from(self.atlas_texture_size.height);
 
-        (atlas_x, atlas_y)
+        [atlas_x, atlas_y]
     }
 }
 
@@ -531,10 +532,10 @@ mod test {
         let bl = atlas_info.uv_to_atlas_space(0.0, 1.0);
         let br = atlas_info.uv_to_atlas_space(1.0, 1.0);
 
-        assert_eq!(tl, (0.5, 0.5));
-        assert_eq!(tr, (1.0, 0.5));
-        assert_eq!(bl, (0.5, 1.0));
-        assert_eq!(br, (1.0, 1.0));
+        assert_eq!(tl, [0.5, 0.5]);
+        assert_eq!(tr, [1.0, 0.5]);
+        assert_eq!(bl, [0.5, 1.0]);
+        assert_eq!(br, [1.0, 1.0]);
     }
 
     #[test]
@@ -558,15 +559,15 @@ mod test {
         };
 
         // Test normalized coordinates at the center of the texture
-        let (center_x, center_y) = atlas_info.uv_to_atlas_space(0.5, 0.5);
+        let [center_x, center_y] = atlas_info.uv_to_atlas_space(0.5, 0.5);
         assert_eq!(center_x, 0.0625); // (128 / 1024)
         assert_eq!(center_y, 0.0625); // (128 / 1024)
 
         // Test corner cases
-        let (top_left_x, top_left_y) = atlas_info.uv_to_atlas_space(0.0, 0.0);
-        let (top_right_x, top_right_y) = atlas_info.uv_to_atlas_space(1.0, 0.0);
-        let (bottom_left_x, bottom_left_y) = atlas_info.uv_to_atlas_space(0.0, 1.0);
-        let (bottom_right_x, bottom_right_y) = atlas_info.uv_to_atlas_space(1.0, 1.0);
+        let [top_left_x, top_left_y] = atlas_info.uv_to_atlas_space(0.0, 0.0);
+        let [top_right_x, top_right_y] = atlas_info.uv_to_atlas_space(1.0, 0.0);
+        let [bottom_left_x, bottom_left_y] = atlas_info.uv_to_atlas_space(0.0, 1.0);
+        let [bottom_right_x, bottom_right_y] = atlas_info.uv_to_atlas_space(1.0, 1.0);
 
         assert_eq!(top_left_x, 0.0);
         assert_eq!(top_left_y, 0.0);
@@ -598,8 +599,8 @@ mod test {
             },
         };
 
-        let (top_left_x, top_left_y) = atlas_info.uv_to_atlas_space(0.0, 0.0);
-        let (bottom_right_x, bottom_right_y) = atlas_info.uv_to_atlas_space(1.0, 1.0);
+        let [top_left_x, top_left_y] = atlas_info.uv_to_atlas_space(0.0, 0.0);
+        let [bottom_right_x, bottom_right_y] = atlas_info.uv_to_atlas_space(1.0, 1.0);
 
         assert_eq!(top_left_x, 800.0 / 1024.0); // Atlas X position (800) mapped into the atlas space (1024).
         assert_eq!(top_left_y, 800.0 / 1024.0); // Atlas Y position (800) mapped into the atlas space (1024).
