@@ -86,8 +86,8 @@ impl Window {
         )
         .unwrap();
 
-        let checker_texture_id = TextureId::Internal(100);
-        let yellow_thing_texture_id = TextureId::Internal(200);
+        let checker_texture_id = TextureId::User(1);
+        let yellow_thing_texture_id = TextureId::User(2);
 
         let checker_data = create_checker_texture(250, 250, 25);
 
@@ -101,7 +101,6 @@ impl Window {
                 &checker_data,
             )
         });
-        log::debug!("Reach after");
 
         let thing_data = load_thing();
         log::debug!(
@@ -202,6 +201,10 @@ impl Window {
                 .with_bgcolor(0.04, 0.04, 0.07, 1.0),
             None,
         );
+
+        // self.scene.clear();
+        // self.scene
+        //     .add(quad().with_size(1024.0, 1024.0), Some(TextureId::Atlas(1)));
     }
 
     pub(crate) fn paint(&mut self) {

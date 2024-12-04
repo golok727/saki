@@ -11,6 +11,8 @@ pub struct AtlasManager(Arc<Mutex<AtlasStorage>>);
 
 unsafe impl Send for AtlasManager {}
 
+// FIXME TextureFormat issues;
+// FIXME Add padding the atlas texture
 /*
 
 v____   AtlasTextureId
@@ -184,7 +186,7 @@ impl AtlasStorage {
             None => {
                 let next_id = self.next_texture_id;
                 self.next_texture_id += 1;
-                TextureId::User(next_id)
+                TextureId::AtlasTile(next_id)
             }
             Some(id) => id,
         };
@@ -317,6 +319,12 @@ pub struct AtlasTextureId {
     slot: usize,
 }
 
+impl std::fmt::Display for AtlasTextureId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Atlas: kind = {} slot = {}", &self.kind, &self.slot)
+    }
+}
+
 /// The big picture
 pub struct AtlasTexture {
     // TODO add padding
@@ -348,6 +356,10 @@ impl AtlasTexture {
             texture: self.id,
             bounds,
         })
+    }
+
+    pub fn id(&self) -> AtlasTextureId {
+        self.id
     }
 
     pub fn kind(&self) -> TextureKind {

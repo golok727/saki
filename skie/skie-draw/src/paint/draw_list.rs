@@ -36,6 +36,7 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    // TODO use AtlasTextureId so that we can reuse the bindgroups
     pub texture: TextureId,
 }
 

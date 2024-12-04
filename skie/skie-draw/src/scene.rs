@@ -87,16 +87,26 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
         }
 
         let group = &self.groups[self.cur_group];
+
         let texture = group.0;
 
-        let uv_middleware = |mut vertex: Vertex| {
-            let texture = texture.unwrap_or(WHITE_TEX_ID);
-            let info = self.tex_info.get(&texture);
+        let use_default_texture = texture.is_none();
+        let info = self.tex_info.get(&texture.unwrap_or(WHITE_TEX_ID));
 
+        let uv_middleware = |mut vertex: Vertex| {
+            // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
             if let Some(info) = info {
-                let [u, v] = vertex.uv;
-                let (a_u, a_v) = info.uv_to_atlas_space(u, v);
-                vertex.uv = [a_u, a_v];
+                if use_default_texture {
+                    // FIXME to avoid leaks for now
+                    // This will be in right middle of the white texture so that there is not
+                    // bleeding
+                    let (a_u, a_v) = info.uv_to_atlas_space(0.5, 0.5);
+                    vertex.uv = [a_u, a_v];
+                } else {
+                    let [u, v] = vertex.uv;
+                    let (a_u, a_v) = info.uv_to_atlas_space(u, v);
+                    vertex.uv = [a_u, a_v];
+                }
             }
 
             vertex

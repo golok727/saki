@@ -4,6 +4,8 @@ use crate::math::{DevicePixels, Size};
 pub enum TextureId {
     Internal(usize),
     User(usize),
+    AtlasTile(usize),
+    // Atlas(AtlasTextureId),
 }
 
 pub struct Texture2DSpecs {
@@ -18,6 +20,8 @@ impl std::fmt::Display for TextureId {
         match self {
             Self::Internal(id) => write!(f, "Texture::Internal({})", id),
             Self::User(id) => write!(f, "Texture::User({})", id),
+            Self::AtlasTile(id) => write!(f, "Texture::AtlasTile({})", id),
+            // Self::Atlas(id) => write!(f, "Texture::Atlas({})", id),
         }
     }
 }
@@ -51,6 +55,15 @@ impl TextureKind {
 
     pub fn is_gray(&self) -> bool {
         matches!(self, Self::Color)
+    }
+}
+
+impl std::fmt::Display for TextureKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Color => write!(f, "Kind::Color"),
+            Self::Grayscale => write!(f, "Kind::Gray"),
+        }
     }
 }
 

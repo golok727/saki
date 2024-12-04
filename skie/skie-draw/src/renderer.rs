@@ -128,8 +128,6 @@ struct RendererState {
 
     textures: ahash::AHashMap<TextureId, RendererTexture>,
 
-    next_texture_id: usize,
-
     scene_pipe: ScenePipe,
 
     texture_bindgroup_layout: wgpu::BindGroupLayout,
@@ -297,44 +295,12 @@ impl WgpuRenderer {
         bindgroup
     }
 
-    #[inline]
-    pub fn set_native_texture(&mut self, view: &wgpu::TextureView) -> TextureId {
-        let tick = self.state.next_texture_id;
-        self.state.next_texture_id += 1;
-
-        self.set_native_texture_impl(TextureId::User(tick), view)
-    }
-
-    #[inline]
-    fn set_native_texture_impl(
-        &mut self,
-        id: TextureId,
-        view: &wgpu::TextureView, // TODO texture options
-    ) -> TextureId {
-        let bindgroup = Self::create_texture_bind_group(
-            &self.state.gpu,
-            &self.state.texture_bindgroup_layout,
-            view,
-        );
-
-        self.state.insert_texture(
-            id,
-            RendererTexture {
-                raw: None,
-                id,
-                bindgroup,
-            },
-        );
-
-        id
-    }
-
-    #[allow(unused)]
     pub fn set_atlas_texture(&mut self, texture_id: &TextureId) {
+        // FIXME reuse the bindgroup ?
         let bindgroup = self
             .state
             .texture_system
-            .with_texture(&WHITE_TEX_ID, |texture| {
+            .with_texture(texture_id, |texture| {
                 Self::create_texture_bind_group(
                     &self.state.gpu,
                     &self.state.texture_bindgroup_layout,
@@ -516,6 +482,7 @@ impl WgpuRenderer {
         specs: &WgpuRendererSpecs,
     ) -> RendererState {
         // Default white texture for mesh with no texture
+        let data = vec![255u8; 4];
         texture_system.get_or_insert(&WHITE_TEX_ID, || {
             (
                 TextureKind::Color,
@@ -523,7 +490,7 @@ impl WgpuRenderer {
                     width: (1).into(),
                     height: (1).into(),
                 },
-                &[255, 255, 255, 255],
+                &data,
             )
         });
 
@@ -567,7 +534,6 @@ impl WgpuRenderer {
             clear_color: wgpu::Color::WHITE,
             texture_system,
             textures: ahash::AHashMap::new(),
-            next_texture_id: 1,
             global_uniforms: uniform_buffer,
             texture_bindgroup_layout,
         }
