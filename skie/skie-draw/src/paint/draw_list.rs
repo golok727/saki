@@ -1,4 +1,4 @@
-use super::{atlas::AtlasTextureId, Quad};
+use super::{atlas::AtlasTextureId, Quad, TextureId};
 
 use crate::math::{Rect, Vec2};
 
@@ -33,8 +33,7 @@ impl Vertex {
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    // TODO use AtlasTextureId so that we can reuse the bindgroups
-    pub texture: AtlasTextureId,
+    pub texture: TextureId,
 }
 
 pub type DrawListMiddleware<'a> = Box<dyn Fn(Vertex) -> Vertex + 'a>;
@@ -132,7 +131,7 @@ impl<'a> DrawList<'a> {
         Mesh {
             vertices,
             indices,
-            texture,
+            texture: TextureId::AtlasTexture(texture),
         }
     }
 }

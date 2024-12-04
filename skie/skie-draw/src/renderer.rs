@@ -4,7 +4,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 use crate::gpu::error::GpuSurfaceCreateError;
 use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
 use crate::math::Size;
-use crate::paint::atlas::{AtlasManager, AtlasTextureId};
+use crate::paint::atlas::AtlasManager;
 use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
@@ -122,7 +122,7 @@ struct RendererState {
 
     global_uniforms: GlobalUniformsBuffer,
 
-    textures: ahash::AHashMap<AtlasTextureId, RendererTexture>,
+    textures: ahash::AHashMap<TextureId, RendererTexture>,
 
     scene_pipe: ScenePipe,
 
@@ -136,7 +136,7 @@ impl RendererState {
     }
 
     #[inline]
-    fn insert_texture(&mut self, tex_id: AtlasTextureId, val: RendererTexture) {
+    fn insert_texture(&mut self, tex_id: TextureId, val: RendererTexture) {
         self.textures.insert(tex_id, val);
     }
 }
@@ -291,8 +291,8 @@ impl WgpuRenderer {
         let contains_texture = self
             .state
             .texture_system
-            .with_texture::<Option<(AtlasTextureId, wgpu::BindGroup)>>(texture_id, |texture| {
-                let atlas_tex_id = texture.id();
+            .with_texture::<Option<(TextureId, wgpu::BindGroup)>>(texture_id, |texture| {
+                let atlas_tex_id = TextureId::AtlasTexture(texture.id());
                 if self.state.textures.contains_key(&atlas_tex_id) {
                     None
                 } else {
