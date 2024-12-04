@@ -2038,7 +2038,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "log",
- "ski",
+ "skie",
 ]
 
 [[package]]
@@ -2126,7 +2126,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ski"
+name = "skie"
 version = "0.1.0"
 dependencies = [
  "async-task",
@@ -2136,14 +2136,14 @@ dependencies = [
  "log",
  "parking_lot",
  "pollster",
- "ski-draw",
+ "skie-draw",
  "thiserror 2.0.3",
  "wgpu",
  "winit",
 ]
 
 [[package]]
-name = "ski-draw"
+name = "skie-draw"
 version = "0.1.0"
 dependencies = [
  "ahash",

@@ -7,7 +7,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use crate::app::AppContext;
 
-use ski_draw::{
+use skie_draw::{
     gpu::GpuContext,
     paint::{atlas::AtlasManager, quad, TextureId, WgpuTexture},
     scene::Scene,
@@ -28,7 +28,7 @@ impl Default for WindowSpecification {
         Self {
             width: 800,
             height: 800,
-            title: "Ski",
+            title: "skie",
         }
     }
 }
@@ -93,7 +93,7 @@ impl Window {
             gpu,
             texture_system.clone(),
             Arc::clone(&handle),
-            &WgpuRendererSpecs { width, height },
+            &(WgpuRendererSpecs { width, height }),
         )
         .unwrap();
 
@@ -191,11 +191,9 @@ impl Window {
         // FIXME for now
         self.build_scene();
 
-        let dependencies = self
+        let _dependencies = self
             .texture_system
             .get_texture_infos(self.scene.get_dependencies());
-
-        dbg!(dependencies);
 
         let batches = self.scene.batches().collect::<Vec<_>>();
 
@@ -277,7 +275,7 @@ fn load_thing(gpu: &GpuContext) -> WgpuTexture {
 
     // FIXME color
     gpu.create_texture_init(
-        ski_draw::paint::TextureFormat::Rgba8UnormSrgb,
+        skie_draw::paint::TextureFormat::Rgba8UnormSrgb,
         data.width(),
         data.height(),
         &data,

@@ -27,9 +27,8 @@ impl GpuContext {
                     power_preference: wgpu::PowerPreference::default(),
                     force_fallback_adapter: false,
                     compatible_surface: None,
-                }),
-            )
-            .await
+                })
+            ).await
             .ok_or(error::GpuContextCreateError::AdapterMissing)?;
 
         let (device, queue) = adapter
@@ -37,13 +36,13 @@ impl GpuContext {
                 &(wgpu::DeviceDescriptor {
                     label: Some("GPUContext device"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                    required_limits: wgpu::Limits
+                        ::downlevel_webgl2_defaults()
                         .using_resolution(adapter.limits()),
                     memory_hints: wgpu::MemoryHints::MemoryUsage,
                 }),
-                None,
-            )
-            .await
+                None
+            ).await
             .map_err(error::GpuContextCreateError::RequestDeviceError)?;
 
         let default_texture = Self::create_texture_init_impl(
@@ -52,7 +51,7 @@ impl GpuContext {
             wgpu::TextureFormat::Rgba8UnormSrgb,
             1,
             1,
-            &[255u8, 255u8, 255u8, 255u8],
+            &[255u8, 255u8, 255u8, 255u8]
         );
 
         Ok(Self {
@@ -69,24 +68,21 @@ impl GpuContext {
     }
 
     pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {
-        self.device
-            .create_command_encoder(&(wgpu::CommandEncoderDescriptor { label }))
+        self.device.create_command_encoder(&(wgpu::CommandEncoderDescriptor { label }))
     }
 
     pub fn create_shader(&self, source: &str) -> wgpu::ShaderModule {
-        self.device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::Wgsl(source.into()),
-            })
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        })
     }
 
     pub fn create_shader_labeled(&self, source: &str, label: &str) -> wgpu::ShaderModule {
-        self.device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some(label),
-                source: wgpu::ShaderSource::Wgsl(source.into()),
-            })
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(label),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        })
     }
 
     pub fn create_texture(&self, descriptor: &wgpu::TextureDescriptor) -> wgpu::Texture {
@@ -98,7 +94,7 @@ impl GpuContext {
         format: wgpu::TextureFormat,
         width: u32,
         height: u32,
-        data: &[u8],
+        data: &[u8]
     ) -> wgpu::Texture {
         Self::create_texture_init_impl(&self.device, &self.queue, format, width, height, data)
     }
@@ -106,22 +102,22 @@ impl GpuContext {
     pub fn create_vertex_buffer(&self, size: u64) -> wgpu::Buffer {
         self.device.create_buffer(
             &(wgpu::BufferDescriptor {
-                label: Some("ski_draw_vertex_buffer"),
+                label: Some("skie_draw_vertex_buffer"),
                 mapped_at_creation: false,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 size,
-            }),
+            })
         )
     }
 
     pub fn create_index_buffer(&self, size: u64) -> wgpu::Buffer {
         self.device.create_buffer(
             &(wgpu::BufferDescriptor {
-                label: Some("ski_draw_index_buffer"),
+                label: Some("skie_draw_index_buffer"),
                 mapped_at_creation: false,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 size,
-            }),
+            })
         )
     }
 
@@ -132,7 +128,7 @@ impl GpuContext {
         format: wgpu::TextureFormat,
         width: u32,
         height: u32,
-        data: &[u8],
+        data: &[u8]
     ) -> wgpu::Texture {
         let texture_size = wgpu::Extent3d {
             width,
@@ -150,7 +146,7 @@ impl GpuContext {
                 format,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
-            }),
+            })
         );
 
         queue.write_texture(
@@ -166,7 +162,7 @@ impl GpuContext {
                 bytes_per_row: Some(4 * width),
                 rows_per_image: None,
             },
-            texture_size,
+            texture_size
         );
 
         texture

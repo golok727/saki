@@ -1,17 +1,15 @@
 [package]
-name = "ski"
+name = "skie-draw"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ski-draw = { path = "../ski-draw" }
-pollster.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 log.workspace = true
 thiserror.workspace = true
-async-task.workspace = true
+ahash.workspace = true
 parking_lot.workspace = true
-flume.workspace = true
-image.workspace = true
-calloop.workspace = true
+derive_more.workspace = true
+bytemuck = { version = "1.20.0", features = ["derive"] }
+etagere = "0.2.13"

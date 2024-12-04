@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use ski::{app::App, window::WindowSpecification};
+use skie::{app::App, window::WindowSpecification};
 
 /*
 TODO
@@ -16,7 +16,7 @@ fn main() {
 
     init_stdout_logger();
 
-    log::info!("Welcome to ski!");
+    log::info!("Welcome to saki!");
 
     let mut app = App::new();
     app.run(|app| {

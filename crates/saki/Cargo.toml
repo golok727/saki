@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ski.workspace = true
+skie.workspace = true
 env_logger.workspace = true
 log.workspace = true
 chrono.workspace = true

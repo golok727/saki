@@ -1,20 +1,16 @@
 use std::sync::Arc;
-use std::{cell::Cell, num::NonZeroU64, ops::Range};
+use std::{ cell::Cell, num::NonZeroU64, ops::Range };
 
 use crate::gpu::error::GpuSurfaceCreateError;
-use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
+use crate::gpu::surface::{ GpuSurface, GpuSurfaceSpecification };
 use crate::math::Size;
 use crate::paint::atlas::AtlasManager;
-use crate::paint::{TextureKind, WgpuTextureView};
-use crate::{
-    gpu::{GpuContext, WHITE_TEX_ID},
-    math::Mat3,
-    paint::{Mesh, TextureId, Vertex},
-};
+use crate::paint::{ TextureKind, WgpuTextureView };
+use crate::{ gpu::{ GpuContext, WHITE_TEX_ID }, math::Mat3, paint::{ Mesh, TextureId, Vertex } };
 
 pub mod render_target;
 
-use render_target::{OffscreenRenderTarget, OffscreenRenderTargetSpec};
+use render_target::{ OffscreenRenderTarget, OffscreenRenderTargetSpec };
 use wgpu::util::DeviceExt;
 
 static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<Vertex>() * 1024) as u64;
@@ -41,37 +37,41 @@ impl GlobalUniformsBuffer {
             &(wgpu::util::BufferInitDescriptor {
                 label: Some("Global uniform buffer"),
                 contents: bytemuck::cast_slice(&[data]),
-                usage: wgpu::BufferUsages::UNIFORM
-                    | wgpu::BufferUsages::COPY_SRC
-                    | wgpu::BufferUsages::COPY_DST,
-            }),
+                usage: wgpu::BufferUsages::UNIFORM |
+                wgpu::BufferUsages::COPY_SRC |
+                wgpu::BufferUsages::COPY_DST,
+            })
         );
 
         let layout = gpu.device.create_bind_group_layout(
             &(wgpu::BindGroupLayoutDescriptor {
                 label: Some("Global uniform bind group layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
-            }),
+                ],
+            })
         );
 
         let bind_group = gpu.device.create_bind_group(
             &(wgpu::BindGroupDescriptor {
                 label: Some("Global uniform bind group"),
                 layout: &layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: gpu_buffer.as_entire_binding(),
-                }],
-            }),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: gpu_buffer.as_entire_binding(),
+                    },
+                ],
+            })
         );
 
         Self {
@@ -100,8 +100,7 @@ impl GlobalUniformsBuffer {
 
         log::trace!("Global uniform buffer sync");
 
-        gpu.queue
-            .write_buffer(&self.gpu_buffer, 0, bytemuck::cast_slice(&[self.data]));
+        gpu.queue.write_buffer(&self.gpu_buffer, 0, bytemuck::cast_slice(&[self.data]));
 
         self.dirty.set(false);
     }
@@ -174,11 +173,11 @@ impl WgpuRenderer {
         gpu: Arc<GpuContext>,
         texture_system: AtlasManager,
         screen: impl Into<wgpu::SurfaceTarget<'static>>,
-        specs: &WgpuRendererSpecs,
+        specs: &WgpuRendererSpecs
     ) -> Result<Self, GpuSurfaceCreateError> {
         let width = specs.width;
         let height = specs.height;
-        let surface = gpu.create_surface(screen, &GpuSurfaceSpecification { width, height })?;
+        let surface = gpu.create_surface(screen, &(GpuSurfaceSpecification { width, height }))?;
 
         let render_target = DefaultRenderTarget::Windowed {
             surface,
@@ -198,19 +197,16 @@ impl WgpuRenderer {
             state,
         };
 
-        let _tile = renderer
-            .state
-            .texture_system
-            .get_or_insert(&WHITE_TEX_ID, || {
-                (
-                    TextureKind::Color,
-                    Size {
-                        width: 1.into(),
-                        height: 1.into(),
-                    },
-                    &[255, 255, 255, 255],
-                )
-            });
+        let _tile = renderer.state.texture_system.get_or_insert(&WHITE_TEX_ID, || {
+            (
+                TextureKind::Color,
+                Size {
+                    width: (1).into(),
+                    height: (1).into(),
+                },
+                &[255, 255, 255, 255],
+            )
+        });
 
         // renderer.set_atlas_texture(&WHITE_TEX_ID);
 
@@ -222,7 +218,7 @@ impl WgpuRenderer {
     pub fn offscreen(
         gpu: Arc<GpuContext>,
         texture_system: AtlasManager,
-        specs: &WgpuRendererSpecs,
+        specs: &WgpuRendererSpecs
     ) -> Self {
         let width = specs.width;
         let height = specs.height;
@@ -282,11 +278,11 @@ impl WgpuRenderer {
     fn create_texture_bind_group(
         gpu: &GpuContext,
         layout: &wgpu::BindGroupLayout,
-        view: &WgpuTextureView,
+        view: &WgpuTextureView
     ) -> wgpu::BindGroup {
         let sampler = gpu.device.create_sampler(
             &(wgpu::SamplerDescriptor {
-                label: Some("ski_draw texture sampler"),
+                label: Some("skie_draw texture sampler"),
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
                 address_mode_v: wgpu::AddressMode::ClampToEdge,
                 address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -298,12 +294,12 @@ impl WgpuRenderer {
                 compare: None,
                 anisotropy_clamp: 1,
                 border_color: None,
-            }),
+            })
         );
 
         let bindgroup = gpu.device.create_bind_group(
             &(wgpu::BindGroupDescriptor {
-                label: Some("ski_draw texture bind group"),
+                label: Some("skie_draw texture bind group"),
                 layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -315,7 +311,7 @@ impl WgpuRenderer {
                         resource: wgpu::BindingResource::Sampler(&sampler),
                     },
                 ],
-            }),
+            })
         );
 
         bindgroup
@@ -333,22 +329,19 @@ impl WgpuRenderer {
     fn set_native_texture_impl(
         &mut self,
         id: TextureId,
-        view: &wgpu::TextureView, // TODO texture options
+        view: &wgpu::TextureView // TODO texture options
     ) -> TextureId {
         let bindgroup = Self::create_texture_bind_group(
             &self.state.gpu,
             &self.state.texture_bindgroup_layout,
-            view,
+            view
         );
 
-        self.state.insert_texture(
+        self.state.insert_texture(id, RendererTexture {
+            raw: None,
             id,
-            RendererTexture {
-                raw: None,
-                id,
-                bindgroup,
-            },
-        );
+            bindgroup,
+        });
 
         id
     }
@@ -356,31 +349,22 @@ impl WgpuRenderer {
     #[allow(unused)]
     fn set_atlas_texture(&mut self, texture_id: &TextureId) {
         log::debug!("hello atlas");
-        let bindgroup = self
-            .state
-            .texture_system
-            .with_texture(&WHITE_TEX_ID, |texture| {
-                Self::create_texture_bind_group(
-                    &self.state.gpu,
-                    &self.state.texture_bindgroup_layout,
-                    texture.view(),
-                )
-            });
+        let bindgroup = self.state.texture_system.with_texture(&WHITE_TEX_ID, |texture| {
+            Self::create_texture_bind_group(
+                &self.state.gpu,
+                &self.state.texture_bindgroup_layout,
+                texture.view()
+            )
+        });
 
         if let Some(bindgroup) = bindgroup {
-            self.state.insert_texture(
-                *texture_id,
-                RendererTexture {
-                    raw: None,
-                    id: *texture_id,
-                    bindgroup,
-                },
-            );
+            self.state.insert_texture(*texture_id, RendererTexture {
+                raw: None,
+                id: *texture_id,
+                bindgroup,
+            });
         } else {
-            log::error!(
-                "ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {}",
-                texture_id
-            )
+            log::error!("ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {}", texture_id)
         }
     }
 
@@ -389,30 +373,29 @@ impl WgpuRenderer {
 
         self.render_target.pre_render(&self.state.gpu);
 
-        let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
-            (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
-        });
+        let (vertex_count, index_count): (usize, usize) = data
+            .iter()
+            .fold((0, 0), |res, mesh| {
+                (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
+            });
 
         if vertex_count > 0 {
             let vb = &mut self.state.scene_pipe.vertex_buffer;
             vb.slices.clear();
 
-            let required_vertex_buffer_size =
-                (std::mem::size_of::<Vertex>() * vertex_count) as wgpu::BufferAddress;
+            let required_vertex_buffer_size = (std::mem::size_of::<Vertex>() *
+                vertex_count) as wgpu::BufferAddress;
 
             if vb.capacity < required_vertex_buffer_size {
                 vb.capacity = (vb.capacity * 2).max(required_vertex_buffer_size);
                 vb.buffer = self.state.gpu.create_vertex_buffer(vb.capacity);
             }
 
-            let mut staging_vertex = self
-                .state
-                .gpu
-                .queue
+            let mut staging_vertex = self.state.gpu.queue
                 .write_buffer_with(
                     &vb.buffer,
                     0,
-                    NonZeroU64::new(required_vertex_buffer_size).unwrap(),
+                    NonZeroU64::new(required_vertex_buffer_size).unwrap()
                 )
                 .expect("Failed to create stating buffer for vertex");
 
@@ -430,22 +413,19 @@ impl WgpuRenderer {
             let ib = &mut self.state.scene_pipe.index_buffer;
             ib.slices.clear();
 
-            let required_index_buffer_size =
-                (std::mem::size_of::<u32>() * index_count) as wgpu::BufferAddress;
+            let required_index_buffer_size = (std::mem::size_of::<u32>() *
+                index_count) as wgpu::BufferAddress;
 
             if ib.capacity < required_index_buffer_size {
                 ib.capacity = (ib.capacity * 2).max(required_index_buffer_size);
                 ib.buffer = self.state.gpu.create_index_buffer(ib.capacity);
             }
 
-            let mut staging_index = self
-                .state
-                .gpu
-                .queue
+            let mut staging_index = self.state.gpu.queue
                 .write_buffer_with(
                     &ib.buffer,
                     0,
-                    NonZeroU64::new(required_index_buffer_size).unwrap(),
+                    NonZeroU64::new(required_index_buffer_size).unwrap()
                 )
                 .expect("Failed to create staging buffer for");
 
@@ -472,18 +452,20 @@ impl WgpuRenderer {
             let mut pass = encoder.begin_render_pass(
                 &(wgpu::RenderPassDescriptor {
                     label: Some("RenderTarget Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(self.state.clear_color),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
+                    color_attachments: &[
+                        Some(wgpu::RenderPassColorAttachment {
+                            view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(self.state.clear_color),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        }),
+                    ],
                     depth_stencil_attachment: None,
                     occlusion_query_set: None,
                     timestamp_writes: None,
-                }),
+                })
             );
 
             pass.set_pipeline(&self.state.scene_pipe.pipeline);
@@ -498,19 +480,15 @@ impl WgpuRenderer {
                     pass.set_bind_group(1, bindgroup, &[]);
                     pass.set_vertex_buffer(
                         0,
-                        self.state
-                            .scene_pipe
-                            .vertex_buffer
-                            .buffer
-                            .slice(vb_slice.start as u64..vb_slice.end as u64),
+                        self.state.scene_pipe.vertex_buffer.buffer.slice(
+                            vb_slice.start as u64..vb_slice.end as u64
+                        )
                     );
                     pass.set_index_buffer(
-                        self.state
-                            .scene_pipe
-                            .index_buffer
-                            .buffer
-                            .slice(ib_slice.start as u64..ib_slice.end as u64),
-                        wgpu::IndexFormat::Uint32,
+                        self.state.scene_pipe.index_buffer.buffer.slice(
+                            ib_slice.start as u64..ib_slice.end as u64
+                        ),
+                        wgpu::IndexFormat::Uint32
                     );
                     pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
                 } else {
@@ -521,10 +499,7 @@ impl WgpuRenderer {
             }
         }
 
-        self.state
-            .gpu
-            .queue
-            .submit(std::iter::once(encoder.finish()));
+        self.state.gpu.queue.submit(std::iter::once(encoder.finish()));
 
         self.render_target.end_frame();
 
@@ -538,16 +513,17 @@ impl WgpuRenderer {
     fn create_state(
         gpu: Arc<GpuContext>,
         texture_system: AtlasManager,
-        specs: &WgpuRendererSpecs,
+        specs: &WgpuRendererSpecs
     ) -> RendererState {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
-        let uniform_buffer =
-            GlobalUniformsBuffer::new(&gpu, GlobalUniformData { proj: proj.into() });
+        let uniform_buffer = GlobalUniformsBuffer::new(&gpu, GlobalUniformData {
+            proj: proj.into(),
+        });
 
         let texture_bindgroup_layout = gpu.device.create_bind_group_layout(
             &(wgpu::BindGroupLayoutDescriptor {
-                label: Some("Ski wgpu::Renderer texture bindgroup layout"),
+                label: Some("skie wgpu::Renderer texture bindgroup layout"),
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
@@ -566,12 +542,12 @@ impl WgpuRenderer {
                         count: None,
                     },
                 ],
-            }),
+            })
         );
 
         let scene_pipe = ScenePipe::new(
             &gpu,
-            &[&uniform_buffer.bing_group_layout, &texture_bindgroup_layout],
+            &[&uniform_buffer.bing_group_layout, &texture_bindgroup_layout]
         );
 
         RendererState {
@@ -604,15 +580,11 @@ impl RenderTarget for DefaultRenderTarget {
     fn begin_frame(&mut self) -> &WgpuTextureView {
         match self {
             Self::Offscreen { render_target } => render_target.texture_view(),
-            DefaultRenderTarget::Windowed {
-                surface,
-                current_texture,
-                current_texture_view,
-            } => {
+            DefaultRenderTarget::Windowed { surface, current_texture, current_texture_view } => {
                 let surface_texture = surface.surface.get_current_texture().unwrap();
-                let view = surface_texture
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
+                let view = surface_texture.texture.create_view(
+                    &wgpu::TextureViewDescriptor::default()
+                );
 
                 *current_texture_view = Some(view);
                 *current_texture = Some(surface_texture); // FIXME error handling
@@ -627,11 +599,7 @@ impl RenderTarget for DefaultRenderTarget {
             Self::Offscreen { .. } => {
                 // NOOP
             }
-            DefaultRenderTarget::Windowed {
-                current_texture,
-                current_texture_view,
-                ..
-            } => {
+            DefaultRenderTarget::Windowed { current_texture, current_texture_view, .. } => {
                 *current_texture_view = None;
                 if let Some(texture) = current_texture.take() {
                     texture.present()
@@ -678,7 +646,7 @@ impl ScenePipe {
                 label: Some("Scenepipe layout"),
                 bind_group_layouts,
                 push_constant_ranges: &[],
-            }),
+            })
         );
 
         let vbo_layout = wgpu::VertexBufferLayout {
@@ -702,22 +670,24 @@ impl ScenePipe {
                     module: &shader,
                     entry_point: Some("fs"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        blend: Some(wgpu::BlendState {
-                            color: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::One,
-                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                operation: wgpu::BlendOperation::Add,
-                            },
-                            alpha: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                                dst_factor: wgpu::BlendFactor::One,
-                                operation: wgpu::BlendOperation::Add,
-                            },
+                    targets: &[
+                        Some(wgpu::ColorTargetState {
+                            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                            blend: Some(wgpu::BlendState {
+                                color: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::One,
+                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                                alpha: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+                                    dst_factor: wgpu::BlendFactor::One,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                            }),
+                            write_mask: wgpu::ColorWrites::ALL,
                         }),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
+                    ],
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -736,7 +706,7 @@ impl ScenePipe {
                 },
                 multiview: None,
                 cache: None,
-            }),
+            })
         );
 
         let vertex_buffer = BatchBuffer {

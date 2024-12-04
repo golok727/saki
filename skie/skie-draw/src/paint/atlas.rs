@@ -267,6 +267,7 @@ impl AtlasStorage {
 
         let n_bytes = width * height * bytes_per_pixel;
 
+        // should we make it white ?
         let init_data = vec![0u8; n_bytes as usize];
 
         self.gpu.queue.write_texture(
@@ -325,6 +326,7 @@ pub struct AtlasTextureId {
 
 /// The big picture
 pub struct AtlasTexture {
+    // TODO add padding ?
     id: AtlasTextureId,
     raw: wgpu::Texture,
     allocator: etagere::BucketedAtlasAllocator,
@@ -408,7 +410,7 @@ pub struct AtlasTile {
 #[derive(Debug, Clone)]
 pub struct AtlasTextureInfo {
     pub id: TextureId,
-    ///  Bounds of the texture in the atlas
+    ///  Bounds of the texture tile in the atlas
     pub bounds: Rect<DevicePixels>,
     /// Size of the atlas in which the texture is in
     pub atlas_texture_size: Size<DevicePixels>,
@@ -418,11 +420,11 @@ pub struct AtlasTextureInfo {
 
 impl AtlasTextureInfo {
     pub fn uv_to_atlas_space(&self, u: f32, v: f32) -> (f32, f32) {
-        // Scale the normalized coordinates (u, v) to the bounds of the texture in the atlas
+        // Scale the normalized coordinates (u, v) to the bounds of the texture tile in the atlas
         let tex_x = f32::from(self.bounds.x) + u * (f32::from(self.bounds.width));
         let tex_y = f32::from(self.bounds.y) + v * (f32::from(self.bounds.height));
 
-        // Convert this to atlas space by dividing by the atlas texture size
+        // Convert to atlas space
         let atlas_x = tex_x / f32::from(self.atlas_texture_size.width);
         let atlas_y = tex_y / f32::from(self.atlas_texture_size.height);
 
