@@ -1,10 +1,10 @@
-use crate::gpu::WHITE_TEX_ID;
 use crate::paint::atlas::AtlasTextureInfoMap;
 use crate::paint::DrawList;
 use crate::paint::Mesh;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
 use crate::paint::Vertex;
+use crate::paint::WHITE_TEX_ID;
 
 #[derive(Debug, Clone)]
 pub struct Primitive {

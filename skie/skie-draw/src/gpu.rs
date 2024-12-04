@@ -1,9 +1,5 @@
-use crate::paint::TextureId;
-
 pub mod error;
 pub mod surface;
-
-pub const WHITE_TEX_ID: TextureId = TextureId::Internal(1);
 
 #[derive(Debug)]
 pub struct GpuContext {

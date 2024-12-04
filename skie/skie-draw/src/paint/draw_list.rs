@@ -1,8 +1,8 @@
 use super::{Quad, TextureId};
 
 use crate::{
-    gpu::WHITE_TEX_ID,
     math::{Rect, Vec2},
+    paint::WHITE_TEX_ID,
 };
 
 #[repr(C)]

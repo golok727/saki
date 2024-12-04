@@ -7,9 +7,9 @@ use crate::math::Size;
 use crate::paint::atlas::AtlasManager;
 use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
-    gpu::{GpuContext, WHITE_TEX_ID},
+    gpu::GpuContext,
     math::Mat3,
-    paint::{Mesh, TextureId, Vertex},
+    paint::{Mesh, TextureId, Vertex, WHITE_TEX_ID},
 };
 
 pub mod render_target;

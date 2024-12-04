@@ -1,5 +1,7 @@
 use crate::math::{DevicePixels, Size};
 
+pub const WHITE_TEX_ID: TextureId = TextureId::Internal(1);
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TextureId {
     Internal(usize),
