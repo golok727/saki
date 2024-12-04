@@ -199,6 +199,9 @@ impl AtlasStorage {
         let texture = storage[tile.texture.slot].as_ref();
 
         if let Some(texture) = texture {
+            let tile_width: u32 = tile.bounds.width.into();
+            let tile_height: u32 = tile.bounds.height.into();
+
             self.gpu.queue.write_texture(
                 wgpu::ImageCopyTexture {
                     texture: &texture.raw,
@@ -213,14 +216,12 @@ impl AtlasStorage {
                 data,
                 wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(
-                        texture.kind.bytes_per_pixel() * u32::from(texture.size.width),
-                    ),
+                    bytes_per_row: Some(texture.kind.bytes_per_pixel() * tile_width),
                     rows_per_image: None,
                 },
                 wgpu::Extent3d {
-                    width: tile.bounds.width.into(),
-                    height: tile.bounds.height.into(),
+                    width: tile_width,
+                    height: tile_height,
                     depth_or_array_layers: 1,
                 },
             );
@@ -260,7 +261,6 @@ impl AtlasStorage {
 
         let n_bytes = width * height * bytes_per_pixel;
 
-        // should we make it white ?
         let init_data = vec![0u8; n_bytes as usize];
 
         self.gpu.queue.write_texture(
@@ -319,7 +319,7 @@ pub struct AtlasTextureId {
 
 /// The big picture
 pub struct AtlasTexture {
-    // TODO add padding ?
+    // TODO add padding
     id: AtlasTextureId,
     raw: wgpu::Texture,
     allocator: etagere::BucketedAtlasAllocator,

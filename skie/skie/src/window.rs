@@ -3,13 +3,15 @@ pub mod error;
 use std::sync::Arc;
 
 use error::CreateWindowError;
+use image::ImageBuffer;
 pub(crate) use winit::window::Window as WinitWindow;
 
 use crate::app::AppContext;
 
 use skie_draw::{
     gpu::GpuContext,
-    paint::{atlas::AtlasManager, quad, TextureId, WgpuTexture},
+    math::Size,
+    paint::{atlas::AtlasManager, quad, TextureId, TextureKind},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -52,13 +54,7 @@ pub struct Window {
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
 
-    // FIXME remove this after adding atlas
-    #[allow(unused)]
-    thing_texture: WgpuTexture,
-    thing_texture_id: TextureId,
-
-    #[allow(unused)]
-    checker_texture: WgpuTexture,
+    yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
 
     #[allow(unused)]
@@ -82,13 +78,6 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
-        let thing_texture = load_thing(&gpu);
-
-        // FIXME remove after adding atlas
-        let checker_data = create_checker_texture(250, 250, 25);
-        let checker_texture =
-            gpu.create_texture_init(wgpu::TextureFormat::Rgba8UnormSrgb, 250, 250, &checker_data);
-
         let mut renderer = WgpuRenderer::windowed(
             gpu,
             texture_system.clone(),
@@ -97,22 +86,50 @@ impl Window {
         )
         .unwrap();
 
-        let checker_texture_id = renderer.set_native_texture(
-            &checker_texture.create_view(&wgpu::TextureViewDescriptor::default()),
-        );
+        let checker_texture_id = TextureId::Internal(100);
+        let yellow_thing_texture_id = TextureId::Internal(200);
 
-        let thing_texture_id = renderer.set_native_texture(
-            &thing_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+        let checker_data = create_checker_texture(250, 250, 25);
+
+        texture_system.get_or_insert(&checker_texture_id, || {
+            (
+                TextureKind::Color,
+                Size {
+                    width: 250.into(),
+                    height: 250.into(),
+                },
+                &checker_data,
+            )
+        });
+        log::debug!("Reach after");
+
+        let thing_data = load_thing();
+        log::debug!(
+            "width = {}, height = {}",
+            thing_data.width(),
+            thing_data.height()
         );
+        texture_system.get_or_insert(&yellow_thing_texture_id, || {
+            (
+                TextureKind::Color,
+                Size {
+                    width: thing_data.width().into(),
+                    height: thing_data.height().into(),
+                },
+                &thing_data,
+            )
+        });
+
+        // FIXME renderer should handle this
+        renderer.set_atlas_texture(&checker_texture_id);
+        renderer.set_atlas_texture(&yellow_thing_texture_id);
 
         Ok(Self {
             scene: Scene::default(),
             handle,
             renderer,
             texture_system,
-            thing_texture,
-            thing_texture_id,
-            checker_texture,
+            yellow_thing_texture_id,
             checker_texture_id,
         })
     }
@@ -164,7 +181,7 @@ impl Window {
             quad()
                 .with_pos(width / 2.0 + 300.0, 400.0)
                 .with_size(500.0, 500.0),
-            Some(self.thing_texture_id),
+            Some(self.yellow_thing_texture_id),
         );
 
         self.scene.add(
@@ -267,17 +284,9 @@ fn create_checker_texture(width: usize, height: usize, tile_size: usize) -> Vec<
     texture_data
 }
 
-fn load_thing(gpu: &GpuContext) -> WgpuTexture {
+fn load_thing() -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     let thing_buffer = include_bytes!("../../../assets/thing2.png");
 
     let thing = image::load_from_memory(thing_buffer).unwrap();
-    let data = thing.into_rgba8();
-
-    // FIXME color
-    gpu.create_texture_init(
-        skie_draw::paint::TextureFormat::Rgba8UnormSrgb,
-        data.width(),
-        data.height(),
-        &data,
-    )
+    thing.into_rgba8()
 }

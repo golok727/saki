@@ -186,11 +186,6 @@ impl WgpuRenderer {
             current_texture_view: None,
         };
 
-        // FIXME should be able to remove this after completing texture atlas
-        let default_texture_view = gpu
-            .default_texture()
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
         let state = Self::create_state(gpu, texture_system, specs);
 
         let mut renderer = Self {
@@ -198,23 +193,8 @@ impl WgpuRenderer {
             state,
         };
 
-        let _tile = renderer
-            .state
-            .texture_system
-            .get_or_insert(&WHITE_TEX_ID, || {
-                (
-                    TextureKind::Color,
-                    Size {
-                        width: (1).into(),
-                        height: (1).into(),
-                    },
-                    &[255, 255, 255, 255],
-                )
-            });
-
-        // renderer.set_atlas_texture(&WHITE_TEX_ID);
-
-        renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
+        // FIXME check and do it in render stage
+        renderer.set_atlas_texture(&WHITE_TEX_ID);
 
         Ok(renderer)
     }
@@ -236,18 +216,14 @@ impl WgpuRenderer {
 
         let render_target = DefaultRenderTarget::Offscreen { render_target };
 
-        let default_texture_view = gpu
-            .default_texture()
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
         let state = Self::create_state(gpu, texture_system, specs);
-
         let mut renderer = Self {
             render_target,
             state,
         };
 
-        renderer.set_native_texture_impl(WHITE_TEX_ID, &default_texture_view);
+        // FIXME check and do it in render stage
+        renderer.set_atlas_texture(&WHITE_TEX_ID);
 
         renderer
     }
@@ -539,6 +515,18 @@ impl WgpuRenderer {
         texture_system: AtlasManager,
         specs: &WgpuRendererSpecs,
     ) -> RendererState {
+        // Default white texture for mesh with no texture
+        texture_system.get_or_insert(&WHITE_TEX_ID, || {
+            (
+                TextureKind::Color,
+                Size {
+                    width: (1).into(),
+                    height: (1).into(),
+                },
+                &[255, 255, 255, 255],
+            )
+        });
+
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let uniform_buffer =
