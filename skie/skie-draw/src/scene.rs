@@ -89,14 +89,14 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
         let group = &self.groups[self.cur_group];
         let texture = group.0;
 
-        let uv_middleware = |vertex: Vertex| {
+        let uv_middleware = |mut vertex: Vertex| {
             let texture = texture.unwrap_or(WHITE_TEX_ID);
             let info = self.tex_info.get(&texture);
+
             if let Some(info) = info {
                 let [u, v] = vertex.uv;
-                let atlas_space = info.uv_to_atlas_space(u, v);
-                log::debug!("{:?}, {:?}", (u, v), atlas_space);
-                // TODO apply to vertex and return
+                let (a_u, a_v) = info.uv_to_atlas_space(u, v);
+                vertex.uv = [a_u, a_v];
             }
 
             vertex
