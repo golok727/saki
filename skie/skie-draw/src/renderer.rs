@@ -9,7 +9,7 @@ use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
     math::Mat3,
-    paint::{Mesh, TextureId, Vertex, WHITE_TEX_ID},
+    paint::{Mesh, TextureId, Vertex},
 };
 
 pub mod render_target;
@@ -188,7 +188,7 @@ impl WgpuRenderer {
             state,
         };
 
-        renderer.set_atlas_texture(&WHITE_TEX_ID);
+        renderer.set_atlas_texture(&TextureId::WHITE_TEXTURE);
 
         Ok(renderer)
     }
@@ -216,7 +216,7 @@ impl WgpuRenderer {
             state,
         };
 
-        renderer.set_atlas_texture(&WHITE_TEX_ID);
+        renderer.set_atlas_texture(&TextureId::WHITE_TEXTURE);
 
         renderer
     }
@@ -485,7 +485,7 @@ impl WgpuRenderer {
         specs: &WgpuRendererSpecs,
     ) -> RendererState {
         // Default white texture for mesh with no texture
-        texture_system.get_or_insert(&WHITE_TEX_ID, || {
+        texture_system.get_or_insert(&TextureId::WHITE_TEXTURE, || {
             (
                 TextureKind::Color,
                 Size {

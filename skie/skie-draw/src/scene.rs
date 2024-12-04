@@ -5,7 +5,6 @@ use crate::paint::Mesh;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
 use crate::paint::Vertex;
-use crate::paint::WHITE_TEX_ID;
 
 #[derive(Debug, Clone)]
 pub struct Primitive {
@@ -37,7 +36,7 @@ impl Scene {
     pub fn add(&mut self, prim: impl Into<PrimitiveKind>) {
         self.items.push(Primitive {
             kind: prim.into(),
-            texture: WHITE_TEX_ID,
+            texture: TextureId::WHITE_TEXTURE,
         })
     }
 
@@ -79,13 +78,15 @@ impl<'a> SceneBatchIterator<'a> {
             let atlas_tex_id = info.map(|i| i.atlas_texture);
 
             if let Some(atlas_tex_id) = atlas_tex_id {
-                let entry = tex_to_item_idx.entry(atlas_tex_id).or_default();
-                entry.push(GroupEntry {
-                    index: i,
-                    texture_id: tex,
-                });
+                tex_to_item_idx
+                    .entry(atlas_tex_id)
+                    .or_default()
+                    .push(GroupEntry {
+                        index: i,
+                        texture_id: tex,
+                    });
             } else {
-                log::error!("For some reason cant find texture in atlas for {}", tex);
+                log::error!("Can't find texture:{} in atals", tex);
                 continue;
             }
         }
@@ -125,7 +126,7 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
             let prim = &self.scene.items[entry.index];
 
             let tile_tex_id = entry.texture_id;
-            let use_default_texture = tile_tex_id == WHITE_TEX_ID;
+            let use_default_texture = tile_tex_id == TextureId::WHITE_TEXTURE;
 
             let info = self.tex_info.get(&tile_tex_id);
 

@@ -2,8 +2,6 @@ use crate::math::{DevicePixels, Size};
 
 use super::atlas::AtlasTextureId;
 
-pub const WHITE_TEX_ID: TextureId = TextureId::Internal(1);
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TextureId {
     /// Internal things created by skie
@@ -16,12 +14,17 @@ pub enum TextureId {
     AtlasTexture(AtlasTextureId),
 }
 
+impl TextureId {
+    pub const WHITE_TEXTURE: Self = TextureId::Internal(1);
+}
+// FIXME use these
 pub struct Texture2DSpecs {
     pub size: Size<DevicePixels>,
     pub format: TextureFormat,
 }
 
 pub struct Texture2D {}
+// END FIXME
 
 impl std::fmt::Display for TextureId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
