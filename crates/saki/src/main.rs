@@ -4,7 +4,6 @@ use skie::{app::App, window::WindowSpecification};
 
 /*
 TODO
- - [] Texture Atlas
  - [] Color correction
  - [] More Primitives
  - [] Text System
