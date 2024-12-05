@@ -85,6 +85,12 @@ impl_from_as!(i64, Pixels, f32);
 impl_from_as!(f32, Pixels, f32);
 impl_from_as!(f64, Pixels, f32);
 
+impl From<Pixels> for f32 {
+    fn from(value: Pixels) -> Self {
+        value.0
+    }
+}
+
 /// ScreenPixels: Pixels that are tied to the screen resolution (e.g., after scaling)
 #[derive(
     Debug,

@@ -1,4 +1,4 @@
-use super::{atlas::AtlasTextureId, Quad, TextureId};
+use super::{Quad, TextureId};
 
 use crate::math::{Rect, Vec2};
 
@@ -123,14 +123,14 @@ impl<'a> DrawList<'a> {
         self.index_offset += 4;
     }
 
-    pub fn build(mut self, texture: AtlasTextureId) -> Mesh {
+    pub fn build(mut self, texture: TextureId) -> Mesh {
         let vertices: Vec<Vertex> = std::mem::take(&mut self.vertices);
         let indices: Vec<u32> = std::mem::take(&mut self.indices);
 
         Mesh {
             vertices,
             indices,
-            texture: TextureId::AtlasTexture(texture),
+            texture,
         }
     }
 }

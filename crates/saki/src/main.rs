@@ -1,6 +1,10 @@
 use std::io::Write;
 
-use skie::{app::App, window::WindowSpecification};
+use skie::{
+    app::App,
+    math::{unit::px, Rect},
+    window::WindowSpecification,
+};
 
 /*
 TODO
@@ -18,7 +22,7 @@ fn main() {
     log::info!("Welcome to saki!");
 
     let mut app = App::new();
-    app.run(|app| {
+    app.run(move |app| {
         let window_specs = WindowSpecification {
             width: 1875,
             height: 1023,
@@ -26,22 +30,53 @@ fn main() {
         };
 
         app.open_window(window_specs.clone(), move |cx| {
-            cx.set_timeout(
-                move |cx| {
-                    cx.window.set_bg_color(1.0, 1.0, 1.0);
-                },
-                std::time::Duration::from_secs(2),
-            );
+            let mut args = std::env::args();
+            args.next(); // program
 
-            cx.set_timeout(
-                move |cx| cx.window.set_bg_color(1.0, 1.0, 0.0),
-                std::time::Duration::from_secs(4),
-            );
+            {
+                let file = args.next().filter(|f| {
+                    std::fs::metadata(f)
+                        .map(|data| data.is_file())
+                        .unwrap_or(false)
+                });
 
-            cx.set_timeout(
-                move |cx| cx.window.set_bg_color(0.01, 0.01, 0.01),
-                std::time::Duration::from_secs(6),
-            );
+                if let Some(file) = file {
+                    // TODO: Add Assets system to preload assets and pass in the asset handle ?
+                    cx.load_image_from_file(
+                        Rect {
+                            x: px(350),
+                            y: px(100),
+                            width: px(500),
+                            height: px(500),
+                        },
+                        file,
+                    );
+                } else {
+                    log::error!("Unable to load file");
+                }
+            }
+
+            {
+                let file = args.next().filter(|f| {
+                    std::fs::metadata(f)
+                        .map(|data| data.is_file())
+                        .unwrap_or(false)
+                });
+
+                if let Some(file) = file {
+                    cx.load_image_from_file(
+                        Rect {
+                            x: px(800),
+                            y: px(600),
+                            width: px(300),
+                            height: px(300),
+                        },
+                        file,
+                    );
+                } else {
+                    log::error!("Unable to load file");
+                }
+            }
 
             cx.window.set_bg_color(0.01, 0.01, 0.01);
         });

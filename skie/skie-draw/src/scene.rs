@@ -54,6 +54,7 @@ impl Scene {
     }
 }
 
+#[derive(Debug)]
 struct GroupEntry {
     index: usize,
     texture_id: TextureId,
@@ -94,7 +95,7 @@ impl<'a> SceneBatchIterator<'a> {
         let mut groups: Vec<(AtlasTextureId, Vec<GroupEntry>)> =
             tex_to_item_idx.into_iter().collect();
 
-        // FIXME Is this correct ?
+        // FIXME: Is this correct ?
         groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
 
         log::trace!("Batches: {}", groups.len());
@@ -153,6 +154,6 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
 
         self.cur_group += 1;
 
-        Some(drawlist.build(atlas_tex_id))
+        Some(drawlist.build(TextureId::AtlasTexture(atlas_tex_id)))
     }
 }

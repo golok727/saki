@@ -49,7 +49,7 @@ impl TextureKind {
     pub fn get_texture_format(&self) -> TextureFormat {
         match self {
             Self::Grayscale => TextureFormat::R8Unorm,
-            // FIXME should we use Bgara ?
+            // FIXME: should we use Bgara ?
             Self::Color => TextureFormat::Rgba8UnormSrgb,
         }
     }

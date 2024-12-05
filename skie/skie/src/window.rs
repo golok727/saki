@@ -1,6 +1,6 @@
 pub mod error;
 
-use std::sync::Arc;
+use std::{io::Read, sync::Arc};
 
 use error::CreateWindowError;
 use image::ImageBuffer;
@@ -10,7 +10,7 @@ use crate::app::AppContext;
 
 use skie_draw::{
     gpu::GpuContext,
-    math::Size,
+    math::{unit::Pixels, Rect, Size},
     paint::{atlas::AtlasManager, quad, TextureId, TextureKind},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
@@ -48,17 +48,31 @@ impl WindowSpecification {
     }
 }
 
+// for playing around remove it later
+#[derive(Debug, Clone)]
+enum Object {
+    Image {
+        bbox: Rect<Pixels>,
+        natural_width: f32,
+        natural_height: f32,
+        texture: TextureId,
+    },
+}
+
 #[derive(Debug)]
 pub struct Window {
     pub(crate) renderer: WgpuRenderer,
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
 
+    objects: Vec<Object>,
+
     yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
 
     #[allow(unused)]
     pub(crate) texture_system: AtlasManager,
+    next_texture_id: usize,
 }
 
 impl Window {
@@ -124,6 +138,9 @@ impl Window {
             texture_system,
             yellow_thing_texture_id,
             checker_texture_id,
+            objects: Vec::new(),
+            // FIXME: this is bad
+            next_texture_id: 10000,
         })
     }
 
@@ -146,7 +163,7 @@ impl Window {
         &self.handle
     }
 
-    // FIXME for now
+    // FIXME: for now
     pub fn build_scene(&mut self) {
         self.scene.clear();
 
@@ -200,10 +217,29 @@ impl Window {
                 .with_size(width, bar_height)
                 .with_bgcolor(0.04, 0.04, 0.07, 1.0),
         );
+
+        for object in &self.objects {
+            match object {
+                Object::Image {
+                    bbox,
+                    texture,
+                    natural_width,
+                    natural_height,
+                } => {
+                    let aspect = natural_width / natural_height;
+                    let x: f32 = bbox.x.into();
+                    let y: f32 = bbox.y.into();
+                    let width: f32 = (bbox.width * aspect).into();
+                    let height: f32 = (bbox.height).into();
+
+                    self.scene
+                        .add_textured(quad().with_pos(x, y).with_size(width, height), *texture);
+                }
+            }
+        }
     }
 
     pub(crate) fn paint(&mut self) {
-        // FIXME for now
         self.build_scene();
 
         let info_map = self
@@ -215,6 +251,16 @@ impl Window {
         self.renderer.update_buffers(&batches);
 
         self.renderer.render(&batches);
+    }
+
+    fn get_next_tex_id(&mut self) -> TextureId {
+        let id = self.next_texture_id;
+        self.next_texture_id += 1;
+        TextureId::User(id)
+    }
+
+    pub(crate) fn refresh(&self) {
+        self.handle.request_redraw();
     }
 }
 
@@ -233,6 +279,70 @@ impl<'a> WindowContext<'a> {
         F: Fn(&mut WindowContext) + 'static,
     {
         self.app.open_window(specs, f)
+    }
+
+    pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {
+        let events = self.app.app_events.clone();
+
+        let window_id = self.window.id();
+
+        // FIXME: !!!IMPORTANT!!! this should be abstacted away in app;
+        self.app
+            .spawn(async move {
+                let file = std::fs::File::open(file_path);
+                if file.is_err() {
+                    log::error!("Error reading image file");
+                    return;
+                }
+
+                let mut file = file.unwrap();
+                let mut data = Vec::<u8>::new();
+                if file.read_to_end(&mut data).is_err() {
+                    log::error!("Error reading image file");
+                    return;
+                }
+
+                let image = image::load_from_memory(&data);
+
+                if image.is_err() {
+                    log::error!("Error loading image file");
+                    return;
+                }
+
+                let image = image.unwrap().to_rgba8();
+                let width = image.width();
+                let height = image.height();
+
+                events.app_context_callback(move |app| {
+                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
+                        callback: Box::new(move |cx| {
+                            let id = cx.window.get_next_tex_id();
+                            cx.window.texture_system.get_or_insert(&id, || {
+                                (
+                                    TextureKind::Color,
+                                    Size {
+                                        width: width.into(),
+                                        height: height.into(),
+                                    },
+                                    &image,
+                                )
+                            });
+
+                            cx.window.renderer.set_atlas_texture(&id);
+                            cx.window.objects.push(Object::Image {
+                                bbox: rect,
+                                natural_width: width as f32,
+                                natural_height: height as f32,
+                                texture: id,
+                            });
+                            // FIXME: mark window as dirty instead and allow the app to handle this
+                            cx.window.refresh();
+                        }),
+                        window_id,
+                    });
+                });
+            })
+            .detach();
     }
 
     pub fn set_timeout<F>(&mut self, f: F, timeout: std::time::Duration)

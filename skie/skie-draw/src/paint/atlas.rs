@@ -1,10 +1,9 @@
 use crate::gpu::GpuContext;
 use crate::math::{DevicePixels, Rect, Size};
 
+use super::{TextureFormat, TextureId, TextureKind, WgpuTexture, WgpuTextureView};
 use parking_lot::Mutex;
 use std::sync::Arc;
-
-use super::{TextureFormat, TextureId, TextureKind, WgpuTexture, WgpuTextureView};
 
 #[derive(Debug, Clone)]
 pub struct AtlasManager(Arc<Mutex<AtlasStorage>>);
