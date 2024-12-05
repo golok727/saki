@@ -17,14 +17,15 @@ pub enum TextureId {
 impl TextureId {
     pub const WHITE_TEXTURE: Self = TextureId::Internal(1);
 }
-// FIXME use these
+
+pub static WHITE_TEXTURE_UV: [f32; 2] = [0.0, 0.0];
+
 pub struct Texture2DSpecs {
     pub size: Size<DevicePixels>,
     pub format: TextureFormat,
 }
 
 pub struct Texture2D {}
-// END FIXME
 
 impl std::fmt::Display for TextureId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -134,8 +134,7 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
                 // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
                 if let Some(info) = info {
                     if use_default_texture {
-                        // FIXME to avoid leaks for now
-                        vertex.uv = info.uv_to_atlas_space(0.5, 0.5);
+                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0);
                     } else {
                         let [u, v] = vertex.uv;
                         vertex.uv = info.uv_to_atlas_space(u, v);
