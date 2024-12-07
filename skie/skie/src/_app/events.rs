@@ -30,7 +30,7 @@ impl AppEvents {
         }
     }
 
-    pub(crate) fn push_event(&self, ev: AppUpdateEvent) {
+    pub fn push_event(&self, ev: AppUpdateEvent) {
         let lock = self.0.lock();
         RefCell::borrow_mut(&lock.app_events).push(ev);
     }

@@ -282,67 +282,67 @@ impl<'a> WindowContext<'a> {
     }
 
     pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {
-        let events = self.app.app_events.clone();
-
-        let window_id = self.window.id();
-
-        // FIXME: !!!IMPORTANT!!! this should be abstacted away in app;
-        self.app
-            .spawn(async move {
-                let file = std::fs::File::open(file_path);
-                if file.is_err() {
-                    log::error!("Error reading image file");
-                    return;
-                }
-
-                let mut file = file.unwrap();
-                let mut data = Vec::<u8>::new();
-                if file.read_to_end(&mut data).is_err() {
-                    log::error!("Error reading image file");
-                    return;
-                }
-
-                let image = image::load_from_memory(&data);
-
-                if image.is_err() {
-                    log::error!("Error loading image file");
-                    return;
-                }
-
-                let image = image.unwrap().to_rgba8();
-                let width = image.width();
-                let height = image.height();
-
-                events.app_context_callback(move |app| {
-                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
-                        callback: Box::new(move |cx| {
-                            let id = cx.window.get_next_tex_id();
-                            cx.window.texture_system.get_or_insert(&id, || {
-                                (
-                                    TextureKind::Color,
-                                    Size {
-                                        width: width.into(),
-                                        height: height.into(),
-                                    },
-                                    &image,
-                                )
-                            });
-
-                            cx.window.renderer.set_atlas_texture(&id);
-                            cx.window.objects.push(Object::Image {
-                                bbox: rect,
-                                natural_width: width as f32,
-                                natural_height: height as f32,
-                                texture: id,
-                            });
-                            // FIXME: mark window as dirty instead and allow the app to handle this
-                            cx.window.refresh();
-                        }),
-                        window_id,
-                    });
-                });
-            })
-            .detach();
+        // let events = self.app.app_events.clone();
+        //
+        // let window_id = self.window.id();
+        //
+        // // FIXME: !!!IMPORTANT!!! this should be abstacted away in app;
+        // self.app
+        //     .spawn(async move {
+        //         let file = std::fs::File::open(file_path);
+        //         if file.is_err() {
+        //             log::error!("Error reading image file");
+        //             return;
+        //         }
+        //
+        //         let mut file = file.unwrap();
+        //         let mut data = Vec::<u8>::new();
+        //         if file.read_to_end(&mut data).is_err() {
+        //             log::error!("Error reading image file");
+        //             return;
+        //         }
+        //
+        //         let image = image::load_from_memory(&data);
+        //
+        //         if image.is_err() {
+        //             log::error!("Error loading image file");
+        //             return;
+        //         }
+        //
+        //         let image = image.unwrap().to_rgba8();
+        //         let width = image.width();
+        //         let height = image.height();
+        //
+        //         events.app_context_callback(move |app| {
+        //             app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
+        //                 callback: Box::new(move |cx| {
+        //                     let id = cx.window.get_next_tex_id();
+        //                     cx.window.texture_system.get_or_insert(&id, || {
+        //                         (
+        //                             TextureKind::Color,
+        //                             Size {
+        //                                 width: width.into(),
+        //                                 height: height.into(),
+        //                             },
+        //                             &image,
+        //                         )
+        //                     });
+        //
+        //                     cx.window.renderer.set_atlas_texture(&id);
+        //                     cx.window.objects.push(Object::Image {
+        //                         bbox: rect,
+        //                         natural_width: width as f32,
+        //                         natural_height: height as f32,
+        //                         texture: id,
+        //                     });
+        //                     // FIXME: mark window as dirty instead and allow the app to handle this
+        //                     cx.window.refresh();
+        //                 }),
+        //                 window_id,
+        //             });
+        //         });
+        //     })
+        //     .detach();
     }
 
     pub fn set_timeout<F>(&mut self, f: F, timeout: std::time::Duration)
@@ -351,17 +351,17 @@ impl<'a> WindowContext<'a> {
     {
         let window_id = self.window.id();
 
-        self.app.set_timeout(
-            move |app| {
-                app.update(|app| {
-                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
-                        callback: Box::new(f),
-                        window_id,
-                    });
-                })
-            },
-            timeout,
-        );
+        // self.app.set_timeout(
+        //     move |app| {
+        //         app.update(|app| {
+        //             app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
+        //                 callback: Box::new(f),
+        //                 window_id,
+        //             });
+        //         })
+        //     },
+        //     timeout,
+        // );
     }
 }
 

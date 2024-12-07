@@ -10,11 +10,39 @@ use skie::{
 TODO
  - [] Color correction
  - [] More Primitives
- - [] Text System
- - [] Dom
+ - [] Text System - [] Dom
  - [] Layout system
 */
+
 fn main() {
+    println!("Radhe Shyam!");
+    init_stdout_logger();
+    let app = skie::app::App::new();
+
+    log::info!("Welcome to saki!");
+
+    app.run(|cx| {
+        log::info!("Hello From init fn");
+        let window_specs = WindowSpecification {
+            width: 1875,
+            height: 1023,
+            ..Default::default()
+        };
+
+        cx.open_window(window_specs.clone(), |cx| {
+            cx.app.set_timeout(
+                |cx| {
+                    log::info!("Hello Afrer some time");
+                },
+                std::time::Duration::from_secs(5),
+            );
+            cx.window.set_bg_color(0.01, 0.01, 0.01);
+        });
+    });
+}
+
+#[cfg(feature = "old")]
+fn _main2() {
     println!("Radhe Shyam!");
 
     init_stdout_logger();
@@ -28,7 +56,6 @@ fn main() {
             height: 1023,
             ..Default::default()
         };
-
         app.open_window(window_specs.clone(), move |cx| {
             let mut args = std::env::args();
             args.next(); // program
