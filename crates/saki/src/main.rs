@@ -1,84 +1,102 @@
 use std::io::Write;
 
 use skie::{
-    app::App,
-    math::{unit::px, Rect},
-    window::WindowSpecification,
+    math::{
+        unit::{px, Pixels},
+        Rect,
+    },
+    window::{WindowContext, WindowSpecification},
 };
 
 /*
 TODO
  - [] Color correction
  - [] More Primitives
- - [] Text System
- - [] Dom
+ - [] Text System - [] Dom
  - [] Layout system
 */
+
+fn load_images_from_args(cx: &mut WindowContext) {
+    // TODO: Add Assets system to preload assets and pass in the asset handle
+    let mut args = std::env::args();
+    args.next(); // Skip the program name
+
+    // Helper function to load an image from a file argument
+    fn load_image(cx: &mut WindowContext, file: String, rect: Rect<Pixels>) {
+        let file_clone = file.clone();
+        if let Some(file) = Some(file).filter(|f| {
+            std::fs::metadata(f)
+                .map(|data| data.is_file())
+                .unwrap_or(false)
+        }) {
+            cx.load_image_from_file(rect, file);
+        } else {
+            log::error!("Unable to load file {}", file_clone);
+        }
+    }
+
+    // Define the positions and sizes for the images
+    let rects = [
+        Rect {
+            x: px(350),
+            y: px(100),
+            width: px(500),
+            height: px(500),
+        },
+        Rect {
+            x: px(800),
+            y: px(600),
+            width: px(300),
+            height: px(300),
+        },
+    ];
+
+    // Attempt to load up to two images
+    for rect in rects.iter() {
+        let file = args.next();
+        if let Some(file) = file {
+            load_image(cx, file, rect.clone());
+        } else {
+            break;
+        }
+    }
+
+    cx.window.set_bg_color(0.01, 0.01, 0.01);
+}
+
 fn main() {
     println!("Radhe Shyam!");
-
     init_stdout_logger();
+    let app = skie::app::App::new();
 
     log::info!("Welcome to saki!");
 
-    let mut app = App::new();
-    app.run(move |app| {
+    app.run(|cx| {
+        log::info!("Hello From init fn");
         let window_specs = WindowSpecification {
             width: 1875,
             height: 1023,
             ..Default::default()
         };
 
-        app.open_window(window_specs.clone(), move |cx| {
-            let mut args = std::env::args();
-            args.next(); // program
+        cx.open_window(window_specs.clone(), |cx| {
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(1.0, 1.0, 0.0);
+                },
+                std::time::Duration::from_secs(3),
+            );
 
-            {
-                let file = args.next().filter(|f| {
-                    std::fs::metadata(f)
-                        .map(|data| data.is_file())
-                        .unwrap_or(false)
-                });
-
-                if let Some(file) = file {
-                    // TODO: Add Assets system to preload assets and pass in the asset handle ?
-                    cx.load_image_from_file(
-                        Rect {
-                            x: px(350),
-                            y: px(100),
-                            width: px(500),
-                            height: px(500),
-                        },
-                        file,
-                    );
-                } else {
-                    log::error!("Unable to load file");
-                }
-            }
-
-            {
-                let file = args.next().filter(|f| {
-                    std::fs::metadata(f)
-                        .map(|data| data.is_file())
-                        .unwrap_or(false)
-                });
-
-                if let Some(file) = file {
-                    cx.load_image_from_file(
-                        Rect {
-                            x: px(800),
-                            y: px(600),
-                            width: px(300),
-                            height: px(300),
-                        },
-                        file,
-                    );
-                } else {
-                    log::error!("Unable to load file");
-                }
-            }
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(0.01, 0.01, 0.01);
+                },
+                std::time::Duration::from_secs(5),
+            );
 
             cx.window.set_bg_color(0.01, 0.01, 0.01);
+
+            load_images_from_args(cx);
         });
     });
 }

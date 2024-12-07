@@ -111,7 +111,6 @@ impl AppContext {
         })
     }
 
-    // FIXME: make it FnOnce(&mut self) -> impl Future<Output = T> + 'static
     pub fn spawn<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
     where
         T: 'static,

@@ -1,12 +1,15 @@
 pub mod error;
 
-use std::{io::Read, sync::Arc};
+use std::{future::Future, io::Read, sync::Arc};
 
 use error::CreateWindowError;
 use image::ImageBuffer;
 pub(crate) use winit::window::Window as WinitWindow;
 
-use crate::app::AppContext;
+use crate::{
+    app::{AppContext, AsyncAppContext},
+    jobs::Job,
+};
 
 use skie_draw::{
     gpu::GpuContext,
@@ -264,6 +267,26 @@ impl Window {
     }
 }
 
+pub struct AsyncWindowContext {
+    app: AsyncAppContext,
+    window_id: WindowId,
+}
+
+impl AsyncWindowContext {
+    // TODO: allow return something
+    pub fn use_context(&self, reader: impl FnOnce(&mut WindowContext)) {
+        let app = self.app.app.upgrade().expect("app released");
+        let mut lock = app.borrow_mut();
+        let window = lock.windows.remove(&self.window_id);
+
+        if let Some(mut window) = window {
+            let mut cx = WindowContext::new(&mut lock, &mut window);
+            reader(&mut cx);
+            lock.windows.insert(window.id(), window);
+        }
+    }
+}
+
 pub struct WindowContext<'a> {
     pub app: &'a mut AppContext,
     pub window: &'a mut Window,
@@ -281,87 +304,85 @@ impl<'a> WindowContext<'a> {
         self.app.open_window(specs, f)
     }
 
-    pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {
-        let events = self.app.app_events.clone();
-
-        let window_id = self.window.id();
-
-        // FIXME: !!!IMPORTANT!!! this should be abstacted away in app;
-        self.app
-            .spawn(async move {
-                let file = std::fs::File::open(file_path);
-                if file.is_err() {
-                    log::error!("Error reading image file");
-                    return;
-                }
-
-                let mut file = file.unwrap();
-                let mut data = Vec::<u8>::new();
-                if file.read_to_end(&mut data).is_err() {
-                    log::error!("Error reading image file");
-                    return;
-                }
-
-                let image = image::load_from_memory(&data);
-
-                if image.is_err() {
-                    log::error!("Error loading image file");
-                    return;
-                }
-
-                let image = image.unwrap().to_rgba8();
-                let width = image.width();
-                let height = image.height();
-
-                events.app_context_callback(move |app| {
-                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
-                        callback: Box::new(move |cx| {
-                            let id = cx.window.get_next_tex_id();
-                            cx.window.texture_system.get_or_insert(&id, || {
-                                (
-                                    TextureKind::Color,
-                                    Size {
-                                        width: width.into(),
-                                        height: height.into(),
-                                    },
-                                    &image,
-                                )
-                            });
-
-                            cx.window.renderer.set_atlas_texture(&id);
-                            cx.window.objects.push(Object::Image {
-                                bbox: rect,
-                                natural_width: width as f32,
-                                natural_height: height as f32,
-                                texture: id,
-                            });
-                            // FIXME: mark window as dirty instead and allow the app to handle this
-                            cx.window.refresh();
-                        }),
-                        window_id,
-                    });
-                });
-            })
-            .detach();
+    pub fn to_async(&self) -> AsyncWindowContext {
+        AsyncWindowContext {
+            app: self.app.to_async(),
+            window_id: self.window.id(),
+        }
     }
 
-    pub fn set_timeout<F>(&mut self, f: F, timeout: std::time::Duration)
+    pub fn spawn<Fut, R>(&self, f: impl FnOnce(AsyncWindowContext) -> Fut) -> Job<R>
     where
-        F: FnOnce(&mut WindowContext) + 'static,
+        Fut: Future<Output = R> + 'static,
+        R: 'static,
     {
-        let window_id = self.window.id();
+        let cx = self.to_async();
+        self.app.jobs.spawn_local(f(cx))
+    }
 
-        self.app.set_timeout(
-            move |app| {
-                app.update(|app| {
-                    app.push_app_event(crate::app::AppUpdateEvent::WindowContextCallback {
-                        callback: Box::new(f),
-                        window_id,
-                    });
-                })
-            },
-            timeout,
-        );
+    pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {
+        self.spawn(|cx| async move {
+            let file = std::fs::File::open(file_path);
+            if file.is_err() {
+                log::error!("Error reading image file");
+                return;
+            }
+
+            let mut file = file.unwrap();
+            let mut data = Vec::<u8>::new();
+            if file.read_to_end(&mut data).is_err() {
+                log::error!("Error reading image file");
+                return;
+            }
+
+            let loaded_image = image::load_from_memory(&data);
+
+            if loaded_image.is_err() {
+                log::error!("Error loading image file");
+                return;
+            }
+
+            let img = loaded_image.unwrap().to_rgba8();
+            let width = img.width();
+            let height = img.height();
+
+            cx.use_context(|cx| {
+                let id = cx.window.get_next_tex_id();
+                cx.window.texture_system.get_or_insert(&id, || {
+                    (
+                        TextureKind::Color,
+                        Size {
+                            width: width.into(),
+                            height: height.into(),
+                        },
+                        &img,
+                    )
+                });
+
+                cx.window.renderer.set_atlas_texture(&id);
+                cx.window.objects.push(Object::Image {
+                    bbox: rect,
+                    natural_width: width as f32,
+                    natural_height: height as f32,
+                    texture: id,
+                });
+                // FIXME: maybe mark window as dirty instead and allow the app to handle this ?
+                cx.window.refresh();
+            });
+        })
+        .detach();
+    }
+
+    pub fn set_timeout(
+        &mut self,
+        f: impl FnOnce(&mut WindowContext) + 'static,
+        timeout: std::time::Duration,
+    ) {
+        self.spawn(|cx| async move {
+            cx.app.jobs.timer(timeout).await;
+            cx.use_context(|cx| f(cx));
+        })
+        .detach();
     }
 }
 
