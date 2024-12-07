@@ -1,13 +1,13 @@
 pub mod error;
 
-use std::{future::Future, io::Read, rc::Weak, sync::Arc};
+use std::{future::Future, io::Read, sync::Arc};
 
 use error::CreateWindowError;
 use image::ImageBuffer;
 pub(crate) use winit::window::Window as WinitWindow;
 
 use crate::{
-    app::{AppContext, AppContextCell, AsyncAppContext},
+    app::{AppContext, AsyncAppContext},
     jobs::Job,
 };
 

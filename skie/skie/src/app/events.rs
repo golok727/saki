@@ -4,12 +4,10 @@ use parking_lot::Mutex;
 
 use winit::event_loop::EventLoopProxy;
 
-use crate::window::{WindowContext, WindowId};
-
-use super::{AppAction, AppContext, AppUpdateEvent};
+use super::{AppAction, AppUpdateEvent};
 
 #[derive(Default, Clone)]
-pub struct AppEvents(Arc<Mutex<AppEventsState>>);
+pub(crate) struct AppEvents(Arc<Mutex<AppEventsState>>);
 
 #[derive(Default)]
 struct AppEventsState {
@@ -35,31 +33,10 @@ impl AppEvents {
         RefCell::borrow_mut(&lock.app_events).push(ev);
     }
 
-    pub fn app_context_callback(&self, f: impl FnOnce(&mut AppContext) + 'static) {
-        self.push_event(AppUpdateEvent::AppContextCallback {
-            callback: Box::new(f),
-        });
-        self.notify(AppAction::AppUpdate);
-    }
-
-    #[allow(unused)]
-    pub fn window_context_callback(
-        &self,
-        window_id: WindowId,
-        f: impl FnOnce(&mut WindowContext) + 'static,
-    ) {
-        self.push_event(AppUpdateEvent::WindowContextCallback {
-            callback: Box::new(f),
-            window_id,
-        });
-        self.notify(AppAction::AppUpdate);
-    }
-
     pub fn dispose(&self) {
         let mut lock = self.0.lock();
         lock.proxy = None;
     }
-
     pub fn drain(&self) -> Vec<AppUpdateEvent> {
         let lock = self.0.lock();
         lock.app_events.take()

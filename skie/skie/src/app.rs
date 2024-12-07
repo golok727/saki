@@ -1,8 +1,12 @@
+pub mod async_context;
 pub mod events;
+pub use async_context::AsyncAppContext;
+mod handle;
 
 use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 use events::AppEvents;
+use handle::AppHandle;
 use skie_draw::gpu::GpuContext;
 use skie_draw::paint::atlas::AtlasManager;
 use std::cell::RefCell;
@@ -10,7 +14,6 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -28,87 +31,17 @@ pub(crate) enum AppUpdateEvent {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
     },
-
-    // should we move these two to AppAction ?
-    AppContextCallback {
-        callback: Box<dyn FnOnce(&mut AppContext) + 'static>,
-    },
-    WindowContextCallback {
-        callback: Box<dyn FnOnce(&mut WindowContext) + 'static>,
-        window_id: WindowId,
-    },
+    // AppContextCallback {
+    //     callback: Box<dyn FnOnce(&mut AppContext) + 'static>,
+    // },
+    // WindowContextCallback {
+    //     callback: Box<dyn FnOnce(&mut WindowContext) + 'static>,
+    //     window_id: WindowId,
+    // },
 }
 
 pub(crate) enum Effect {
     UserEvent(AppAction),
-}
-
-type ResumedCallback = Box<dyn Fn(&ActiveEventLoop)>;
-type UserEventCallback = Box<dyn Fn(&ActiveEventLoop, AppAction)>;
-type AboutToWaitCallback = Box<dyn Fn(&ActiveEventLoop)>;
-type WindowEventCallback = Box<
-    dyn Fn(&winit::event_loop::ActiveEventLoop, winit::window::WindowId, winit::event::WindowEvent),
->;
-
-#[derive(Default)]
-pub struct AppHandleCallbacks {
-    resumed: Option<ResumedCallback>,
-    window_event: Option<WindowEventCallback>,
-    about_to_wait: Option<AboutToWaitCallback>,
-    user_event: Option<UserEventCallback>,
-}
-
-#[derive(Default)]
-struct AppHandle {
-    callbacks: AppHandleCallbacks,
-}
-
-impl AppHandle {
-    fn on_resumed(&mut self, callback: ResumedCallback) {
-        self.callbacks.resumed = Some(callback);
-    }
-    fn on_window_event(&mut self, callback: WindowEventCallback) {
-        self.callbacks.window_event = Some(callback);
-    }
-
-    fn on_user_event(&mut self, callback: UserEventCallback) {
-        self.callbacks.user_event = Some(callback);
-    }
-
-    fn on_about_to_wait(&mut self, callback: AboutToWaitCallback) {
-        self.callbacks.about_to_wait = Some(callback);
-    }
-}
-
-impl ApplicationHandler<AppAction> for AppHandle {
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(callback) = &self.callbacks.about_to_wait {
-            callback(event_loop)
-        }
-    }
-
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppAction) {
-        if let Some(callback) = &self.callbacks.user_event {
-            callback(event_loop, event)
-        }
-    }
-
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        if let Some(callback) = &self.callbacks.resumed {
-            callback(event_loop);
-        }
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
-        if let Some(callback) = &self.callbacks.window_event {
-            callback(event_loop, window_id, event)
-        }
-    }
 }
 
 pub struct App {
@@ -156,46 +89,6 @@ pub(crate) type AppContextRef = Rc<AppContextCell>;
 
 type AppInitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
 pub type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
-
-#[derive(Clone)]
-pub struct AsyncAppContext {
-    pub(crate) app: Weak<AppContextCell>,
-    pub(crate) jobs: Jobs,
-}
-
-impl AsyncAppContext {
-    pub(crate) fn handle_on_resumed(&self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let cx = self.app.upgrade().expect("app  released");
-        let mut lock = cx.borrow_mut();
-        lock.handle_on_resumed(event_loop);
-    }
-
-    fn handle_window_event(
-        &self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
-        let cx = self.app.upgrade().expect("app released");
-        let mut lock = cx.borrow_mut();
-        lock.handle_window_event(event_loop, window_id, event);
-    }
-
-    fn handle_on_about_to_wait(&self, event_loop: &ActiveEventLoop) {
-        // If we put this inside the app it will cause a double borrow
-        self.jobs.run_foregound_tasks();
-
-        let cx = self.app.upgrade().expect("app released");
-        let mut lock = cx.borrow_mut();
-        lock.handle_on_about_to_wait(event_loop);
-    }
-
-    fn handle_on_user_event(&self, event_loop: &ActiveEventLoop, event: AppAction) {
-        let cx = self.app.upgrade().expect("app released");
-        let mut lock = cx.borrow_mut();
-        lock.handle_on_user_event(event_loop, event);
-    }
-}
 
 pub struct AppContext {
     pub(crate) this: Weak<AppContextCell>,
@@ -334,14 +227,13 @@ impl AppContext {
     where
         F: Fn(&mut WindowContext) + 'static,
     {
+        log::trace!("Queueing window of specs: {:#?}", &specs);
         self.update(|app| {
             app.push_app_event(AppUpdateEvent::CreateWindow {
                 specs,
                 callback: Box::new(f),
             });
         });
-
-        log::info!("opening a new window");
     }
 
     fn create_window(
@@ -411,16 +303,15 @@ impl AppContext {
             match event {
                 AppUpdateEvent::CreateWindow { specs, callback } => {
                     self.handle_window_create_event(event_loop, specs, callback);
-                }
-                AppUpdateEvent::AppContextCallback { callback } => callback(self),
-                AppUpdateEvent::WindowContextCallback { .. } => {
-                    // let window = self.windows.remove(&window_id);
-                    // if let Some(mut window) = window {
-                    //     let mut cx = WindowContext::new(self, &mut window);
-                    //     callback(&mut cx);
-                    //     self.windows.insert(window.id(), window);
-                    // }
-                }
+                } // AppUpdateEvent::AppContextCallback { callback } => callback(self),
+                  // AppUpdateEvent::WindowContextCallback { .. } => {
+                  //     let window = self.windows.remove(&window_id);
+                  //     if let Some(mut window) = window {
+                  //         let mut cx = WindowContext::new(self, &mut window);
+                  //         callback(&mut cx);
+                  //         self.windows.insert(window.id(), window);
+                  //     }
+                  // }
             }
         }
     }

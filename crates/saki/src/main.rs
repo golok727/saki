@@ -22,15 +22,16 @@ fn load_images_from_args(cx: &mut WindowContext) {
     args.next(); // Skip the program name
 
     // Helper function to load an image from a file argument
-    fn load_image(cx: &mut WindowContext, file: Option<String>, rect: Rect<Pixels>) {
-        if let Some(file) = file.filter(|f| {
+    fn load_image(cx: &mut WindowContext, file: String, rect: Rect<Pixels>) {
+        let file_clone = file.clone();
+        if let Some(file) = Some(file).filter(|f| {
             std::fs::metadata(f)
                 .map(|data| data.is_file())
                 .unwrap_or(false)
         }) {
             cx.load_image_from_file(rect, file);
         } else {
-            log::error!("Unable to load file");
+            log::error!("Unable to load file {}", file_clone);
         }
     }
 
@@ -53,7 +54,11 @@ fn load_images_from_args(cx: &mut WindowContext) {
     // Attempt to load up to two images
     for rect in rects.iter() {
         let file = args.next();
-        load_image(cx, file, rect.clone());
+        if let Some(file) = file {
+            load_image(cx, file, rect.clone());
+        } else {
+            break;
+        }
     }
 
     cx.window.set_bg_color(0.01, 0.01, 0.01);
