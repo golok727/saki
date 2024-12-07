@@ -273,16 +273,19 @@ pub struct AsyncWindowContext {
 }
 
 impl AsyncWindowContext {
-    // TODO: allow return something
-    pub fn use_context(&self, reader: impl FnOnce(&mut WindowContext)) {
+    // TODO: allow return something ?
+    pub fn with<R>(&self, reader: impl FnOnce(&mut WindowContext) -> R) -> Option<R> {
         let app = self.app.app.upgrade().expect("app released");
         let mut lock = app.borrow_mut();
         let window = lock.windows.remove(&self.window_id);
 
         if let Some(mut window) = window {
             let mut cx = WindowContext::new(&mut lock, &mut window);
-            reader(&mut cx);
+            let res = reader(&mut cx);
             lock.windows.insert(window.id(), window);
+            Some(res)
+        } else {
+            None
         }
     }
 }
@@ -346,7 +349,7 @@ impl<'a> WindowContext<'a> {
             let width = img.width();
             let height = img.height();
 
-            cx.use_context(|cx| {
+            cx.with(|cx| {
                 let id = cx.window.get_next_tex_id();
                 cx.window.texture_system.get_or_insert(&id, || {
                     (
@@ -380,7 +383,7 @@ impl<'a> WindowContext<'a> {
     ) {
         self.spawn(|cx| async move {
             cx.app.jobs.timer(timeout).await;
-            cx.use_context(|cx| f(cx));
+            cx.with(|cx| f(cx));
         })
         .detach();
     }
