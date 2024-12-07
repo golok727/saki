@@ -384,7 +384,6 @@ impl<'a> WindowContext<'a> {
         })
         .detach();
     }
-    // TODO async window context
 }
 
 fn create_checker_texture(width: usize, height: usize, tile_size: usize) -> Vec<u8> {
