@@ -123,7 +123,7 @@ impl AppContext {
     where
         T: Send + 'static,
     {
-        self.jobs.spawn(future)
+        self.jobs.spawn_blocking(future)
     }
 
     pub fn set_timeout(

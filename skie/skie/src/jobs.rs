@@ -29,18 +29,18 @@ impl Jobs {
         Job::Pending(task)
     }
 
-    pub fn spawn<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
+    pub fn spawn_blocking<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
     where
         T: Send + 'static,
     {
-        self.dispatcher.dispatch(future)
+        self.dispatcher.dispatch_on_thread_pool(future)
     }
 
     pub fn spawn_local<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
     where
         T: 'static,
     {
-        self.dispatcher.dispatch_on_main(future)
+        self.dispatcher.dispatch_local(future)
     }
 
     pub fn run_foregound_tasks(&self) {
@@ -143,7 +143,10 @@ impl Dispatcher {
         (handle, sender)
     }
 
-    pub fn dispatch<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
+    pub fn dispatch_on_thread_pool<T>(
+        &self,
+        future: impl Future<Output = T> + Send + 'static,
+    ) -> Job<T>
     where
         T: Send + 'static,
     {
@@ -158,7 +161,7 @@ impl Dispatcher {
         Job::Pending(task)
     }
 
-    pub fn dispatch_on_main<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
+    pub fn dispatch_local<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
     where
         T: 'static,
     {
