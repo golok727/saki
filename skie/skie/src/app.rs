@@ -151,8 +151,8 @@ impl Default for App {
     }
 }
 
-type AppContextCell = RefCell<AppContext>;
-type AppContextRef = Rc<AppContextCell>;
+pub(crate) type AppContextCell = RefCell<AppContext>;
+pub(crate) type AppContextRef = Rc<AppContextCell>;
 
 type AppInitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
 pub type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
@@ -198,20 +198,20 @@ impl AsyncAppContext {
 }
 
 pub struct AppContext {
-    this: Weak<AppContextCell>,
-    jobs: Jobs,
+    pub(crate) this: Weak<AppContextCell>,
+    pub(crate) jobs: Jobs,
     init_callback: Option<AppInitCallback>,
 
     pending_updates: usize,
     flushing_effects: bool,
     effects: VecDeque<Effect>,
-    app_events: AppEvents,
+    pub(crate) app_events: AppEvents,
 
     pending_user_events: ahash::AHashSet<AppAction>,
 
     pub(crate) texture_system: AtlasManager,
 
-    windows: ahash::AHashMap<WindowId, Window>,
+    pub(crate) windows: ahash::AHashMap<WindowId, Window>,
 
     pub(crate) gpu: Arc<GpuContext>,
 }
@@ -413,12 +413,7 @@ impl AppContext {
                     self.handle_window_create_event(event_loop, specs, callback);
                 }
                 AppUpdateEvent::AppContextCallback { callback } => callback(self),
-                AppUpdateEvent::WindowContextCallback {
-                    window_id,
-                    callback,
-                } => {
-                    // FIXME:
-                    log::info!("WindowContextCallback");
+                AppUpdateEvent::WindowContextCallback { .. } => {
                     // let window = self.windows.remove(&window_id);
                     // if let Some(mut window) = window {
                     //     let mut cx = WindowContext::new(self, &mut window);
