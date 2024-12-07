@@ -324,28 +324,42 @@ impl<'a> WindowContext<'a> {
     }
 
     pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {
+        // TODO: better error
+        let img_job = self.app.jobs.spawn_blocking({
+            let file_path = file_path.clone();
+
+            async move {
+                let file = std::fs::File::open(file_path);
+                if file.is_err() {
+                    log::error!("Error reading image file");
+                    return None;
+                }
+
+                let mut file = file.unwrap();
+                let mut data = Vec::<u8>::new();
+                if file.read_to_end(&mut data).is_err() {
+                    log::error!("Error reading image file");
+                    return None;
+                }
+
+                let loaded_image = image::load_from_memory(&data);
+
+                if loaded_image.is_err() {
+                    log::error!("Error loading image file");
+                    return None;
+                }
+
+                Some(loaded_image.unwrap().to_rgba8())
+            }
+        });
+
         self.spawn(|cx| async move {
-            let file = std::fs::File::open(file_path);
-            if file.is_err() {
-                log::error!("Error reading image file");
+            let img = img_job.await;
+            if img.is_none() {
                 return;
             }
+            let img = img.unwrap();
 
-            let mut file = file.unwrap();
-            let mut data = Vec::<u8>::new();
-            if file.read_to_end(&mut data).is_err() {
-                log::error!("Error reading image file");
-                return;
-            }
-
-            let loaded_image = image::load_from_memory(&data);
-
-            if loaded_image.is_err() {
-                log::error!("Error loading image file");
-                return;
-            }
-
-            let img = loaded_image.unwrap().to_rgba8();
             let width = img.width();
             let height = img.height();
 
