@@ -273,7 +273,6 @@ pub struct AsyncWindowContext {
 }
 
 impl AsyncWindowContext {
-    // TODO: allow return something ?
     pub fn with<R>(&self, reader: impl FnOnce(&mut WindowContext) -> R) -> Option<R> {
         let app = self.app.app.upgrade().expect("app released");
         let mut lock = app.borrow_mut();
