@@ -87,7 +87,7 @@ impl<'a> SceneBatchIterator<'a> {
                         texture_id: tex,
                     });
             } else {
-                log::error!("Can't find texture:{} in atals", tex);
+                log::error!("Can't find {} in atlas", tex);
                 continue;
             }
         }
