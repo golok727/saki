@@ -319,7 +319,7 @@ impl<'a> WindowContext<'a> {
         R: 'static,
     {
         let cx = self.to_async();
-        self.app.jobs.spawn_local(f(cx))
+        self.app.jobs.spawn(f(cx))
     }
 
     pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {

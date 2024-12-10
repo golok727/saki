@@ -1,11 +1,8 @@
 use async_task::Runnable;
-use std::{future::Future, sync::Arc, thread};
+use std::{future::Future, sync::Arc, thread, time::Instant};
+use timer::Timer;
 
-#[derive(Debug)]
-pub struct Timeout {
-    duration: std::time::Duration,
-    runnable: Runnable,
-}
+pub mod timer;
 
 #[derive(Debug, Clone)]
 pub struct Jobs {
@@ -20,13 +17,8 @@ impl Jobs {
     }
 
     pub fn timer(&self, duration: std::time::Duration) -> Job<()> {
-        let (runnable, task) = async_task::spawn(async move {}, {
-            let dispatcher = self.dispatcher.clone();
-            move |runnable| dispatcher.set_timeout(duration, runnable)
-        });
-        runnable.schedule();
-
-        Job::Pending(task)
+        let timeout = self.dispatcher.sleep(duration);
+        self.spawn(timeout)
     }
 
     pub fn spawn_blocking<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
@@ -36,20 +28,19 @@ impl Jobs {
         self.dispatcher.dispatch_on_thread_pool(future)
     }
 
-    pub fn spawn_local<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
+    pub fn spawn<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
     where
         T: 'static,
     {
-        self.dispatcher.dispatch_local(future)
+        self.dispatcher.dispatch_on_main(future)
     }
 
     pub fn run_foregound_tasks(&self) {
-        for runnable in self.dispatcher.fg_receiver.drain() {
-            runnable.run();
-        }
+        self.dispatcher.run_foregound_tasks();
     }
 }
 
+// TODO: Move to trait
 #[derive(Debug)]
 pub struct Dispatcher {
     fg_sender: flume::Sender<Runnable>,
@@ -58,10 +49,9 @@ pub struct Dispatcher {
 
     bg_sender: flume::Sender<Runnable>,
 
-    timer: calloop::channel::Sender<Timeout>,
+    timer: Timer,
 
-    #[allow(unused)]
-    background_threads: Vec<thread::JoinHandle<()>>,
+    _background_threads: Vec<thread::JoinHandle<()>>,
 }
 
 impl Dispatcher {
@@ -84,22 +74,25 @@ impl Dispatcher {
             thread_count
         );
 
-        let mut background_threads = (0..thread_count)
+        let mut _background_threads = (0..thread_count)
             .map(|_| {
                 let rx = bg_reciver.clone();
                 thread::spawn(move || {
                     for runnable in rx {
+                        let now = Instant::now();
                         runnable.run();
+                        log::trace!(
+                            "Background thread ran task took: {}ms",
+                            Instant::now().saturating_duration_since(now).as_millis()
+                        );
                     }
                 })
             })
             .collect::<Vec<_>>();
 
-        let (timer_handle, timer) = Self::create_timer();
-        background_threads.push(timer_handle);
-
+        let timer = Timer::new();
         Self {
-            background_threads,
+            _background_threads,
             bg_sender,
             fg_sender,
             fg_receiver,
@@ -107,40 +100,11 @@ impl Dispatcher {
         }
     }
 
-    pub(crate) fn create_timer() -> (thread::JoinHandle<()>, calloop::channel::Sender<Timeout>) {
-        let (sender, channel) = calloop::channel::channel::<Timeout>();
-        let handle = std::thread::spawn(|| {
-            let mut eventloop: calloop::EventLoop<()> =
-                calloop::EventLoop::try_new().expect("error creating timer event_loop");
-            let handle = eventloop.handle();
-            let timer_handle = eventloop.handle();
-
-            handle
-                .insert_source(channel, move |e, _, _| {
-                    if let calloop::channel::Event::Msg(timeout) = e {
-                        let mut runnable = Some(timeout.runnable);
-
-                        timer_handle
-                            .insert_source(
-                                calloop::timer::Timer::from_duration(timeout.duration),
-                                move |_, _, _| {
-                                    if let Some(runnable) = runnable.take() {
-                                        runnable.run();
-                                    }
-                                    calloop::timer::TimeoutAction::Drop
-                                },
-                            )
-                            .expect("unable to start timer");
-                    };
-                })
-                .expect("failed to start timer");
-
-            if let Err(err) = eventloop.run(None, &mut (), |_| {}) {
-                eprintln!("{}", err);
-            }
-        });
-
-        (handle, sender)
+    pub fn run_foregound_tasks(&self) {
+        self.timer.tick();
+        for runnable in self.fg_receiver.drain() {
+            runnable.run();
+        }
     }
 
     pub fn dispatch_on_thread_pool<T>(
@@ -161,7 +125,7 @@ impl Dispatcher {
         Job::Pending(task)
     }
 
-    pub fn dispatch_local<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
+    pub fn dispatch_on_main<T>(&self, future: impl Future<Output = T> + 'static) -> Job<T>
     where
         T: 'static,
     {
@@ -176,8 +140,8 @@ impl Dispatcher {
         Job::Pending(task)
     }
 
-    fn set_timeout(&self, duration: std::time::Duration, runnable: Runnable) {
-        self.timer.send(Timeout { duration, runnable }).ok();
+    fn sleep(&self, duration: std::time::Duration) -> impl Future<Output = ()> {
+        self.timer.insert_from_duration(duration)
     }
 }
 
