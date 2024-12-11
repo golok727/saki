@@ -1,10 +1,10 @@
 use crate::paint::atlas::AtlasTextureId;
 use crate::paint::atlas::AtlasTextureInfoMap;
 use crate::paint::DrawList;
+use crate::paint::DrawVert;
 use crate::paint::Mesh;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
-use crate::paint::Vertex;
 
 #[derive(Debug, Clone)]
 pub struct Primitive {
@@ -127,14 +127,14 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
             let prim = &self.scene.items[entry.index];
 
             let tile_tex_id = entry.texture_id;
-            let use_default_texture = tile_tex_id == TextureId::WHITE_TEXTURE;
+            let is_default_texture = tile_tex_id == TextureId::WHITE_TEXTURE;
 
             let info = self.tex_info.get(&tile_tex_id);
 
-            let uv_middleware = move |mut vertex: Vertex| {
+            let uv_middleware = move |mut vertex: DrawVert| {
                 // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
                 if let Some(info) = info {
-                    if use_default_texture {
+                    if is_default_texture {
                         vertex.uv = info.uv_to_atlas_space(0.0, 0.0);
                     } else {
                         let [u, v] = vertex.uv;

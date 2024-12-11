@@ -1,4 +1,4 @@
-use crate::math::Rect;
+use crate::math::{Rect, Vec2};
 
 #[derive(Debug, Clone)]
 pub enum PrimitiveKind {
@@ -26,6 +26,35 @@ impl Quad {
         self.bounds.x = x;
         self.bounds.y = y;
         self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PathOp {
+    LineTo { start: Vec2<f64>, end: Vec2<f64> },
+    QuadraticeBezierTo {},
+}
+#[derive(Default, Debug, Clone)]
+pub struct Path {
+    // maybe paint ops instead of this ?
+    ops: Vec<PathOp>,
+}
+
+impl Path {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn line_to(mut self, start: impl Into<Vec2<f64>>, end: impl Into<Vec2<f64>>) -> Self {
+        self.ops.push(PathOp::LineTo {
+            start: start.into(),
+            end: end.into(),
+        });
+        self
+    }
+
+    pub fn quadratic_bezier_to(self) -> Self {
+        todo!()
     }
 }
 

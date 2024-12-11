@@ -4,9 +4,10 @@ use crate::math::{Rect, Vec2};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct Vertex {
+pub struct DrawVert {
     pub position: [f32; 2],
     pub uv: [f32; 2],
+    // FIXME: u32 is enough
     pub color: [f32; 4],
 }
 
@@ -19,7 +20,7 @@ fn wgpu_color_to_array(color: wgpu::Color) -> [f32; 4] {
     ]
 }
 
-impl Vertex {
+impl DrawVert {
     pub fn new(pos: Vec2<f32>, color: wgpu::Color, uv: (f32, f32)) -> Self {
         Self {
             position: pos.into(),
@@ -31,16 +32,16 @@ impl Vertex {
 
 #[derive(Debug)]
 pub struct Mesh {
-    pub vertices: Vec<Vertex>,
+    pub vertices: Vec<DrawVert>,
     pub indices: Vec<u32>,
     pub texture: TextureId,
 }
 
-pub type DrawListMiddleware<'a> = Box<dyn Fn(Vertex) -> Vertex + 'a>;
+pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
 
 #[derive(Default)]
 pub struct DrawList<'a> {
-    pub vertices: Vec<Vertex>,
+    pub vertices: Vec<DrawVert>,
 
     pub indices: Vec<u32>,
 
@@ -52,7 +53,7 @@ pub struct DrawList<'a> {
 impl<'a> DrawList<'a> {
     pub fn with_middleware<F>(middleware: F) -> Self
     where
-        F: Fn(Vertex) -> Vertex + 'a,
+        F: Fn(DrawVert) -> DrawVert + 'a,
     {
         Self {
             middleware: Some(Box::new(middleware)),
@@ -62,7 +63,7 @@ impl<'a> DrawList<'a> {
 
     pub fn set_middleware<F>(&mut self, middleware: F)
     where
-        F: Fn(Vertex) -> Vertex + 'a,
+        F: Fn(DrawVert) -> DrawVert + 'a,
     {
         self.middleware = Some(Box::new(middleware));
     }
@@ -74,12 +75,20 @@ impl<'a> DrawList<'a> {
     }
 
     #[inline]
-    pub fn apply_mw(&self, vertex: Vertex) -> Vertex {
+    pub fn apply_mw(&self, vertex: DrawVert) -> DrawVert {
         let mut vertex = vertex;
         if let Some(middleware) = &self.middleware {
             vertex = middleware(vertex);
         }
         vertex
+    }
+
+    pub fn fill_path(&mut self) {
+        todo!("Fill path")
+    }
+
+    pub fn stroke_path(&mut self) {
+        todo!("Add polyline")
     }
 
     pub fn push_quad(&mut self, quad: &Quad) {
@@ -97,15 +106,15 @@ impl<'a> DrawList<'a> {
         let color = quad.background_color;
 
         self.vertices
-            .push(self.apply_mw(Vertex::new((x, y).into(), color, uvs[0]))); // Top-left
+            .push(self.apply_mw(DrawVert::new((x, y).into(), color, uvs[0]))); // Top-left
 
         self.vertices
-            .push(self.apply_mw(Vertex::new((x + width, y).into(), color, uvs[1]))); // Top-right
+            .push(self.apply_mw(DrawVert::new((x + width, y).into(), color, uvs[1]))); // Top-right
 
         self.vertices
-            .push(self.apply_mw(Vertex::new((x, y + height).into(), color, uvs[2]))); // Bottom-left
+            .push(self.apply_mw(DrawVert::new((x, y + height).into(), color, uvs[2]))); // Bottom-left
 
-        self.vertices.push(self.apply_mw(Vertex::new(
+        self.vertices.push(self.apply_mw(DrawVert::new(
             (x + width, y + height).into(),
             color,
             uvs[3],
@@ -124,7 +133,7 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn build(mut self, texture: TextureId) -> Mesh {
-        let vertices: Vec<Vertex> = std::mem::take(&mut self.vertices);
+        let vertices: Vec<DrawVert> = std::mem::take(&mut self.vertices);
         let indices: Vec<u32> = std::mem::take(&mut self.indices);
 
         Mesh {
