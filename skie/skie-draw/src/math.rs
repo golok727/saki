@@ -6,6 +6,8 @@ pub use rect::Rect;
 pub use size::Size;
 pub use unit::{DevicePixels, ScaledPixels};
 
+use crate::traits::IsZero;
+
 pub trait Half {
     fn half(&self) -> Self;
 }
@@ -271,6 +273,15 @@ impl<T> From<(T, T)> for Vec2<T> {
 impl From<Vec2<f32>> for [f32; 2] {
     fn from(Vec2 { x, y }: Vec2<f32>) -> Self {
         [x, y]
+    }
+}
+
+impl<T> IsZero for Vec2<T>
+where
+    T: IsZero,
+{
+    fn is_zero(&self) -> bool {
+        self.x.is_zero() && self.y.is_zero()
     }
 }
 

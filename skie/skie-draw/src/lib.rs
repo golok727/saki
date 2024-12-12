@@ -5,3 +5,5 @@ pub mod renderer;
 pub mod scene;
 pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
 pub use scene::Scene;
+
+pub mod traits;

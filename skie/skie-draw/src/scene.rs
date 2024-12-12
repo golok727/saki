@@ -149,6 +149,7 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
 
             match &prim.kind {
                 PrimitiveKind::Quad(quad) => drawlist.push_quad(quad),
+                PrimitiveKind::Path(_) => todo!(),
             }
         }
 

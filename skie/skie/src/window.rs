@@ -1,5 +1,6 @@
 pub mod error;
 
+use core::f32;
 use std::{future::Future, io::Read, sync::Arc};
 
 use error::CreateWindowError;
@@ -85,6 +86,35 @@ impl Window {
         texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
+        #[cfg(never)]
+        {
+            use skie_draw::{
+                math::{unit::px, vec2},
+                paint::{Path, PathData},
+            };
+
+            let mut path = Path::<Pixels>::default();
+            path.move_to((px(100.0), px(100.0)).into());
+            path.line_to((px(200.0), px(100.0)).into());
+
+            path.arc(
+                vec2(px(300.0), px(300.0)),
+                px(100.0),
+                0.0,
+                f32::consts::TAU as f64,
+                false,
+            );
+
+            let data = PathData::from(&mut path);
+            let mut python_array = String::from("[\n");
+            for point in &data.points {
+                python_array.push_str(&format!("  [{}, {}],\n", point.x, point.y));
+            }
+            python_array.push(']');
+            println!("{}", python_array);
+        }
+        // END _TEST
+
         let width = specs.width;
         let height = specs.height;
 

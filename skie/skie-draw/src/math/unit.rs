@@ -1,26 +1,8 @@
 use derive_more::{Add, AddAssign, Display, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-#[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    Display,
-    PartialEq,
-    PartialOrd,
-    Add,
-    AddAssign,
-    Mul,
-    MulAssign,
-    Sub,
-    SubAssign,
-    Div,
-    DivAssign,
-    Neg,
-)]
+#[derive(Debug, Default, Clone, Copy, Display, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[display("{_0}px")]
-
 pub struct Pixels(pub(crate) f32);
 
 impl Pixels {
@@ -57,6 +39,34 @@ impl Pixels {
     }
 }
 
+impl std::ops::Add<Pixels> for Pixels {
+    type Output = Pixels;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl std::ops::Mul<f32> for Pixels {
+    type Output = Pixels;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl std::ops::Mul<Pixels> for Pixels {
+    type Output = Pixels;
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl std::ops::Mul<usize> for Pixels {
+    type Output = Pixels;
+    fn mul(self, rhs: usize) -> Self::Output {
+        Self(self.0 * rhs as f32)
+    }
+}
+
 #[inline]
 pub fn px(val: impl Into<Pixels>) -> Pixels {
     val.into()
@@ -84,6 +94,12 @@ impl_from_as!(i64, Pixels, f32);
 
 impl_from_as!(f32, Pixels, f32);
 impl_from_as!(f64, Pixels, f32);
+
+impl From<Pixels> for f64 {
+    fn from(val: Pixels) -> Self {
+        val.0.into()
+    }
+}
 
 impl From<Pixels> for f32 {
     fn from(value: Pixels) -> Self {

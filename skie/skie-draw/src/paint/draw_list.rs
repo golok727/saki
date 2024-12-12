@@ -7,7 +7,7 @@ use crate::math::{Rect, Vec2};
 pub struct DrawVert {
     pub position: [f32; 2],
     pub uv: [f32; 2],
-    // FIXME: u32 is enough
+    // FIXME: use u32 maybe?
     pub color: [f32; 4],
 }
 
@@ -42,12 +42,10 @@ pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
 #[derive(Default)]
 pub struct DrawList<'a> {
     pub vertices: Vec<DrawVert>,
-
     pub indices: Vec<u32>,
+    index_offset: u32,
 
     middleware: Option<DrawListMiddleware<'a>>,
-
-    index_offset: u32,
 }
 
 impl<'a> DrawList<'a> {
@@ -83,8 +81,19 @@ impl<'a> DrawList<'a> {
         vertex
     }
 
-    pub fn fill_path(&mut self) {
+    /// Please make sure that the path given is convex
+    pub fn fill_path_convex<I, T>(&mut self, _points: &[Vec2<T>])
+    where
+        T: Default + Clone + std::fmt::Debug + Into<f64>,
+    {
         todo!("Fill path")
+    }
+
+    pub fn fill_path_concave<I, T>(&mut self, _points: &[Vec2<T>])
+    where
+        T: Default + Clone + std::fmt::Debug + Into<f64>,
+    {
+        todo!("Fill path concave")
     }
 
     pub fn stroke_path(&mut self) {
@@ -133,8 +142,8 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn build(mut self, texture: TextureId) -> Mesh {
-        let vertices: Vec<DrawVert> = std::mem::take(&mut self.vertices);
-        let indices: Vec<u32> = std::mem::take(&mut self.indices);
+        let vertices = std::mem::take(&mut self.vertices);
+        let indices = std::mem::take(&mut self.indices);
 
         Mesh {
             vertices,
