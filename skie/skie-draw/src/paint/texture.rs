@@ -50,7 +50,7 @@ impl TextureKind {
         match self {
             Self::Grayscale => TextureFormat::R8Unorm,
             // FIXME: should we use Bgara ?
-            Self::Color => TextureFormat::Rgba8UnormSrgb,
+            Self::Color => TextureFormat::Rgba8Unorm,
         }
     }
 
