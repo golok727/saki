@@ -86,22 +86,21 @@ impl Window {
         texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
-        #[cfg(never)]
         {
             use skie_draw::{
                 math::{unit::px, vec2},
                 paint::{Path, PathData},
             };
 
-            let mut path = Path::<Pixels>::default();
-            path.move_to((px(100.0), px(100.0)).into());
-            path.line_to((px(200.0), px(100.0)).into());
+            let mut path = Path::default();
+            path.move_to(vec2::<f32>(px(100.0).into(), px(100.0).into()));
+            path.line_to(vec2::<f32>(px(200.0).into(), px(300.0).into()));
 
             path.arc(
-                vec2(px(300.0), px(300.0)),
-                px(100.0),
+                vec2::<f32>(px(300.0).into(), px(300.0).into()),
+                px(100.0).into(),
                 0.0,
-                f32::consts::TAU as f64,
+                f32::consts::PI,
                 false,
             );
 
@@ -110,6 +109,7 @@ impl Window {
             for point in &data.points {
                 python_array.push_str(&format!("  [{}, {}],\n", point.x, point.y));
             }
+
             python_array.push(']');
             println!("{}", python_array);
         }

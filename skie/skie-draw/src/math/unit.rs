@@ -107,6 +107,12 @@ impl From<Pixels> for f32 {
     }
 }
 
+impl From<Pixels> for u32 {
+    fn from(value: Pixels) -> Self {
+        value.0 as u32
+    }
+}
+
 /// ScreenPixels: Pixels that are tied to the screen resolution (e.g., after scaling)
 #[derive(
     Debug,

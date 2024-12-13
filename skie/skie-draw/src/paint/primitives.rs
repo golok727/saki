@@ -42,37 +42,27 @@ impl Quad {
 
 #[derive(Debug, Clone)]
 pub struct PathData {
-    pub points: Vec<Vec2<f64>>,
+    pub points: Vec<Vec2<f32>>,
     // pub flags: (),
 }
 
-impl<T> From<&mut Path<T>> for PathData
-where
-    T: Debug + Default + Clone + Into<f64>,
-{
-    fn from(path: &mut Path<T>) -> Self {
-        let points = path
-            .points
-            .iter()
-            .map(|point| Vec2 {
-                x: point.x.clone().into(),
-                y: point.y.clone().into(),
-            })
-            .collect();
-
-        Self { points }
+impl From<&mut Path> for PathData {
+    fn from(path: &mut Path) -> Self {
+        Self {
+            points: path.take(),
+        }
     }
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct Path<T: Debug + Default + Clone> {
-    pub(crate) points: Vec<Vec2<T>>,
-    cursor: Vec2<T>,
-    start: Option<Vec2<T>>,
+pub struct Path {
+    pub(crate) points: Vec<Vec2<f32>>,
+    cursor: Vec2<f32>,
+    start: Option<Vec2<f32>>,
     // todo add flags for path
 }
 
-impl<T: Debug + Default + Clone> Path<T> {
+impl Path {
     pub fn new() -> Self {
         Self::default()
     }
@@ -83,20 +73,20 @@ impl<T: Debug + Default + Clone> Path<T> {
     }
 
     /// Moves the cursor to the specified position without creating a line.
-    pub fn move_to(&mut self, new_pos: Vec2<T>) {
-        self.cursor = new_pos.clone();
+    pub fn move_to(&mut self, new_pos: Vec2<f32>) {
+        self.cursor = new_pos;
         self.start = Some(new_pos); // Set the start of the new subpath
     }
 
     /// Draws a straight line from the cursor to the specified position.
-    pub fn line_to(&mut self, to: Vec2<T>) {
-        self.points.push(self.cursor.clone());
-        self.points.push(to.clone());
+    pub fn line_to(&mut self, to: Vec2<f32>) {
+        self.points.push(self.cursor);
+        self.points.push(to);
         self.cursor = to;
     }
 
     /// Draws a quadratic Bézier curve from the cursor to `to` using `control` as the control point.
-    pub fn quadratic_bezier_to(&mut self, _control: Vec2<T>, _to: Vec2<T>) {
+    pub fn quadratic_bezier_to(&mut self, _control: Vec2<f32>, _to: Vec2<f32>) {
         todo!()
     }
 
@@ -106,8 +96,7 @@ impl<T: Debug + Default + Clone> Path<T> {
         self.start = None;
     }
 
-    #[allow(unused)]
-    pub(crate) fn take(&mut self) -> Vec<Vec2<T>> {
+    pub(crate) fn take(&mut self) -> Vec<Vec2<f32>> {
         let val = std::mem::take(&mut self.points);
         self.start = None;
         val
@@ -116,52 +105,38 @@ impl<T: Debug + Default + Clone> Path<T> {
     /// Closes the current subpath by drawing a line back to the starting point.
     pub fn close_path(&mut self) {
         if let Some(start) = &self.start {
-            self.line_to(start.clone());
+            self.line_to(*start);
         }
     }
-}
 
-impl<T> Path<T>
-where
-    T: Debug
-        + Default
-        + Clone
-        + std::ops::Mul<Output = T>
-        + std::ops::Add<Output = T>
-        + From<f64>
-        + Into<f64>,
-{
     /// Draws an arc.
     pub fn arc(
         &mut self,
-        center: Vec2<T>,
-        radius: T,
-        start_angle: f64,
-        end_angle: f64,
+        center: Vec2<f32>,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
         clockwise: bool,
     ) {
         // TODO: make this configurable ?
         const NUM_SEGMENTS: u8 = 32;
 
-        let step: f64 = if clockwise {
-            -(end_angle - start_angle) / NUM_SEGMENTS as f64
+        let step: f32 = if clockwise {
+            -(end_angle - start_angle) / NUM_SEGMENTS as f32
         } else {
-            (end_angle - start_angle) / NUM_SEGMENTS as f64
+            (end_angle - start_angle) / NUM_SEGMENTS as f32
         };
 
         for i in 0..=NUM_SEGMENTS {
-            let theta = start_angle + i as f64 * step;
-            let x = center.x.clone().into() + radius.clone().into() * theta.cos();
-            let y = center.y.clone().into() + radius.clone().into() * theta.sin();
-            self.points.push(Vec2 {
-                x: T::from(x),
-                y: T::from(y),
-            });
+            let theta = start_angle + i as f32 * step;
+            let x = center.x + radius * theta.cos();
+            let y = center.y + radius * theta.sin();
+            self.points.push(Vec2 { x, y });
         }
 
         // Update the cursor to the final point on the arc.
         if let Some(last) = self.points.last() {
-            self.cursor = last.clone();
+            self.cursor = *last;
         }
     }
 }
@@ -195,20 +170,14 @@ pub fn quad() -> Quad {
 //     };
 // }
 
-impl<T> From<&mut Path<T>> for PrimitiveKind
-where
-    T: Debug + Default + Clone + Into<f64>,
-{
-    fn from(value: &mut Path<T>) -> Self {
+impl From<&mut Path> for PrimitiveKind {
+    fn from(value: &mut Path) -> Self {
         PrimitiveKind::Path(value.into())
     }
 }
 
-impl<T> From<Path<T>> for PrimitiveKind
-where
-    T: Debug + Default + Clone + Into<f64>,
-{
-    fn from(mut value: Path<T>) -> Self {
+impl From<Path> for PrimitiveKind {
+    fn from(mut value: Path) -> Self {
         PrimitiveKind::Path(PathData::from(&mut value))
     }
 }

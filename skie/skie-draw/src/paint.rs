@@ -1,8 +1,10 @@
 pub mod atlas;
+pub mod color;
 pub mod draw_list;
 pub mod primitives;
 pub mod texture;
 
+pub use color::*;
 pub use draw_list::*;
 pub use primitives::*;
 pub use texture::*;
