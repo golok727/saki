@@ -5,7 +5,7 @@ use crate::gpu::error::GpuSurfaceCreateError;
 use crate::gpu::surface::{GpuSurface, GpuSurfaceSpecification};
 use crate::math::Size;
 use crate::paint::atlas::AtlasManager;
-use crate::paint::{TextureKind, WgpuTextureView};
+use crate::paint::{Color, TextureKind, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
     math::Mat3,
@@ -475,8 +475,8 @@ impl WgpuRenderer {
         log::trace!("Render Complete!");
     }
 
-    pub fn set_clear_color(&mut self, color: wgpu::Color) {
-        self.state.clear_color = color;
+    pub fn set_clear_color(&mut self, color: Color) {
+        self.state.clear_color = dbg!(color.into());
     }
 
     fn create_state(

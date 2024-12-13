@@ -1,8 +1,9 @@
-use core::f64;
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
 use crate::traits::IsZero;
+
+use super::Color;
 
 #[derive(Debug, Clone)]
 pub enum PrimitiveKind {
@@ -13,13 +14,13 @@ pub enum PrimitiveKind {
 #[derive(Debug, Clone)]
 pub struct Quad {
     pub bounds: Rect<f32>,
-    pub background_color: wgpu::Color,
+    pub background_color: Color,
     pub corners: Corners<f32>,
 }
 
 impl Quad {
-    pub fn with_bgcolor(mut self, r: f64, g: f64, b: f64, a: f64) -> Self {
-        self.background_color = wgpu::Color { r, g, b, a };
+    pub fn with_bgcolor(mut self, color: Color) -> Self {
+        self.background_color = color;
         self
     }
     pub fn with_size(mut self, width: f32, height: f32) -> Self {
@@ -150,7 +151,7 @@ impl Default for Quad {
                 width: 10.,
                 height: 10.,
             },
-            background_color: wgpu::Color::WHITE,
+            background_color: Color::WHITE,
             corners: Corners::default(),
         }
     }

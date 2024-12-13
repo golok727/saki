@@ -15,7 +15,7 @@ use crate::{
 use skie_draw::{
     gpu::GpuContext,
     math::{unit::Pixels, Rect, Size},
-    paint::{atlas::AtlasManager, quad, TextureId, TextureKind},
+    paint::{atlas::AtlasManager, quad, Color, TextureId, TextureKind},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -177,8 +177,7 @@ impl Window {
         })
     }
 
-    pub fn set_bg_color(&mut self, r: f64, g: f64, b: f64) {
-        let color = wgpu::Color { r, g, b, a: 1.0 };
+    pub fn set_bg_color(&mut self, color: Color) {
         self.renderer.set_clear_color(color);
         self.handle.request_redraw();
     }
@@ -215,7 +214,7 @@ impl Window {
             quad()
                 .with_pos(100.0, height - 400.0)
                 .with_size(300.0, 300.0)
-                .with_bgcolor(1.0, 0.0, 0.0, 1.0),
+                .with_bgcolor(Color::from_rgb(0xFF0000)), // Red
             self.checker_texture_id,
         );
 
@@ -223,7 +222,7 @@ impl Window {
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
-                .with_bgcolor(1.0, 1.0, 0.0, 1.0),
+                .with_bgcolor(Color::from_rgb(0xFFFF00)), // Yellow
             self.checker_texture_id,
         );
 
@@ -238,7 +237,7 @@ impl Window {
             quad()
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
-                .with_bgcolor(0.3, 0.3, 0.9, 1.0),
+                .with_bgcolor(Color::from_rgb(0x4C4CFF)), // RGB(0.3, 0.3, 0.9) converted to hex
         );
 
         let bar_height: f32 = 50.0;
@@ -248,7 +247,7 @@ impl Window {
             quad()
                 .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
-                .with_bgcolor(0.04, 0.04, 0.07, 1.0),
+                .with_bgcolor(Color::from_rgb(0x0A0A11)), // RGB(0.04, 0.04, 0.07) converted to hex
         );
 
         for object in &self.objects {

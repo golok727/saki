@@ -1,6 +1,13 @@
 use std::io::Write;
 
-use skie::{ math::{ unit::{ px, Pixels }, Rect }, window::{ WindowContext, WindowSpecification } };
+use skie::{
+    math::{
+        unit::{px, Pixels},
+        Rect,
+    },
+    window::{WindowContext, WindowSpecification},
+    Color,
+};
 
 /*
 TODO
@@ -18,14 +25,11 @@ fn load_images_from_args(cx: &mut WindowContext) {
     // Helper function to load an image from a file argument
     fn load_image(cx: &mut WindowContext, file: String, rect: Rect<Pixels>) {
         let file_clone = file.clone();
-        if
-            let Some(file) = Some(file).filter(|f| {
-                std::fs
-                    ::metadata(f)
-                    .map(|data| data.is_file())
-                    .unwrap_or(false)
-            })
-        {
+        if let Some(file) = Some(file).filter(|f| {
+            std::fs::metadata(f)
+                .map(|data| data.is_file())
+                .unwrap_or(false)
+        }) {
             cx.load_image_from_file(rect, file);
         } else {
             log::error!("Unable to load file {}", file_clone);
@@ -57,8 +61,6 @@ fn load_images_from_args(cx: &mut WindowContext) {
             break;
         }
     }
-
-    cx.window.set_bg_color(0.01, 0.01, 0.01);
 }
 
 fn main() {
@@ -77,19 +79,28 @@ fn main() {
         };
 
         cx.open_window(window_specs.clone(), |cx| {
-            cx.set_timeout(|cx| {
-                cx.window.set_bg_color(1.0, 1.0, 0.0);
-            }, std::time::Duration::from_secs(3));
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(Color::YELLOW);
+                },
+                std::time::Duration::from_secs(3),
+            );
 
-            cx.set_timeout(|cx| {
-                cx.window.set_bg_color(1.0, 0.0, 0.0);
-            }, std::time::Duration::from_secs(5));
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(Color::RED);
+                },
+                std::time::Duration::from_secs(5),
+            );
 
-            cx.set_timeout(|cx| {
-                cx.window.set_bg_color(0.01, 0.01, 0.01);
-            }, std::time::Duration::from_secs(7));
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(Color::from_rgb(0x181818));
+                },
+                std::time::Duration::from_secs(7),
+            );
 
-            cx.window.set_bg_color(0.01, 0.01, 0.01);
+            cx.window.set_bg_color(Color::from_rgb(0x181818));
 
             load_images_from_args(cx);
         });
@@ -97,11 +108,10 @@ fn main() {
 }
 
 fn init_stdout_logger() {
-    env_logger::Builder
-        ::new()
+    env_logger::Builder::new()
         .parse_default_env()
         .format(|buf, record| {
-            use env_logger::fmt::style::{ AnsiColor, Style };
+            use env_logger::fmt::style::{AnsiColor, Style};
 
             // Subtle style for the whole date part, dimmed color
             let dimmed = Style::new().fg_color(Some(AnsiColor::BrightBlack.into()));

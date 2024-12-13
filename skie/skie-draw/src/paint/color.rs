@@ -9,7 +9,7 @@ pub struct Color {
 }
 
 impl Color {
-    pub const TRANSPARENT: Self = Self::from_rgba_premultiplied(0x00000000);
+    pub const TRANSPARENT: Self = Self::from_rgba(0x00000000);
     pub const WHITE: Self = Self::from_rgb(0xFFFFFF);
     pub const BLACK: Self = Self::from_rgb(0x000000);
 
@@ -37,12 +37,13 @@ impl Color {
     pub const GRAY: Self = Self::from_rgb(0xA0A0A0);
     pub const LIGHT_GRAY: Self = Self::from_rgb(0xDCDCDC);
 
+    // Without alpha use 0xRRGGBB
     #[inline]
-    pub const fn from_rgb(rgb: u32) -> Self {
+    pub const fn from_rgb(hex: u32) -> Self {
         Self {
-            r: ((rgb >> 24) & 0xff) as u8,
-            g: ((rgb >> 16) & 0xff) as u8,
-            b: ((rgb >> 8) & 0xff) as u8,
+            r: ((hex >> 16) & 0xff) as u8,
+            g: ((hex >> 8) & 0xff) as u8,
+            b: ((hex) & 0xff) as u8,
             a: 255,
         }
     }
@@ -57,8 +58,9 @@ impl Color {
         }
     }
 
+    /// With premultiplied alpha
     #[inline]
-    pub const fn from_rgba_premultiplied(rgba: u32) -> Self {
+    pub const fn from_rgba(rgba: u32) -> Self {
         Self {
             r: ((rgba >> 24) & 0xff) as u8,
             g: ((rgba >> 16) & 0xff) as u8,
@@ -246,5 +248,15 @@ impl std::fmt::Debug for Rgba {
 impl std::fmt::Debug for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "color({:#010x})", u32::from(*self))
+    }
+}
+
+impl From<Color> for wgpu::Color {
+    fn from(color: Color) -> Self {
+        let r = (color.r as f64) / 255.0;
+        let g = (color.g as f64) / 255.0;
+        let b = (color.b as f64) / 255.0;
+        let a = (color.a as f64) / 255.0;
+        Self { r, g, b, a }
     }
 }

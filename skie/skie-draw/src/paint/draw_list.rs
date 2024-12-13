@@ -1,4 +1,4 @@
-use super::{Quad, TextureId};
+use super::{Quad, Rgba, TextureId};
 
 use crate::math::{Rect, Vec2};
 
@@ -8,24 +8,15 @@ pub struct DrawVert {
     pub position: [f32; 2],
     pub uv: [f32; 2],
     // FIXME: use u32 maybe?
-    pub color: [f32; 4],
-}
-
-fn wgpu_color_to_array(color: wgpu::Color) -> [f32; 4] {
-    [
-        color.r as f32,
-        color.g as f32,
-        color.b as f32,
-        color.a as f32,
-    ]
+    pub color: Rgba,
 }
 
 impl DrawVert {
-    pub fn new(pos: Vec2<f32>, color: wgpu::Color, uv: (f32, f32)) -> Self {
+    pub fn new(pos: Vec2<f32>, color: impl Into<Rgba>, uv: (f32, f32)) -> Self {
         Self {
             position: pos.into(),
             uv: uv.into(),
-            color: wgpu_color_to_array(color),
+            color: color.into(),
         }
     }
 }
