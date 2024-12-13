@@ -86,33 +86,6 @@ impl Window {
         texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
-        {
-            use skie_draw::{
-                math::{unit::px, vec2},
-                paint::{Path, PathData},
-            };
-
-            let mut path = Path::default();
-            path.move_to(vec2::<f32>(px(100.0).into(), px(100.0).into()));
-            path.line_to(vec2::<f32>(px(200.0).into(), px(300.0).into()));
-
-            path.arc(
-                vec2::<f32>(px(300.0).into(), px(300.0).into()),
-                px(100.0).into(),
-                0.0,
-                f32::consts::PI,
-                false,
-            );
-
-            let data = PathData::from(&mut path);
-            let mut python_array = String::from("[\n");
-            for point in &data.points {
-                python_array.push_str(&format!("  [{}, {}],\n", point.x, point.y));
-            }
-
-            python_array.push(']');
-            println!("{}", python_array);
-        }
         // END _TEST
 
         let width = specs.width;
@@ -237,7 +210,7 @@ impl Window {
             quad()
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
-                .with_bgcolor(Color::from_rgb(0x4C4CFF)),
+                .with_bgcolor(Color::from_rgb(0x55a09e)),
         );
 
         let bar_height: f32 = 50.0;

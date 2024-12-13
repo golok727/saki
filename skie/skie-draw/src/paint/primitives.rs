@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
@@ -8,7 +9,7 @@ use super::Color;
 #[derive(Debug, Clone)]
 pub enum PrimitiveKind {
     Quad(Quad),
-    Path(PathData),
+    Path(Path2D),
 }
 
 #[derive(Debug, Clone)]
@@ -39,106 +40,10 @@ impl Quad {
         self.corners = corners;
         self
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct PathData {
-    pub points: Vec<Vec2<f32>>,
-    // pub flags: (),
-}
-
-impl From<&mut Path> for PathData {
-    fn from(path: &mut Path) -> Self {
-        Self {
-            points: path.take(),
-        }
-    }
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct Path {
-    pub(crate) points: Vec<Vec2<f32>>,
-    cursor: Vec2<f32>,
-    start: Option<Vec2<f32>>,
-    // todo add flags for path
-}
-
-impl Path {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    #[allow(unused)]
-    pub(crate) fn with_flags(&mut self) {
-        todo!()
-    }
-
-    /// Moves the cursor to the specified position without creating a line.
-    pub fn move_to(&mut self, new_pos: Vec2<f32>) {
-        self.cursor = new_pos;
-        self.start = Some(new_pos); // Set the start of the new subpath
-    }
-
-    /// Draws a straight line from the cursor to the specified position.
-    pub fn line_to(&mut self, to: Vec2<f32>) {
-        self.points.push(self.cursor);
-        self.points.push(to);
-        self.cursor = to;
-    }
-
-    /// Draws a quadratic Bézier curve from the cursor to `to` using `control` as the control point.
-    pub fn quadratic_bezier_to(&mut self, _control: Vec2<f32>, _to: Vec2<f32>) {
-        todo!()
-    }
-
-    /// Clears all points in the path.
-    pub fn clear(&mut self) {
-        self.points.clear();
-        self.start = None;
-    }
-
-    pub(crate) fn take(&mut self) -> Vec<Vec2<f32>> {
-        let val = std::mem::take(&mut self.points);
-        self.start = None;
-        val
-    }
-
-    /// Closes the current subpath by drawing a line back to the starting point.
-    pub fn close_path(&mut self) {
-        if let Some(start) = &self.start {
-            self.line_to(*start);
-        }
-    }
-
-    /// Draws an arc.
-    pub fn arc(
-        &mut self,
-        center: Vec2<f32>,
-        radius: f32,
-        start_angle: f32,
-        end_angle: f32,
-        clockwise: bool,
-    ) {
-        // TODO: make this configurable ?
-        const NUM_SEGMENTS: u8 = 32;
-
-        let step: f32 = if clockwise {
-            -(end_angle - start_angle) / NUM_SEGMENTS as f32
-        } else {
-            (end_angle - start_angle) / NUM_SEGMENTS as f32
-        };
-
-        for i in 0..=NUM_SEGMENTS {
-            let theta = start_angle + i as f32 * step;
-            let x = center.x + radius * theta.cos();
-            let y = center.y + radius * theta.sin();
-            self.points.push(Vec2 { x, y });
-        }
-
-        // Update the cursor to the final point on the arc.
-        if let Some(last) = self.points.last() {
-            self.cursor = *last;
-        }
+    pub(crate) fn into_primitive_kind(self) -> PrimitiveKind {
+        // TODO: use path if its a rounded rectangle
+        PrimitiveKind::Quad(self)
     }
 }
 
@@ -161,6 +66,92 @@ pub fn quad() -> Quad {
     Quad::default()
 }
 
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct PathId(pub(crate) usize);
+
+#[derive(Debug, Clone)]
+pub enum PathOp {
+    MoveTo(Vec2<f32>),
+    LineTo(Vec2<f32>),
+    QuadratcBezierTo {
+        control: Vec2<f32>,
+        to: Vec2<f32>,
+    },
+    ArcTo {
+        center: Vec2<f32>,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+        clockwise: bool,
+    },
+    ClosePath,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Path2D {
+    pub(crate) id: PathId,
+    pub(crate) ops: Vec<PathOp>,
+    // pub(crate) flags
+}
+
+impl Path2D {
+    #[allow(unused)]
+    pub(crate) fn with_flags(&mut self) {
+        todo!()
+    }
+
+    pub fn move_to(&mut self, to: Vec2<f32>) {
+        self.ops.push(PathOp::MoveTo(to))
+    }
+
+    pub fn line_to(&mut self, to: Vec2<f32>) {
+        self.ops.push(PathOp::MoveTo(to))
+    }
+
+    pub fn quadratic_bezier_to(&mut self, control: Vec2<f32>, to: Vec2<f32>) {
+        self.ops.push(PathOp::QuadratcBezierTo { control, to })
+    }
+
+    pub fn close_path(&mut self) {
+        self.ops.push(PathOp::ClosePath)
+    }
+
+    pub fn arc(
+        &mut self,
+        center: Vec2<f32>,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+        clockwise: bool,
+    ) {
+        self.ops.push(PathOp::ArcTo {
+            center,
+            radius,
+            start_angle,
+            end_angle,
+            clockwise,
+        })
+    }
+
+    pub fn clear(&mut self) {
+        self.ops.clear()
+    }
+}
+
+impl From<Quad> for PrimitiveKind {
+    #[inline]
+    fn from(quad: Quad) -> Self {
+        quad.into_primitive_kind()
+    }
+}
+
+impl From<Path2D> for PrimitiveKind {
+    #[inline]
+    fn from(path: Path2D) -> Self {
+        PrimitiveKind::Path(path)
+    }
+}
+
 // macro_rules! impl_into_primitive {
 //     ($t: ty, $kind: tt) => {
 //         impl From<$t> for PrimitiveKind {
@@ -170,26 +161,7 @@ pub fn quad() -> Quad {
 //         }
 //     };
 // }
-
-impl From<&mut Path> for PrimitiveKind {
-    fn from(value: &mut Path) -> Self {
-        PrimitiveKind::Path(value.into())
-    }
-}
-
-impl From<Path> for PrimitiveKind {
-    fn from(mut value: Path) -> Self {
-        PrimitiveKind::Path(PathData::from(&mut value))
-    }
-}
-
-impl From<Quad> for PrimitiveKind {
-    fn from(quad: Quad) -> Self {
-        // TODO: add a path insted if it has some corner radius
-        PrimitiveKind::Quad(quad)
-    }
-}
-
+//
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Corners<T: Clone + Default + Debug> {
     pub top_left: T,
@@ -202,6 +174,15 @@ impl<T> Corners<T>
 where
     T: Clone + Debug + Default,
 {
+    pub fn with_each(top_left: T, top_right: T, bottom_left: T, bottom_right: T) -> Self {
+        Self {
+            top_left,
+            top_right,
+            bottom_left,
+            bottom_right,
+        }
+    }
+
     pub fn with_all(v: T) -> Self {
         Self {
             top_left: v.clone(),
@@ -209,6 +190,26 @@ where
             bottom_left: v.clone(),
             bottom_right: v,
         }
+    }
+
+    pub fn with_top_left(mut self, v: T) -> Self {
+        self.top_left = v;
+        self
+    }
+
+    pub fn with_top_right(mut self, v: T) -> Self {
+        self.top_right = v;
+        self
+    }
+
+    pub fn with_bottom_left(mut self, v: T) -> Self {
+        self.bottom_left = v;
+        self
+    }
+
+    pub fn with_bottom_right(mut self, v: T) -> Self {
+        self.bottom_right = v;
+        self
     }
 }
 

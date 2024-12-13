@@ -1,8 +1,13 @@
+use std::cell::Cell;
+
 use crate::paint::atlas::AtlasTextureId;
 use crate::paint::atlas::AtlasTextureInfoMap;
+use crate::paint::path::GeometryPath;
 use crate::paint::DrawList;
 use crate::paint::DrawVert;
 use crate::paint::Mesh;
+use crate::paint::Path2D;
+use crate::paint::PathId;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
 
@@ -12,9 +17,13 @@ pub struct Primitive {
     pub texture: TextureId,
 }
 
+pub(crate) type PathCache = ahash::AHashMap<PathId, GeometryPath>;
+
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
     pub(crate) items: Vec<Primitive>,
+    pub(crate) path_cache: PathCache,
+    pub(crate) next_path_id: Cell<usize>,
 }
 
 impl Scene {
@@ -31,6 +40,16 @@ impl Scene {
             kind: prim.into(),
             texture,
         })
+    }
+
+    pub fn create_path(&self) -> Path2D {
+        let next_id = self.next_path_id.get();
+        self.next_path_id.set(next_id + 1);
+
+        Path2D {
+            id: PathId(next_id),
+            ..Default::default()
+        }
     }
 
     pub fn add(&mut self, prim: impl Into<PrimitiveKind>) {

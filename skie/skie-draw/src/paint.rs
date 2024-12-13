@@ -1,6 +1,7 @@
 pub mod atlas;
 pub mod color;
 pub mod draw_list;
+pub mod path;
 pub mod primitives;
 pub mod texture;
 

@@ -476,7 +476,7 @@ impl WgpuRenderer {
     }
 
     pub fn set_clear_color(&mut self, color: Color) {
-        self.state.clear_color = dbg!(color.into());
+        self.state.clear_color = color.into();
     }
 
     fn create_state(

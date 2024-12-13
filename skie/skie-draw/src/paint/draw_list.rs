@@ -73,18 +73,22 @@ impl<'a> DrawList<'a> {
     }
 
     /// Please make sure that the path given is convex
-    pub fn fill_path_convex<I, T>(&mut self, _points: &[Vec2<T>])
+    pub(crate) fn fill_path_convex<I, T>(&mut self, _points: &[Vec2<T>])
     where
         T: Default + Clone + std::fmt::Debug + Into<f64>,
     {
         todo!("Fill path")
     }
 
-    pub fn fill_path_concave<I, T>(&mut self, _points: &[Vec2<T>])
+    pub(crate) fn fill_path_concave<I, T>(&mut self, _points: &[Vec2<T>])
     where
         T: Default + Clone + std::fmt::Debug + Into<f64>,
     {
         todo!("Fill path concave")
+    }
+
+    pub fn fill_path(&mut self) {
+        todo!("Fill Path")
     }
 
     pub fn stroke_path(&mut self) {
@@ -141,6 +145,12 @@ impl<'a> DrawList<'a> {
             indices,
             texture,
         }
+    }
+}
+impl From<DrawList<'_>> for Mesh {
+    #[inline]
+    fn from(value: DrawList<'_>) -> Self {
+        value.build(TextureId::WHITE_TEXTURE)
     }
 }
 
