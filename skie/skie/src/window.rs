@@ -214,7 +214,7 @@ impl Window {
             quad()
                 .with_pos(100.0, height - 400.0)
                 .with_size(300.0, 300.0)
-                .with_bgcolor(Color::from_rgb(0xFF0000)), // Red
+                .with_bgcolor(Color::from_rgb(0xFF0000)),
             self.checker_texture_id,
         );
 
@@ -222,7 +222,7 @@ impl Window {
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
-                .with_bgcolor(Color::from_rgb(0xFFFF00)), // Yellow
+                .with_bgcolor(Color::from_rgb(0xFFFF00)),
             self.checker_texture_id,
         );
 
@@ -237,7 +237,7 @@ impl Window {
             quad()
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
-                .with_bgcolor(Color::from_rgb(0x4C4CFF)), // RGB(0.3, 0.3, 0.9) converted to hex
+                .with_bgcolor(Color::from_rgb(0x4C4CFF)),
         );
 
         let bar_height: f32 = 50.0;
@@ -247,7 +247,7 @@ impl Window {
             quad()
                 .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
-                .with_bgcolor(Color::from_rgb(0x0A0A11)), // RGB(0.04, 0.04, 0.07) converted to hex
+                .with_bgcolor(Color::from_rgb(0x0A0A11)),
         );
 
         for object in &self.objects {

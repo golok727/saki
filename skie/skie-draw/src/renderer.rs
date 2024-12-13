@@ -204,7 +204,7 @@ impl WgpuRenderer {
         let render_target_spec = OffscreenRenderTargetSpec::default()
             .with_size(width, height)
             .with_label("render target")
-            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb);
+            .with_format(wgpu::TextureFormat::Rgba8Unorm);
 
         let render_target = OffscreenRenderTarget::new(&gpu, &render_target_spec);
 
@@ -658,7 +658,7 @@ impl ScenePipe {
                     entry_point: Some("fs"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
                         blend: Some(wgpu::BlendState {
                             color: wgpu::BlendComponent {
                                 src_factor: wgpu::BlendFactor::One,
