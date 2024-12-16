@@ -54,7 +54,7 @@ impl GeometryPath {
         end_angle: f32,
         clockwise: bool,
     ) {
-        // TODO: make this configurable ?
+        // TODO: auto select segement count based on the radius
         const NUM_SEGMENTS: u8 = 32;
 
         let step: f32 = if clockwise {
@@ -62,6 +62,8 @@ impl GeometryPath {
         } else {
             (end_angle - start_angle) / NUM_SEGMENTS as f32
         };
+
+        self.points.reserve(NUM_SEGMENTS as usize);
 
         for i in 0..=NUM_SEGMENTS {
             let theta = start_angle + i as f32 * step;

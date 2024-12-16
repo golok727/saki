@@ -1,4 +1,4 @@
-use super::{Quad, Rgba, TextureId};
+use super::{Color, Quad, Rgba, TextureId};
 
 use crate::math::{Rect, Vec2};
 
@@ -32,9 +32,9 @@ pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
 
 #[derive(Default)]
 pub struct DrawList<'a> {
-    pub vertices: Vec<DrawVert>,
-    pub indices: Vec<u32>,
-    index_offset: u32,
+    pub(crate) vertices: Vec<DrawVert>,
+    pub(crate) indices: Vec<u32>,
+    cur_vertex_idx: u32,
 
     middleware: Option<DrawListMiddleware<'a>>,
 }
@@ -57,10 +57,14 @@ impl<'a> DrawList<'a> {
         self.middleware = Some(Box::new(middleware));
     }
 
+    pub fn set_no_middleware(&mut self) {
+        self.middleware = None;
+    }
+
     pub fn clear(&mut self) {
         self.vertices.clear();
         self.indices.clear();
-        self.index_offset = 0;
+        self.cur_vertex_idx = 0;
     }
 
     #[inline]
@@ -72,18 +76,35 @@ impl<'a> DrawList<'a> {
         vertex
     }
 
-    /// Please make sure that the path given is convex
-    pub(crate) fn fill_path_convex<I, T>(&mut self, _points: &[Vec2<T>])
-    where
-        T: Default + Clone + std::fmt::Debug + Into<f64>,
-    {
-        todo!("Fill path")
+    pub(crate) fn fill_path_convex(&mut self, points: &[Vec2<f32>], color: Color) {
+        let points_count = points.len();
+        let index_count = (points_count - 2) * 3;
+        let vtx_count = points_count;
+
+        self.reserve_prim(vtx_count, index_count);
+
+        for point in points {
+            // FIXME: Update UV calculation as needed
+            self.add_vertex(*point, color, (0.0, 0.0));
+        }
+
+        let base_idx = self.cur_vertex_idx;
+
+        // We assume the first vertex (base) is the center of the fan
+        for i in 2..points_count {
+            let idx0 = base_idx; // First vertex (center of the fan)
+            let idx1 = base_idx + i as u32 - 1; // The second vertex in the fan
+            let idx2 = base_idx + i as u32; // The next vertex in the fan
+
+            self.indices.push(idx0);
+            self.indices.push(idx1);
+            self.indices.push(idx2);
+        }
+
+        self.cur_vertex_idx += vtx_count as u32;
     }
 
-    pub(crate) fn fill_path_concave<I, T>(&mut self, _points: &[Vec2<T>])
-    where
-        T: Default + Clone + std::fmt::Debug + Into<f64>,
-    {
+    pub(crate) fn _fill_path_concave(&mut self, _points: &[Vec2<f32>]) {
         todo!("Fill path concave")
     }
 
@@ -95,8 +116,19 @@ impl<'a> DrawList<'a> {
         todo!("Add polyline")
     }
 
+    pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {
+        self.vertices.reserve(vertex_count);
+        self.indices.reserve(index_count);
+    }
+
+    #[inline]
+    pub fn add_vertex(&mut self, pos: Vec2<f32>, color: Color, uv: (f32, f32)) {
+        self.vertices
+            .push(self.apply_mw(DrawVert::new(pos, color, uv))); // Top-left
+    }
+
     pub fn push_quad(&mut self, quad: &Quad) {
-        let index_offset = self.index_offset;
+        let v_index_offset = self.cur_vertex_idx;
 
         let Rect {
             x,
@@ -109,31 +141,23 @@ impl<'a> DrawList<'a> {
 
         let color = quad.background_color;
 
-        self.vertices
-            .push(self.apply_mw(DrawVert::new((x, y).into(), color, uvs[0]))); // Top-left
+        self.reserve_prim(4, 6);
 
-        self.vertices
-            .push(self.apply_mw(DrawVert::new((x + width, y).into(), color, uvs[1]))); // Top-right
-
-        self.vertices
-            .push(self.apply_mw(DrawVert::new((x, y + height).into(), color, uvs[2]))); // Bottom-left
-
-        self.vertices.push(self.apply_mw(DrawVert::new(
-            (x + width, y + height).into(),
-            color,
-            uvs[3],
-        ))); // Bottom-right
+        self.add_vertex((x, y).into(), color, uvs[0]); // Top-left
+        self.add_vertex((x + width, y).into(), color, uvs[1]); // Top-right
+        self.add_vertex((x, y + height).into(), color, uvs[2]); // Bottom-left
+        self.add_vertex((x + width, y + height).into(), color, uvs[3]); // Bottom-right
 
         self.indices.extend_from_slice(&[
-            index_offset,
-            index_offset + 1,
-            index_offset + 2,
-            index_offset + 2,
-            index_offset + 1,
-            index_offset + 3,
+            v_index_offset,
+            v_index_offset + 1,
+            v_index_offset + 2,
+            v_index_offset + 2,
+            v_index_offset + 1,
+            v_index_offset + 3,
         ]);
 
-        self.index_offset += 4;
+        self.cur_vertex_idx += 4;
     }
 
     pub fn build(mut self, texture: TextureId) -> Mesh {
@@ -159,7 +183,7 @@ impl std::fmt::Display for DrawList<'_> {
         f.debug_struct("DrawList")
             .field("vertices", &self.vertices)
             .field("indices", &self.indices)
-            .field("indices", &self.index_offset)
+            .field("indices", &self.cur_vertex_idx)
             .field("has_middleware", &format!("{}", self.middleware.is_some()))
             .finish()
     }

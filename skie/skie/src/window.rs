@@ -15,7 +15,7 @@ use crate::{
 use skie_draw::{
     gpu::GpuContext,
     math::{unit::Pixels, Rect, Size},
-    paint::{atlas::AtlasManager, quad, Color, TextureId, TextureKind},
+    paint::{atlas::AtlasManager, circle, quad, Color, TextureId, TextureKind},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -211,6 +211,20 @@ impl Window {
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
                 .with_bgcolor(Color::from_rgb(0x55a09e)),
+        );
+
+        self.scene.add(
+            circle()
+                .with_pos(500.0, 500.0)
+                .with_radius(300.0)
+                .with_bgcolor(Color::from_rgb(0xff0000)),
+        );
+
+        self.scene.add(
+            circle()
+                .with_pos(500.0, 500.0)
+                .with_radius(200.0)
+                .with_bgcolor(Color::from_rgb(0x181818)),
         );
 
         let bar_height: f32 = 50.0;

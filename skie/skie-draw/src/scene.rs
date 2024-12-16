@@ -1,8 +1,10 @@
 use std::cell::Cell;
+use std::cell::RefCell;
 
 use crate::paint::atlas::AtlasTextureId;
 use crate::paint::atlas::AtlasTextureInfoMap;
 use crate::paint::path::GeometryPath;
+use crate::paint::Color;
 use crate::paint::DrawList;
 use crate::paint::DrawVert;
 use crate::paint::Mesh;
@@ -10,6 +12,7 @@ use crate::paint::Path2D;
 use crate::paint::PathId;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
+use crate::paint::DEFAULT_PATH_ID;
 
 #[derive(Debug, Clone)]
 pub struct Primitive {
@@ -19,11 +22,21 @@ pub struct Primitive {
 
 pub(crate) type PathCache = ahash::AHashMap<PathId, GeometryPath>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Scene {
     pub(crate) items: Vec<Primitive>,
-    pub(crate) path_cache: PathCache,
+    pub(crate) path_cache: RefCell<PathCache>,
     pub(crate) next_path_id: Cell<usize>,
+}
+
+impl Default for Scene {
+    fn default() -> Self {
+        Self {
+            next_path_id: Cell::new(1),
+            items: Default::default(),
+            path_cache: Default::default(),
+        }
+    }
 }
 
 impl Scene {
@@ -33,13 +46,6 @@ impl Scene {
 
     pub fn pop_layer(&mut self) {
         todo!()
-    }
-
-    pub fn add_textured(&mut self, prim: impl Into<PrimitiveKind>, texture: TextureId) {
-        self.items.push(Primitive {
-            kind: prim.into(),
-            texture,
-        })
     }
 
     pub fn create_path(&self) -> Path2D {
@@ -52,11 +58,24 @@ impl Scene {
         }
     }
 
+    pub fn add_textured(&mut self, prim: impl Into<PrimitiveKind>, texture: TextureId) {
+        self.add_impl(prim.into(), texture)
+    }
+
     pub fn add(&mut self, prim: impl Into<PrimitiveKind>) {
-        self.items.push(Primitive {
-            kind: prim.into(),
-            texture: TextureId::WHITE_TEXTURE,
-        })
+        self.add_impl(prim.into(), TextureId::WHITE_TEXTURE)
+    }
+
+    fn add_impl(&mut self, mut kind: PrimitiveKind, texture: TextureId) {
+        if let PrimitiveKind::Path(ref mut path) = &mut kind {
+            if path.id == DEFAULT_PATH_ID {
+                let next_id = self.next_path_id.get();
+                self.next_path_id.set(next_id + 1);
+                path.id = PathId(next_id);
+            }
+        }
+
+        self.items.push(Primitive { kind, texture })
     }
 
     pub fn clear(&mut self) -> Vec<Primitive> {
@@ -85,6 +104,8 @@ struct SceneBatchIterator<'a> {
     groups: Vec<(AtlasTextureId, Vec<GroupEntry>)>,
     tex_info: AtlasTextureInfoMap,
     cur_group: usize,
+    // a tmp path may be useful?
+    path: GeometryPath,
 }
 
 impl<'a> SceneBatchIterator<'a> {
@@ -124,14 +145,11 @@ impl<'a> SceneBatchIterator<'a> {
             tex_info,
             cur_group: 0,
             groups,
+            path: GeometryPath::default(),
         }
     }
-}
 
-impl<'a> Iterator for SceneBatchIterator<'a> {
-    type Item = Mesh;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn next_batch(&mut self) -> Option<Mesh> {
         if self.cur_group >= self.groups.len() {
             return None;
         }
@@ -167,13 +185,53 @@ impl<'a> Iterator for SceneBatchIterator<'a> {
             drawlist.set_middleware(uv_middleware);
 
             match &prim.kind {
+                PrimitiveKind::Circle(circle) => {
+                    self.path.clear();
+
+                    self.path.arc(
+                        circle.center,
+                        circle.radius,
+                        0.0,
+                        std::f32::consts::TAU,
+                        false,
+                    );
+
+                    drawlist.fill_path_convex(&self.path.points, circle.background_color);
+                }
                 PrimitiveKind::Quad(quad) => drawlist.push_quad(quad),
-                PrimitiveKind::Path(_) => todo!(),
+                PrimitiveKind::Path(path) => {
+                    self.with_path(path, |path| {
+                        drawlist.fill_path_convex(&path.points, Color::WHITE);
+                    });
+                }
             }
         }
 
         self.cur_group += 1;
 
         Some(drawlist.build(TextureId::AtlasTexture(atlas_tex_id)))
+    }
+
+    fn with_path<R>(&self, path: &Path2D, mut f: impl FnMut(&GeometryPath) -> R) -> R {
+        let mut lock = self.scene.path_cache.borrow_mut();
+        let exists = lock.get(&path.id);
+
+        if let (Some(geometry_path), false) = (exists, path.dirty.get()) {
+            f(geometry_path)
+        } else {
+            path.dirty.set(false);
+            let geometry_path = GeometryPath::from(path);
+            let res = f(&geometry_path);
+            lock.insert(path.id, geometry_path);
+            res
+        }
+    }
+}
+
+impl<'a> Iterator for SceneBatchIterator<'a> {
+    type Item = Mesh;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_batch()
     }
 }
