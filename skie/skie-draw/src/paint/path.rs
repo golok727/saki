@@ -2,11 +2,23 @@ use crate::math::Vec2;
 
 use super::{Path2D, PathOp};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct GeometryPath {
     pub points: Vec<Vec2<f32>>,
     cursor: Vec2<f32>,
     start: Option<Vec2<f32>>,
+    segment_count: u8,
+}
+
+impl Default for GeometryPath {
+    fn default() -> Self {
+        Self {
+            points: Default::default(),
+            segment_count: 32,
+            cursor: Default::default(),
+            start: None,
+        }
+    }
 }
 
 impl GeometryPath {
@@ -14,7 +26,24 @@ impl GeometryPath {
         Self::default()
     }
 
+    pub fn segment_count(&self) -> u8 {
+        self.segment_count
+    }
+
+    pub fn set_segment_count(&mut self, count: u8) {
+        self.segment_count = count
+    }
+
+    pub fn with_segment_count<R>(&mut self, f: impl FnOnce(&mut Self) -> R, count: u8) -> R {
+        let tmp = self.segment_count;
+        self.segment_count = count;
+        let res = f(self);
+        self.segment_count = tmp;
+        res
+    }
+
     /// Moves the cursor to the specified position without creating a line.
+    #[inline]
     pub fn move_to(&mut self, new_pos: Vec2<f32>) {
         self.cursor = new_pos;
         self.start = Some(new_pos); // Set the start of the new subpath
@@ -54,18 +83,19 @@ impl GeometryPath {
         end_angle: f32,
         clockwise: bool,
     ) {
+        // TODO: add the cursor ?
         // TODO: auto select segement count based on the radius
-        const NUM_SEGMENTS: u8 = 32;
 
+        let num_segments = self.segment_count;
         let step: f32 = if clockwise {
-            -(end_angle - start_angle) / NUM_SEGMENTS as f32
+            -(end_angle - start_angle) / num_segments as f32
         } else {
-            (end_angle - start_angle) / NUM_SEGMENTS as f32
+            (end_angle - start_angle) / num_segments as f32
         };
 
-        self.points.reserve(NUM_SEGMENTS as usize);
+        self.points.reserve(num_segments as usize);
 
-        for i in 0..=NUM_SEGMENTS {
+        for i in 0..=num_segments {
             let theta = start_angle + i as f32 * step;
             let x = center.x + radius * theta.cos();
             let y = center.y + radius * theta.sin();

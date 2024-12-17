@@ -88,16 +88,9 @@ fn main() {
 
             cx.set_timeout(
                 |cx| {
-                    cx.window.set_bg_color(Color::RED);
-                },
-                std::time::Duration::from_secs(5),
-            );
-
-            cx.set_timeout(
-                |cx| {
                     cx.window.set_bg_color(Color::from_rgb(0x181818));
                 },
-                std::time::Duration::from_secs(7),
+                std::time::Duration::from_secs(5),
             );
 
             cx.window.set_bg_color(Color::from_rgb(0x181818));

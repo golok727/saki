@@ -15,7 +15,7 @@ use crate::{
 use skie_draw::{
     gpu::GpuContext,
     math::{unit::Pixels, Rect, Size},
-    paint::{atlas::AtlasManager, circle, quad, Color, TextureId, TextureKind},
+    paint::{atlas::AtlasManager, circle, quad, Color, Corners, TextureId, TextureKind},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -86,8 +86,6 @@ impl Window {
         texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
-        // END _TEST
-
         let width = specs.width;
         let height = specs.height;
 
@@ -256,6 +254,14 @@ impl Window {
                 }
             }
         }
+
+        self.scene.add(
+            quad()
+                .with_pos(100.0, 100.0)
+                .with_size(500.0, 500.0)
+                .with_bgcolor(Color::TORCH_RED)
+                .with_corners(Corners::with_all(100.0)),
+        );
     }
 
     pub(crate) fn paint(&mut self) {

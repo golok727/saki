@@ -13,6 +13,7 @@ use crate::paint::PathId;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
 use crate::paint::DEFAULT_PATH_ID;
+use crate::traits::IsZero;
 
 #[derive(Debug, Clone)]
 pub struct Primitive {
@@ -187,7 +188,6 @@ impl<'a> SceneBatchIterator<'a> {
             match &prim.kind {
                 PrimitiveKind::Circle(circle) => {
                     self.path.clear();
-
                     self.path.arc(
                         circle.center,
                         circle.radius,
@@ -195,10 +195,16 @@ impl<'a> SceneBatchIterator<'a> {
                         std::f32::consts::TAU,
                         false,
                     );
-
                     drawlist.fill_path_convex(&self.path.points, circle.background_color);
                 }
-                PrimitiveKind::Quad(quad) => drawlist.push_quad(quad),
+                PrimitiveKind::Quad(quad) => {
+                    if quad.corners.is_zero() {
+                        drawlist.add_prim_quad(quad);
+                    } else {
+                        self.path.clear();
+                        drawlist.add_path_quad_filled(quad, &mut self.path)
+                    }
+                }
                 PrimitiveKind::Path(path) => {
                     self.with_path(path, |path| {
                         drawlist.fill_path_convex(&path.points, Color::WHITE);

@@ -1,6 +1,9 @@
-use super::{Color, Quad, Rgba, TextureId};
+use super::{path::GeometryPath, Color, Quad, Rgba, TextureId};
 
-use crate::math::{Rect, Vec2};
+use crate::{
+    math::{Rect, Vec2},
+    paint::Corners,
+};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -127,7 +130,84 @@ impl<'a> DrawList<'a> {
             .push(self.apply_mw(DrawVert::new(pos, color, uv))); // Top-left
     }
 
-    pub fn push_quad(&mut self, quad: &Quad) {
+    pub fn add_path_quad_filled(&mut self, quad: &Quad, path: &mut GeometryPath) {
+        const PI: f32 = std::f32::consts::PI;
+        let rect = &quad.bounds;
+
+        // TODO: Clamp
+        let Corners {
+            top_left,
+            top_right,
+            bottom_left,
+            bottom_right,
+        } = quad.corners;
+
+        path.clear();
+        let segcount = path.segment_count();
+        path.set_segment_count(16);
+
+        // top-left-corner
+        path.move_to((rect.x, rect.y + top_left).into());
+        path.arc(
+            (rect.x + top_left, rect.y + top_left).into(),
+            top_left,
+            PI,
+            (3.0 * PI) / 2.0,
+            false,
+        );
+
+        // top-right-corner
+        path.move_to((rect.x + top_right, rect.y + rect.height).into());
+        path.arc(
+            (rect.x + rect.width - top_right, rect.y + top_right).into(),
+            top_right,
+            -PI / 2.0,
+            0.0,
+            false,
+        );
+
+        // bottom-right-corner
+        path.move_to((rect.x + rect.width, rect.y + rect.height - bottom_right).into());
+        path.arc(
+            (
+                rect.x + rect.width - bottom_right,
+                rect.y + rect.height - bottom_right,
+            )
+                .into(),
+            bottom_right,
+            0.0,
+            PI / 2.0,
+            false,
+        );
+
+        // bottom-left-corner
+        path.move_to((rect.x + bottom_left, rect.y + rect.height).into());
+        path.arc(
+            (rect.x + bottom_left, rect.y + rect.height - bottom_left).into(),
+            bottom_left,
+            PI / 2.0,
+            PI,
+            false,
+        );
+
+        path.set_segment_count(segcount);
+
+        // let mut out = String::new();
+        // out.push_str("[\n");
+        //
+        // for point in &self.path.points {
+        //     out.push_str(format!("[{}, {}]", point.x, point.y).as_str());
+        //     out.push(',');
+        // }
+        //
+        // out.push_str("\n]");
+        //
+        // println!("{}", out);
+
+        self.fill_path_convex(&path.points, quad.background_color);
+    }
+
+    pub fn add_prim_quad(&mut self, quad: &Quad) {
         let v_index_offset = self.cur_vertex_idx;
 
         let Rect {
