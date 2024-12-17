@@ -1,6 +1,6 @@
-use crate::math::Vec2;
+use crate::math::{Rect, Vec2};
 
-use super::{Path2D, PathOp};
+use super::{Corners, Path2D, PathOp};
 
 #[derive(Debug, Clone)]
 pub struct GeometryPath {
@@ -51,7 +51,12 @@ impl GeometryPath {
 
     /// Draws a straight line from the cursor to the specified position.
     pub fn line_to(&mut self, to: Vec2<f32>) {
-        self.points.push(self.cursor);
+        if let Some(start) = self.start {
+            if self.cursor == start {
+                self.points.push(self.cursor);
+            }
+        }
+
         self.points.push(to);
         self.cursor = to;
     }
@@ -108,6 +113,80 @@ impl GeometryPath {
         }
     }
 
+    pub fn rect(&mut self, rect: &Rect<f32>) {
+        self.points.reserve(4);
+
+        self.points.push(rect.top_left());
+        self.points.push(rect.top_right());
+        self.points.push(rect.bottom_right());
+        self.points.push(rect.bottom_left());
+
+        if let Some(last) = self.points.last() {
+            self.cursor = *last;
+        }
+    }
+
+    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: Corners<f32>) {
+        let Corners {
+            top_left,
+            top_right,
+            bottom_left,
+            bottom_right,
+        } = corners;
+
+        const PI: f32 = std::f32::consts::PI;
+
+        // TODO: auto select segment count
+        let segcount = self.segment_count();
+        self.set_segment_count(16);
+
+        // top-left-corner
+        self.move_to((rect.x, rect.y + top_left).into());
+        self.arc(
+            (rect.x + top_left, rect.y + top_left).into(),
+            top_left,
+            PI,
+            (3.0 * PI) / 2.0,
+            false,
+        );
+
+        // top-right-corner
+        self.move_to((rect.x + top_right, rect.y + rect.height).into());
+        self.arc(
+            (rect.x + rect.width - top_right, rect.y + top_right).into(),
+            top_right,
+            -PI / 2.0,
+            0.0,
+            false,
+        );
+
+        // bottom-right-corner
+        self.move_to((rect.x + rect.width, rect.y + rect.height - bottom_right).into());
+        self.arc(
+            (
+                rect.x + rect.width - bottom_right,
+                rect.y + rect.height - bottom_right,
+            )
+                .into(),
+            bottom_right,
+            0.0,
+            PI / 2.0,
+            false,
+        );
+
+        // bottom-left-corner
+        self.move_to((rect.x + bottom_left, rect.y + rect.height).into());
+        self.arc(
+            (rect.x + bottom_left, rect.y + rect.height - bottom_left).into(),
+            bottom_left,
+            PI / 2.0,
+            PI,
+            false,
+        );
+
+        self.set_segment_count(segcount);
+    }
+
     fn from_ops(ops: &[PathOp]) -> Self {
         let mut builder = Self::default();
         for op in ops {
@@ -157,12 +236,32 @@ mod tests {
 
     use super::*;
     #[test]
+    fn test_line_to_multiple_lines() {
+        // Create a new GeometryPath
+        let mut path = GeometryPath::new();
+
+        path.move_to(vec2(50.0, 50.0));
+        path.line_to(vec2(100.0, 100.0));
+        path.line_to(vec2(150.0, 150.0));
+        path.line_to(vec2(200.0, 300.0));
+
+        path.move_to(vec2(500.0, 500.0));
+        path.line_to(vec2(100.0, 100.0));
+
+        let expected = vec![
+            vec2(50.0, 50.0),   // Start position
+            vec2(100.0, 100.0), // First line
+            vec2(150.0, 150.0), // Second line
+            vec2(200.0, 300.0), // Second line
+            vec2(500.0, 500.0),
+            vec2(100.0, 100.0),
+        ];
+        assert_eq!(path.points, expected);
+    }
+
+    #[test]
     fn basic_path_test() {
         let expected: &[Vec2<f32>] = &[
-            vec2(0.0, 0.0),
-            vec2(100.0, 100.0),
-            vec2(100.0, 100.0),
-            vec2(200.0, 300.0),
             vec2(400.0, 300.0),
             vec2(399.51846, 309.80173),
             vec2(398.07852, 319.50903),
@@ -198,9 +297,7 @@ mod tests {
             vec2(200.0, 300.0),
         ];
 
-        let mut path = Path2D::default();
-        path.move_to((100.0, 100.0).into());
-        path.line_to((200.0, 300.0).into());
+        let mut path = GeometryPath::default();
 
         path.arc(
             (300.0, 300.0).into(),
@@ -210,7 +307,6 @@ mod tests {
             false,
         );
 
-        let p = GeometryPath::from(&path);
-        assert_eq!(expected, p.points);
+        assert_eq!(expected, path.points);
     }
 }

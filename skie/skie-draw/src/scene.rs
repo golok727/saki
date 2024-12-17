@@ -105,7 +105,6 @@ struct SceneBatchIterator<'a> {
     groups: Vec<(AtlasTextureId, Vec<GroupEntry>)>,
     tex_info: AtlasTextureInfoMap,
     cur_group: usize,
-    // a tmp path may be useful?
     path: GeometryPath,
 }
 
@@ -197,16 +196,20 @@ impl<'a> SceneBatchIterator<'a> {
                     );
                     drawlist.fill_path_convex(&self.path.points, circle.background_color);
                 }
+
                 PrimitiveKind::Quad(quad) => {
                     if quad.corners.is_zero() {
                         drawlist.add_prim_quad(quad);
                     } else {
                         self.path.clear();
-                        drawlist.add_path_quad_filled(quad, &mut self.path)
+                        self.path.round_rect(&quad.bounds, quad.corners.clone());
+                        drawlist.fill_path_convex(&self.path.points, quad.background_color);
                     }
                 }
+
                 PrimitiveKind::Path(path) => {
                     self.with_path(path, |path| {
+                        // FIXME: use drawlist fill or stroke path after adding earcut
                         drawlist.fill_path_convex(&path.points, Color::WHITE);
                     });
                 }

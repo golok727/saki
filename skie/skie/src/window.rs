@@ -213,16 +213,16 @@ impl Window {
 
         self.scene.add(
             circle()
-                .with_pos(500.0, 500.0)
+                .with_pos(400.0, 500.0)
                 .with_radius(300.0)
-                .with_bgcolor(Color::from_rgb(0xff0000)),
+                .with_bgcolor(Color::KHAKI),
         );
 
         self.scene.add(
             circle()
-                .with_pos(500.0, 500.0)
+                .with_pos(400.0, 500.0)
                 .with_radius(200.0)
-                .with_bgcolor(Color::from_rgb(0x181818)),
+                .with_bgcolor(Color::TORCH_RED),
         );
 
         let bar_height: f32 = 50.0;
@@ -257,10 +257,18 @@ impl Window {
 
         self.scene.add(
             quad()
-                .with_pos(100.0, 100.0)
-                .with_size(500.0, 500.0)
+                .with_pos(800.0, 200.0)
+                .with_size(200.0, 500.0)
+                .with_bgcolor(Color::LIGHT_GREEN)
+                .with_corners(Corners::with_all(100.0).with_top_left(100.0)),
+        );
+
+        self.scene.add(
+            quad()
+                .with_pos(width - 200.0, 50.0)
+                .with_size(100.0, 50.0)
                 .with_bgcolor(Color::TORCH_RED)
-                .with_corners(Corners::with_all(100.0)),
+                .with_corners(Corners::with_all(10.0)),
         );
     }
 

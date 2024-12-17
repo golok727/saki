@@ -261,6 +261,19 @@ where
     }
 }
 
+impl<T> Corners<T>
+where
+    T: Clone + Debug + Default + PartialOrd + Ord,
+{
+    pub fn max(&self) -> T {
+        self.top_left
+            .clone()
+            .max(self.top_right.clone())
+            .max(self.bottom_right.clone())
+            .max(self.bottom_left.clone())
+    }
+}
+
 impl<T> IsZero for Corners<T>
 where
     T: IsZero + Clone + Debug + Default,
