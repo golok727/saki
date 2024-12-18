@@ -8,8 +8,6 @@ pub use rect::*;
 pub use size::*;
 pub use unit::*;
 
-pub use rect::Rect;
-pub use size::Size;
 pub use unit::{DevicePixels, ScaledPixels};
 
 use crate::traits::IsZero;

@@ -84,7 +84,7 @@ impl StrokeStyle {
 pub struct Primitive {
     pub kind: PrimitiveKind,
     pub texture: TextureId,
-    pub fill: Option<FillStyle>,
+    pub fill: FillStyle,
     pub stroke: Option<StrokeStyle>,
 }
 
@@ -95,7 +95,7 @@ impl Primitive {
     }
 
     pub fn no_fill(mut self) -> Self {
-        self.fill = None;
+        self.fill.color = Color::TRANSPARENT;
         self
     }
 
@@ -105,13 +105,12 @@ impl Primitive {
     }
 
     pub fn fill(mut self, style: FillStyle) -> Self {
-        self.fill.replace(style);
+        self.fill = style;
         self
     }
 
     pub fn with_fill_color(mut self, color: Color) -> Self {
-        let fill = self.fill.get_or_insert(Default::default());
-        fill.color = color;
+        self.fill.color = color;
         self
     }
 
@@ -149,15 +148,9 @@ impl Primitive {
 pub struct Circle {
     pub center: Vec2<f32>,
     pub radius: f32,
-    pub background_color: Color,
 }
 
 impl Circle {
-    pub fn with_bgcolor(mut self, color: Color) -> Self {
-        self.background_color = color;
-        self
-    }
-
     pub fn with_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
@@ -173,15 +166,10 @@ impl Circle {
 #[derive(Debug, Clone)]
 pub struct Quad {
     pub bounds: Rect<f32>,
-    pub background_color: Color,
     pub corners: Corners<f32>,
 }
 
 impl Quad {
-    pub fn with_bgcolor(mut self, color: Color) -> Self {
-        self.background_color = color;
-        self
-    }
     pub fn with_size(mut self, width: f32, height: f32) -> Self {
         self.bounds.width = width;
         self.bounds.height = height;
@@ -214,7 +202,6 @@ impl Default for Quad {
                 width: 10.,
                 height: 10.,
             },
-            background_color: Color::WHITE,
             corners: Corners::default(),
         }
     }
@@ -340,7 +327,7 @@ where
         Primitive {
             kind: value.into(),
             texture: TextureId::WHITE_TEXTURE,
-            fill: None,
+            fill: FillStyle::default(),
             stroke: None,
         }
     }

@@ -170,7 +170,10 @@ impl<'a> SceneBatchIterator<'a> {
 
             // we purposefully inline calls here
             match &prim.kind {
+                // TODO: ? Should be move this to a trait to build the shape
                 PrimitiveKind::Circle(circle) => {
+                    let fill_color = prim.fill.color;
+
                     drawlist.path.clear();
                     drawlist.path.arc(
                         circle.center,
@@ -179,16 +182,28 @@ impl<'a> SceneBatchIterator<'a> {
                         std::f32::consts::TAU,
                         false,
                     );
-                    drawlist.fill_path_convex(circle.background_color);
+                    drawlist.fill_path_convex(fill_color);
+
+                    if prim.stroke.is_some() {
+                        // TODO: stroke the current_path
+                        log::error!("Stroke is not implemented yet")
+                    }
                 }
 
                 PrimitiveKind::Quad(quad) => {
+                    let fill_color = prim.fill.color;
+
                     if quad.corners.is_zero() {
-                        drawlist.add_prim_quad(quad);
+                        drawlist.add_prim_quad(&quad.bounds, fill_color);
                     } else {
                         drawlist.path.clear();
                         drawlist.path.round_rect(&quad.bounds, &quad.corners);
-                        drawlist.fill_path_convex(quad.background_color);
+                        drawlist.fill_path_convex(fill_color);
+                    }
+
+                    if prim.stroke.is_some() {
+                        // TODO: stroke the current_path
+                        log::error!("Stroke is not implemented yet")
                     }
                 }
 

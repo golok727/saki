@@ -186,18 +186,18 @@ impl Window {
             quad()
                 .with_pos(100.0, height - 400.0)
                 .with_size(300.0, 300.0)
-                .with_bgcolor(Color::from_rgb(0xFF0000))
                 .primitive()
-                .textured(self.checker_texture_id),
+                .textured(self.checker_texture_id)
+                .with_fill_color(Color::from_rgb(0xFF0000)),
         );
 
         self.scene.add(
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
-                .with_bgcolor(Color::from_rgb(0xFFFF00))
                 .primitive()
-                .textured(self.checker_texture_id),
+                .textured(self.checker_texture_id)
+                .with_fill_color(Color::from_rgb(0xFFFF00)),
         );
 
         self.scene.add(
@@ -212,24 +212,24 @@ impl Window {
             quad()
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
-                .with_bgcolor(Color::from_rgb(0x55a09e))
-                .primitive(),
+                .primitive()
+                .with_fill_color(Color::from_rgb(0x55a09e)),
         );
 
         self.scene.add(
             circle()
                 .with_pos(400.0, 500.0)
                 .with_radius(300.0)
-                .with_bgcolor(Color::KHAKI)
-                .primitive(),
+                .primitive()
+                .with_fill_color(Color::KHAKI),
         );
 
         self.scene.add(
             circle()
                 .with_pos(400.0, 500.0)
                 .with_radius(200.0)
-                .with_bgcolor(Color::TORCH_RED)
-                .primitive(),
+                .primitive()
+                .with_fill_color(Color::TORCH_RED),
         );
 
         let bar_height: f32 = 50.0;
@@ -239,8 +239,8 @@ impl Window {
             quad()
                 .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
-                .with_bgcolor(Color::from_rgb(0x0A0A11))
-                .primitive(),
+                .primitive()
+                .with_fill_color(Color::from_rgb(0x0A0A11)),
         );
 
         for object in &self.objects {
@@ -272,18 +272,18 @@ impl Window {
             quad()
                 .with_pos(800.0, 200.0)
                 .with_size(200.0, 500.0)
-                .with_bgcolor(Color::LIGHT_GREEN)
-                .with_corners(Corners::with_all(100.0).with_top_left(100.0))
-                .primitive(),
+                .with_corners(Corners::with_all(100.0).with_top_left(50.0))
+                .primitive()
+                .with_fill_color(Color::LIGHT_GREEN),
         );
 
         self.scene.add(
             quad()
                 .with_pos(width - 200.0, 50.0)
                 .with_size(100.0, 50.0)
-                .with_bgcolor(Color::TORCH_RED)
                 .with_corners(Corners::with_all(10.0))
-                .primitive(),
+                .primitive()
+                .with_fill_color(Color::TORCH_RED),
         );
     }
 

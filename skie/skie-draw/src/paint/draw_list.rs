@@ -1,4 +1,5 @@
-use super::{path::GeometryPath, Color, Quad, Rgba, TextureId};
+use super::path::GeometryPath;
+use super::{Color, Rgba, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
 
@@ -176,7 +177,7 @@ impl<'a> DrawList<'a> {
             .push(self.apply_mw(DrawVert::new(pos, color, uv))); // Top-left
     }
 
-    pub fn add_prim_quad(&mut self, quad: &Quad) {
+    pub fn add_prim_quad(&mut self, rect: &Rect<f32>, color: Color) {
         let v_index_offset = self.cur_vertex_idx;
 
         let Rect {
@@ -184,11 +185,9 @@ impl<'a> DrawList<'a> {
             y,
             width,
             height,
-        } = quad.bounds;
+        } = *rect;
 
         let uvs: [(f32, f32); 4] = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)];
-
-        let color = quad.background_color;
 
         self.reserve_prim(4, 6);
 

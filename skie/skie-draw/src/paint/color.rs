@@ -46,6 +46,11 @@ impl Color {
     pub const GRAY: Self = Self::from_rgb(0xA0A0A0);
     pub const LIGHT_GRAY: Self = Self::from_rgb(0xDCDCDC);
 
+    #[inline]
+    pub fn is_transparent(&self) -> bool {
+        self.a == 0
+    }
+
     // Without alpha use 0xRRGGBB
     #[inline]
     pub const fn from_rgb(hex: u32) -> Self {

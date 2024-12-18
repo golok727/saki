@@ -1,4 +1,7 @@
-use crate::math::{Corners, Rect, Vec2};
+use crate::{
+    math::{Corners, Rect, Vec2},
+    traits::IsZero,
+};
 
 use super::{Path2D, PathOp};
 
@@ -43,6 +46,10 @@ impl GeometryPath {
         let res = f(self);
         self.segment_count = tmp;
         res
+    }
+
+    pub fn extend(&mut self, _path: &GeometryPath) {
+        todo!()
     }
 
     /// Moves the cursor to the specified position without creating a line.
@@ -139,6 +146,11 @@ impl GeometryPath {
             bottom_left,
             bottom_right,
         } = corners;
+
+        if corners.is_zero() {
+            self.rect(rect);
+            return;
+        }
 
         const PI: f32 = std::f32::consts::PI;
 

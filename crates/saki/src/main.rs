@@ -12,8 +12,9 @@ use skie::{
 /*
 TODO
  - [] Color correction
- - [] More Primitives
- - [] Text System - [] Dom
+ - [] Clamp rounding
+ - [] Text System
+ - [] Dom
  - [] Layout system
 */
 
