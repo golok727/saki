@@ -2,10 +2,12 @@ use std::fmt::Debug;
 
 use derive_more::Div;
 
+use crate::traits::IsZero;
+
 use super::{Half, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Div)]
-pub struct Size<T: std::fmt::Debug + Clone + Default> {
+pub struct Size<T: Debug + Clone + Default> {
     pub width: T,
     pub height: T,
 }
@@ -19,6 +21,36 @@ where
             x: self.width.half(),
             y: self.height.half(),
         }
+    }
+}
+
+impl<T> Half for Size<T>
+where
+    T: Half + Debug + Default + Clone,
+{
+    fn half(&self) -> Self {
+        Self {
+            width: self.width.half(),
+            height: self.height.half(),
+        }
+    }
+}
+
+impl<T> IsZero for Size<T>
+where
+    T: IsZero + Debug + Default + Clone,
+{
+    fn is_zero(&self) -> bool {
+        self.width.is_zero() && self.height.is_zero()
+    }
+}
+
+impl<T> Size<T>
+where
+    T: IsZero + Debug + Default + Clone,
+{
+    pub fn empty(&self) -> bool {
+        self.width.is_zero() && self.height.is_zero()
     }
 }
 

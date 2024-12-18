@@ -13,7 +13,7 @@ pub enum PrimitiveKind {
     Circle(Circle),
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct FillStyle {
     pub color: Color,
 }
@@ -25,21 +25,21 @@ impl FillStyle {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LineJoin {
     Mitier,
     Square,
     Round,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LineCap {
     Mitier,
     Square,
     Butt,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrokeStyle {
     pub color: Color,
     pub line_width: u16,

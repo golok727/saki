@@ -156,6 +156,7 @@ impl<'a> SceneBatchIterator<'a> {
                 // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
                 if let Some(info) = info {
                     if is_default_texture {
+                        // should we cache this?
                         vertex.uv = info.uv_to_atlas_space(0.0, 0.0);
                     } else {
                         let [u, v] = vertex.uv;
@@ -182,6 +183,7 @@ impl<'a> SceneBatchIterator<'a> {
                         std::f32::consts::TAU,
                         false,
                     );
+
                     drawlist.fill_path_convex(fill_color);
 
                     if prim.stroke.is_some() {

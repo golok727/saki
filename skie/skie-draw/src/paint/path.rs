@@ -1,6 +1,6 @@
 use crate::{
     math::{Corners, Rect, Vec2},
-    traits::IsZero,
+    traits::{IsZero, Zero},
 };
 
 use super::{Path2D, PathOp};
@@ -8,7 +8,6 @@ use super::{Path2D, PathOp};
 #[derive(Debug, Clone)]
 pub struct GeometryPath {
     pub points: Vec<Vec2<f32>>,
-
     pub(crate) closed: bool,
     cursor: Vec2<f32>,
     start: Option<Vec2<f32>>,
@@ -30,6 +29,37 @@ impl Default for GeometryPath {
 impl GeometryPath {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    pub fn bounds(&self) -> Rect<f32> {
+        let mut out = Rect::zero();
+
+        let mut min_x = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+
+        for point in &self.points {
+            let x = point.x;
+            let y = point.y;
+            min_x = if x < min_x { x } else { min_x };
+            max_x = if x > max_x { x } else { max_x };
+
+            min_y = if y < min_y { y } else { min_y };
+            max_y = if y > max_y { y } else { max_y };
+        }
+
+        out.x = min_x;
+        out.width = max_x - min_x;
+
+        out.y = min_y;
+        out.height = max_y - min_y;
+        out
     }
 
     pub fn segment_count(&self) -> u8 {
@@ -116,7 +146,8 @@ impl GeometryPath {
             let theta = start_angle + i as f32 * step;
             let x = center.x + radius * theta.cos();
             let y = center.y + radius * theta.sin();
-            self.points.push(Vec2 { x, y });
+            let p = Vec2 { x, y };
+            self.points.push(p);
         }
 
         // Update the cursor to the final point on the arc.

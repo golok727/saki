@@ -17,6 +17,7 @@ use skie_draw::{
     math::{Corners, Pixels, Rect, Size},
     paint::{atlas::AtlasManager, circle, quad, AsPrimitive, Color, TextureId, TextureKind},
     scene::Scene,
+    traits::Half,
     WgpuRenderer, WgpuRendererSpecs,
 };
 
@@ -229,6 +230,7 @@ impl Window {
                 .with_pos(400.0, 500.0)
                 .with_radius(200.0)
                 .primitive()
+                .textured(self.checker_texture_id)
                 .with_fill_color(Color::TORCH_RED),
         );
 
@@ -261,6 +263,7 @@ impl Window {
                         quad()
                             .with_pos(x, y)
                             .with_size(width, height)
+                            .with_corners(Corners::with_all(width.half() * 0.2))
                             .primitive()
                             .textured(*texture),
                     );

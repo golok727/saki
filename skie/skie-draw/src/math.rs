@@ -10,7 +10,7 @@ pub use unit::*;
 
 pub use unit::{DevicePixels, ScaledPixels};
 
-use crate::traits::IsZero;
+use crate::traits::{IsZero, Zero};
 
 pub trait Half {
     fn half(&self) -> Self;
@@ -277,6 +277,30 @@ impl<T> From<(T, T)> for Vec2<T> {
 impl From<Vec2<f32>> for [f32; 2] {
     fn from(Vec2 { x, y }: Vec2<f32>) -> Self {
         [x, y]
+    }
+}
+
+impl<T> Half for Vec2<T>
+where
+    T: Half,
+{
+    fn half(&self) -> Self {
+        Self {
+            x: self.x.half(),
+            y: self.y.half(),
+        }
+    }
+}
+
+impl<T> Zero for Vec2<T>
+where
+    T: Zero,
+{
+    fn zero() -> Self {
+        Self {
+            x: T::zero(),
+            y: T::zero(),
+        }
     }
 }
 

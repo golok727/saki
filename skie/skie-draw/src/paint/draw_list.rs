@@ -86,9 +86,17 @@ impl<'a> DrawList<'a> {
 
         self.reserve_prim(vtx_count, index_count);
 
+        let bounds = self.path.bounds();
+        let min_x = bounds.x;
+        let min_y = bounds.y;
+        let max_x = bounds.x + bounds.width;
+        let max_y = bounds.y + bounds.height;
+
         for point in &self.path.points {
-            // FIXME: Update UV calculation as needed
-            let uv = (0.0, 0.0);
+            let uv_x = (point.x - min_x) / (max_x - min_x);
+            let uv_y = (point.y - min_y) / (max_y - min_y);
+            let uv = (uv_x, uv_y);
+
             self.vertices
                 .push(self.apply_mw(DrawVert::new(*point, color, uv)));
         }
