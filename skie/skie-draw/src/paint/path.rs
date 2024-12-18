@@ -1,10 +1,12 @@
-use crate::math::{Rect, Vec2};
+use crate::math::{Corners, Rect, Vec2};
 
-use super::{Corners, Path2D, PathOp};
+use super::{Path2D, PathOp};
 
 #[derive(Debug, Clone)]
 pub struct GeometryPath {
     pub points: Vec<Vec2<f32>>,
+
+    pub(crate) closed: bool,
     cursor: Vec2<f32>,
     start: Option<Vec2<f32>>,
     segment_count: u8,
@@ -15,6 +17,7 @@ impl Default for GeometryPath {
         Self {
             points: Default::default(),
             segment_count: 32,
+            closed: false,
             cursor: Default::default(),
             start: None,
         }
@@ -70,13 +73,15 @@ impl GeometryPath {
     pub fn clear(&mut self) {
         self.points.clear();
         self.start = None;
+        self.closed = false;
     }
 
     /// Closes the current subpath by drawing a line back to the starting point.
     pub fn close_path(&mut self) {
-        if let Some(start) = &self.start {
-            self.line_to(*start);
-        }
+        self.closed = true;
+        // if let Some(start) = &self.start {
+        //     self.line_to(*start);
+        // }
     }
 
     /// Draws an arc.
@@ -126,7 +131,8 @@ impl GeometryPath {
         }
     }
 
-    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: Corners<f32>) {
+    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>) {
+        // FIXME: clamp
         let Corners {
             top_left,
             top_right,
@@ -144,7 +150,7 @@ impl GeometryPath {
         self.move_to((rect.x, rect.y + top_left).into());
         self.arc(
             (rect.x + top_left, rect.y + top_left).into(),
-            top_left,
+            *top_left,
             PI,
             (3.0 * PI) / 2.0,
             false,
@@ -154,7 +160,7 @@ impl GeometryPath {
         self.move_to((rect.x + top_right, rect.y + rect.height).into());
         self.arc(
             (rect.x + rect.width - top_right, rect.y + top_right).into(),
-            top_right,
+            *top_right,
             -PI / 2.0,
             0.0,
             false,
@@ -168,7 +174,7 @@ impl GeometryPath {
                 rect.y + rect.height - bottom_right,
             )
                 .into(),
-            bottom_right,
+            *bottom_right,
             0.0,
             PI / 2.0,
             false,
@@ -178,7 +184,7 @@ impl GeometryPath {
         self.move_to((rect.x + bottom_left, rect.y + rect.height).into());
         self.arc(
             (rect.x + bottom_left, rect.y + rect.height - bottom_left).into(),
-            bottom_left,
+            *bottom_left,
             PI / 2.0,
             PI,
             false,

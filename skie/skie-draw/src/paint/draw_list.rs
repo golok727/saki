@@ -1,9 +1,6 @@
 use super::{path::GeometryPath, Color, Quad, Rgba, TextureId};
 
-use crate::{
-    math::{Rect, Vec2},
-    traits::IsZero,
-};
+use crate::math::{Corners, Rect, Vec2};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -37,6 +34,7 @@ pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
 pub struct DrawList<'a> {
     pub(crate) vertices: Vec<DrawVert>,
     pub(crate) indices: Vec<u32>,
+    pub(crate) path: GeometryPath,
     cur_vertex_idx: u32,
 
     middleware: Option<DrawListMiddleware<'a>>,
@@ -67,6 +65,7 @@ impl<'a> DrawList<'a> {
     pub fn clear(&mut self) {
         self.vertices.clear();
         self.indices.clear();
+        self.path.clear();
         self.cur_vertex_idx = 0;
     }
 
@@ -79,16 +78,18 @@ impl<'a> DrawList<'a> {
         vertex
     }
 
-    pub(crate) fn fill_path_convex(&mut self, points: &[Vec2<f32>], color: Color) {
-        let points_count = points.len();
+    pub(crate) fn fill_path_convex(&mut self, color: Color) {
+        let points_count = self.path.points.len();
         let index_count = (points_count - 2) * 3;
         let vtx_count = points_count;
 
         self.reserve_prim(vtx_count, index_count);
 
-        for point in points {
+        for point in &self.path.points {
             // FIXME: Update UV calculation as needed
-            self.add_vertex(*point, color, (0.0, 0.0));
+            let uv = (0.0, 0.0);
+            self.vertices
+                .push(self.apply_mw(DrawVert::new(*point, color, uv)));
         }
 
         let base_idx = self.cur_vertex_idx;
@@ -107,16 +108,61 @@ impl<'a> DrawList<'a> {
         self.cur_vertex_idx += vtx_count as u32;
     }
 
-    pub(crate) fn _fill_path_concave(&mut self, _points: &[Vec2<f32>]) {
-        todo!("Fill path concave")
+    #[inline]
+    pub fn begin_path(&mut self) {
+        self.path.clear();
     }
 
+    #[inline]
+    pub fn close_path(&mut self) {
+        self.path.close_path();
+    }
+
+    #[inline]
+    pub fn path_rect(&mut self, rect: &Rect<f32>) {
+        self.path.rect(rect)
+    }
+
+    #[inline]
+    pub fn path_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>) {
+        self.path.round_rect(rect, corners);
+    }
+
+    #[inline]
+    pub fn path_circle(&mut self, center: Vec2<f32>, radius: f32) {
+        self.path
+            .arc(center, radius, 0.0, std::f32::consts::TAU, false);
+    }
+
+    #[inline]
+    pub fn path_arc(
+        &mut self,
+        center: Vec2<f32>,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+        clockwise: bool,
+    ) {
+        self.path
+            .arc(center, radius, start_angle, end_angle, clockwise);
+    }
+
+    /// Fills the current path
     pub fn fill_path(&mut self) {
         todo!("Fill Path")
     }
 
+    /// Strokes the current path
     pub fn stroke_path(&mut self) {
         todo!("Add polyline")
+    }
+
+    pub fn fill_with_path(&mut self, _path: &GeometryPath) {
+        todo!()
+    }
+
+    pub fn stroke_with_path(&mut self, _path: &GeometryPath) {
+        todo!()
     }
 
     pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {
@@ -128,16 +174,6 @@ impl<'a> DrawList<'a> {
     pub fn add_vertex(&mut self, pos: Vec2<f32>, color: Color, uv: (f32, f32)) {
         self.vertices
             .push(self.apply_mw(DrawVert::new(pos, color, uv))); // Top-left
-    }
-
-    pub fn add_path_quad_filled(&mut self, quad: &Quad, path: &mut GeometryPath) {
-        if quad.corners.is_zero() {
-            path.rect(&quad.bounds);
-        } else {
-            path.round_rect(&quad.bounds, quad.corners.clone());
-        }
-
-        self.fill_path_convex(&path.points, quad.background_color);
     }
 
     pub fn add_prim_quad(&mut self, quad: &Quad) {

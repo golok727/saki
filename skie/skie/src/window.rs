@@ -14,8 +14,8 @@ use crate::{
 
 use skie_draw::{
     gpu::GpuContext,
-    math::{unit::Pixels, Rect, Size},
-    paint::{atlas::AtlasManager, circle, quad, Color, Corners, TextureId, TextureKind},
+    math::{Corners, Pixels, Rect, Size},
+    paint::{atlas::AtlasManager, circle, quad, AsPrimitive, Color, TextureId, TextureKind},
     scene::Scene,
     WgpuRenderer, WgpuRendererSpecs,
 };
@@ -174,55 +174,62 @@ impl Window {
         let width = size.width as f32;
         let height = size.height as f32;
 
-        self.scene.add_textured(
+        self.scene.add(
             quad()
                 .with_pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
-                .with_size(700.0, 700.0),
-            self.yellow_thing_texture_id,
+                .with_size(700.0, 700.0)
+                .primitive()
+                .textured(self.yellow_thing_texture_id),
         );
 
-        self.scene.add_textured(
+        self.scene.add(
             quad()
                 .with_pos(100.0, height - 400.0)
                 .with_size(300.0, 300.0)
-                .with_bgcolor(Color::from_rgb(0xFF0000)),
-            self.checker_texture_id,
+                .with_bgcolor(Color::from_rgb(0xFF0000))
+                .primitive()
+                .textured(self.checker_texture_id),
         );
 
-        self.scene.add_textured(
+        self.scene.add(
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
-                .with_bgcolor(Color::from_rgb(0xFFFF00)),
-            self.checker_texture_id,
+                .with_bgcolor(Color::from_rgb(0xFFFF00))
+                .primitive()
+                .textured(self.checker_texture_id),
         );
 
-        self.scene.add_textured(
+        self.scene.add(
             quad()
                 .with_pos(width - 300.0, height - 300.0)
-                .with_size(200.0, 200.0),
-            self.yellow_thing_texture_id,
+                .with_size(200.0, 200.0)
+                .primitive()
+                .textured(self.yellow_thing_texture_id),
         );
 
         self.scene.add(
             quad()
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
-                .with_bgcolor(Color::from_rgb(0x55a09e)),
+                .with_bgcolor(Color::from_rgb(0x55a09e))
+                .primitive(),
         );
 
         self.scene.add(
             circle()
                 .with_pos(400.0, 500.0)
                 .with_radius(300.0)
-                .with_bgcolor(Color::KHAKI),
+                .with_bgcolor(Color::KHAKI)
+                .primitive(),
         );
 
         self.scene.add(
             circle()
                 .with_pos(400.0, 500.0)
                 .with_radius(200.0)
-                .with_bgcolor(Color::TORCH_RED),
+                .with_bgcolor(Color::TORCH_RED)
+                .primitive(),
         );
 
         let bar_height: f32 = 50.0;
@@ -232,7 +239,8 @@ impl Window {
             quad()
                 .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
-                .with_bgcolor(Color::from_rgb(0x0A0A11)),
+                .with_bgcolor(Color::from_rgb(0x0A0A11))
+                .primitive(),
         );
 
         for object in &self.objects {
@@ -249,8 +257,13 @@ impl Window {
                     let width: f32 = (bbox.width * aspect).into();
                     let height: f32 = (bbox.height).into();
 
-                    self.scene
-                        .add_textured(quad().with_pos(x, y).with_size(width, height), *texture);
+                    self.scene.add(
+                        quad()
+                            .with_pos(x, y)
+                            .with_size(width, height)
+                            .primitive()
+                            .textured(*texture),
+                    );
                 }
             }
         }
@@ -260,7 +273,8 @@ impl Window {
                 .with_pos(800.0, 200.0)
                 .with_size(200.0, 500.0)
                 .with_bgcolor(Color::LIGHT_GREEN)
-                .with_corners(Corners::with_all(100.0).with_top_left(100.0)),
+                .with_corners(Corners::with_all(100.0).with_top_left(100.0))
+                .primitive(),
         );
 
         self.scene.add(
@@ -268,7 +282,8 @@ impl Window {
                 .with_pos(width - 200.0, 50.0)
                 .with_size(100.0, 50.0)
                 .with_bgcolor(Color::TORCH_RED)
-                .with_corners(Corners::with_all(10.0)),
+                .with_corners(Corners::with_all(10.0))
+                .primitive(),
         );
     }
 

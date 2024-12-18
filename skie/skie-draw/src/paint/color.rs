@@ -1,11 +1,17 @@
 // TODO: add bytemuck_feature
-#[derive(Clone, Copy, Default, Eq, PartialEq, Hash, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Color {
     r: u8,
     g: u8,
     b: u8,
     a: u8,
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::WHITE
+    }
 }
 
 impl Color {

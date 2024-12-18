@@ -238,6 +238,7 @@ impl WgpuRenderer {
         self.render_target.resize(width, height);
 
         let proj = Mat3::ortho(0.0, 0.0, height as f32, width as f32);
+
         self.state.global_uniforms.map(|data| {
             data.proj = proj.into();
         });

@@ -4,22 +4,16 @@ use std::cell::RefCell;
 use crate::paint::atlas::AtlasTextureId;
 use crate::paint::atlas::AtlasTextureInfoMap;
 use crate::paint::path::GeometryPath;
-use crate::paint::Color;
 use crate::paint::DrawList;
 use crate::paint::DrawVert;
 use crate::paint::Mesh;
 use crate::paint::Path2D;
 use crate::paint::PathId;
+use crate::paint::Primitive;
 use crate::paint::PrimitiveKind;
 use crate::paint::TextureId;
 use crate::paint::DEFAULT_PATH_ID;
 use crate::traits::IsZero;
-
-#[derive(Debug, Clone)]
-pub struct Primitive {
-    pub kind: PrimitiveKind,
-    pub texture: TextureId,
-}
 
 pub(crate) type PathCache = ahash::AHashMap<PathId, GeometryPath>;
 
@@ -59,16 +53,8 @@ impl Scene {
         }
     }
 
-    pub fn add_textured(&mut self, prim: impl Into<PrimitiveKind>, texture: TextureId) {
-        self.add_impl(prim.into(), texture)
-    }
-
-    pub fn add(&mut self, prim: impl Into<PrimitiveKind>) {
-        self.add_impl(prim.into(), TextureId::WHITE_TEXTURE)
-    }
-
-    fn add_impl(&mut self, mut kind: PrimitiveKind, texture: TextureId) {
-        if let PrimitiveKind::Path(ref mut path) = &mut kind {
+    pub fn add(&mut self, mut prim: Primitive) {
+        if let PrimitiveKind::Path(ref mut path) = &mut prim.kind {
             if path.id == DEFAULT_PATH_ID {
                 let next_id = self.next_path_id.get();
                 self.next_path_id.set(next_id + 1);
@@ -76,7 +62,7 @@ impl Scene {
             }
         }
 
-        self.items.push(Primitive { kind, texture })
+        self.items.push(prim)
     }
 
     pub fn clear(&mut self) -> Vec<Primitive> {
@@ -105,7 +91,6 @@ struct SceneBatchIterator<'a> {
     groups: Vec<(AtlasTextureId, Vec<GroupEntry>)>,
     tex_info: AtlasTextureInfoMap,
     cur_group: usize,
-    path: GeometryPath,
 }
 
 impl<'a> SceneBatchIterator<'a> {
@@ -145,7 +130,6 @@ impl<'a> SceneBatchIterator<'a> {
             tex_info,
             cur_group: 0,
             groups,
-            path: GeometryPath::default(),
         }
     }
 
@@ -184,33 +168,34 @@ impl<'a> SceneBatchIterator<'a> {
 
             drawlist.set_middleware(uv_middleware);
 
+            // we purposefully inline calls here
             match &prim.kind {
                 PrimitiveKind::Circle(circle) => {
-                    self.path.clear();
-                    self.path.arc(
+                    drawlist.path.clear();
+                    drawlist.path.arc(
                         circle.center,
                         circle.radius,
                         0.0,
                         std::f32::consts::TAU,
                         false,
                     );
-                    drawlist.fill_path_convex(&self.path.points, circle.background_color);
+                    drawlist.fill_path_convex(circle.background_color);
                 }
 
                 PrimitiveKind::Quad(quad) => {
                     if quad.corners.is_zero() {
                         drawlist.add_prim_quad(quad);
                     } else {
-                        self.path.clear();
-                        self.path.round_rect(&quad.bounds, quad.corners.clone());
-                        drawlist.fill_path_convex(&self.path.points, quad.background_color);
+                        drawlist.path.clear();
+                        drawlist.path.round_rect(&quad.bounds, &quad.corners);
+                        drawlist.fill_path_convex(quad.background_color);
                     }
                 }
 
                 PrimitiveKind::Path(path) => {
                     self.with_path(path, |path| {
                         // FIXME: use drawlist fill or stroke path after adding earcut
-                        drawlist.fill_path_convex(&path.points, Color::WHITE);
+                        drawlist.fill_with_path(path);
                     });
                 }
             }

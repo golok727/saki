@@ -1,6 +1,12 @@
+pub mod geometry;
 pub mod rect;
 pub mod size;
 pub mod unit;
+
+pub use geometry::*;
+pub use rect::*;
+pub use size::*;
+pub use unit::*;
 
 pub use rect::Rect;
 pub use size::Size;

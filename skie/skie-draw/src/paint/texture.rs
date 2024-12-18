@@ -14,6 +14,12 @@ pub enum TextureId {
     AtlasTexture(AtlasTextureId),
 }
 
+impl Default for TextureId {
+    fn default() -> Self {
+        Self::WHITE_TEXTURE
+    }
+}
+
 impl TextureId {
     pub const WHITE_TEXTURE: Self = TextureId::Internal(1);
 }

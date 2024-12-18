@@ -1,16 +1,148 @@
+use crate::math::Corners;
 use std::cell::Cell;
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
-use crate::traits::IsZero;
 
-use super::Color;
+use super::{Color, TextureId};
 
 #[derive(Debug, Clone)]
 pub enum PrimitiveKind {
     Quad(Quad),
     Path(Path2D),
     Circle(Circle),
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct FillStyle {
+    pub color: Color,
+}
+
+impl FillStyle {
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum LineJoin {
+    Mitier,
+    Square,
+    Round,
+}
+
+#[derive(Debug, Clone)]
+pub enum LineCap {
+    Mitier,
+    Square,
+    Butt,
+}
+
+#[derive(Debug, Clone)]
+pub struct StrokeStyle {
+    pub color: Color,
+    pub line_width: u16,
+    pub line_join: LineJoin,
+    pub line_cap: LineCap,
+}
+
+impl Default for StrokeStyle {
+    fn default() -> Self {
+        Self {
+            color: Default::default(),
+            line_width: 2,
+            line_join: LineJoin::Square,
+            line_cap: LineCap::Butt,
+        }
+    }
+}
+
+impl StrokeStyle {
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn with_line_width(mut self, line_width: u16) -> Self {
+        self.line_width = line_width;
+        self
+    }
+
+    pub fn with_line_join(mut self, line_join: LineJoin) -> Self {
+        self.line_join = line_join;
+        self
+    }
+
+    pub fn with_line_cap(mut self, line_cap: LineCap) -> Self {
+        self.line_cap = line_cap;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Primitive {
+    pub kind: PrimitiveKind,
+    pub texture: TextureId,
+    pub fill: Option<FillStyle>,
+    pub stroke: Option<StrokeStyle>,
+}
+
+impl Primitive {
+    pub fn textured(mut self, tex: TextureId) -> Self {
+        self.texture = tex;
+        self
+    }
+
+    pub fn no_fill(mut self) -> Self {
+        self.fill = None;
+        self
+    }
+
+    pub fn no_stroke(mut self) -> Self {
+        self.stroke = None;
+        self
+    }
+
+    pub fn fill(mut self, style: FillStyle) -> Self {
+        self.fill.replace(style);
+        self
+    }
+
+    pub fn with_fill_color(mut self, color: Color) -> Self {
+        let fill = self.fill.get_or_insert(Default::default());
+        fill.color = color;
+        self
+    }
+
+    pub fn stroke(mut self, style: StrokeStyle) -> Self {
+        self.stroke.replace(style);
+        self
+    }
+
+    pub fn with_stroke_color(mut self, color: Color) -> Self {
+        let stroke = self.stroke.get_or_insert(Default::default());
+        stroke.color = color;
+        self
+    }
+
+    pub fn with_line_width(mut self, width: u16) -> Self {
+        let stroke = self.stroke.get_or_insert(Default::default());
+        stroke.line_width = width;
+        self
+    }
+
+    pub fn with_line_join(mut self, join: LineJoin) -> Self {
+        let stroke = self.stroke.get_or_insert(Default::default());
+        stroke.line_join = join;
+        self
+    }
+
+    pub fn with_line_cap(mut self, cap: LineCap) -> Self {
+        let stroke = self.stroke.get_or_insert(Default::default());
+        stroke.line_cap = cap;
+        self
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -200,6 +332,33 @@ impl From<Path2D> for PrimitiveKind {
     }
 }
 
+impl<T> From<T> for Primitive
+where
+    T: Into<PrimitiveKind>,
+{
+    fn from(value: T) -> Self {
+        Primitive {
+            kind: value.into(),
+            texture: TextureId::WHITE_TEXTURE,
+            fill: None,
+            stroke: None,
+        }
+    }
+}
+
+pub trait AsPrimitive {
+    fn primitive(self) -> Primitive;
+}
+
+impl<T> AsPrimitive for T
+where
+    T: Into<Primitive>,
+{
+    fn primitive(self) -> Primitive {
+        self.into()
+    }
+}
+
 // macro_rules! impl_into_primitive {
 //     ($t: ty, $kind: tt) => {
 //         impl From<$t> for PrimitiveKind {
@@ -210,78 +369,3 @@ impl From<Path2D> for PrimitiveKind {
 //     };
 // }
 //
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct Corners<T: Clone + Default + Debug> {
-    pub top_left: T,
-    pub top_right: T,
-    pub bottom_left: T,
-    pub bottom_right: T,
-}
-
-impl<T> Corners<T>
-where
-    T: Clone + Debug + Default,
-{
-    pub fn with_each(top_left: T, top_right: T, bottom_left: T, bottom_right: T) -> Self {
-        Self {
-            top_left,
-            top_right,
-            bottom_left,
-            bottom_right,
-        }
-    }
-
-    pub fn with_all(v: T) -> Self {
-        Self {
-            top_left: v.clone(),
-            top_right: v.clone(),
-            bottom_left: v.clone(),
-            bottom_right: v,
-        }
-    }
-
-    pub fn with_top_left(mut self, v: T) -> Self {
-        self.top_left = v;
-        self
-    }
-
-    pub fn with_top_right(mut self, v: T) -> Self {
-        self.top_right = v;
-        self
-    }
-
-    pub fn with_bottom_left(mut self, v: T) -> Self {
-        self.bottom_left = v;
-        self
-    }
-
-    pub fn with_bottom_right(mut self, v: T) -> Self {
-        self.bottom_right = v;
-        self
-    }
-}
-
-impl<T> Corners<T>
-where
-    T: Clone + Debug + Default + PartialOrd + Ord,
-{
-    pub fn max(&self) -> T {
-        self.top_left
-            .clone()
-            .max(self.top_right.clone())
-            .max(self.bottom_right.clone())
-            .max(self.bottom_left.clone())
-    }
-}
-
-impl<T> IsZero for Corners<T>
-where
-    T: IsZero + Clone + Debug + Default,
-{
-    fn is_zero(&self) -> bool {
-        self.top_left.is_zero()
-            && self.top_right.is_zero()
-            && self.bottom_left.is_zero()
-            && self.bottom_right.is_zero()
-    }
-}
