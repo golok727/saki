@@ -10,7 +10,7 @@ pub use unit::*;
 
 pub use unit::{DevicePixels, ScaledPixels};
 
-use crate::traits::{IsZero, Zero};
+use crate::traits::{IsZero, One, Zero};
 
 pub trait Half {
     fn half(&self) -> Self;
@@ -256,6 +256,27 @@ impl<T> Vec2<T> {
     }
 }
 
+impl<T> Vec2<T>
+where
+    T: Clone + std::ops::Add<T, Output = T> + std::ops::Mul<T, Output = T>,
+{
+    pub fn dot(&self, other: &Self) -> T {
+        self.x.clone() * other.x.clone() + self.y.clone() * other.y.clone()
+    }
+}
+
+impl<T> Vec2<T>
+where
+    T: Clone
+        + std::ops::Add<T, Output = T>
+        + std::ops::Mul<T, Output = T>
+        + std::ops::Sub<T, Output = T>,
+{
+    pub fn cross(&self, other: &Self) -> T {
+        self.x.clone() * other.y.clone() - self.y.clone() * other.x.clone()
+    }
+}
+
 impl From<Vec2<f32>> for [f32; 4] {
     fn from(Vec2 { x, y }: Vec2<f32>) -> Self {
         [x, y, 1.0, 1.0]
@@ -292,6 +313,15 @@ where
     }
 }
 
+impl<T> IsZero for Vec2<T>
+where
+    T: IsZero,
+{
+    fn is_zero(&self) -> bool {
+        self.x.is_zero() && self.y.is_zero()
+    }
+}
+
 impl<T> Zero for Vec2<T>
 where
     T: Zero,
@@ -304,32 +334,21 @@ where
     }
 }
 
-impl<T> IsZero for Vec2<T>
+impl<T> One for Vec2<T>
 where
-    T: IsZero,
+    T: One,
 {
-    fn is_zero(&self) -> bool {
-        self.x.is_zero() && self.y.is_zero()
+    fn one() -> Self {
+        Self {
+            x: T::one(),
+            y: T::one(),
+        }
     }
 }
 
 macro_rules! impl_vec2_common {
     ($t:ty) => {
-        impl Vec2<$t> {
-            pub fn zero() -> Self {
-                Self {
-                    x: <$t>::default(),
-                    y: <$t>::default(),
-                }
-            }
-
-            pub fn one() -> Self {
-                Self {
-                    x: <$t>::default() + (1 as $t),
-                    y: <$t>::default() + (1 as $t),
-                }
-            }
-        }
+        impl Vec2<$t> {}
     };
 }
 
@@ -346,13 +365,48 @@ impl_vec2_common!(i64);
 impl_vec2_common!(f64);
 impl_vec2_common!(f32);
 
-pub trait ZeroVec<T> {
-    fn zero() -> Vec2<T>;
-}
-
 pub trait OneVec<T> {
     fn one() -> Vec2<T>;
 }
+
+macro_rules! impl_vec2_float {
+    ($float:ty) => {
+        impl Vec2<$float> {
+            pub fn magnitude_sq(&self) -> $float {
+                self.x * self.x + self.y * self.y
+            }
+
+            pub fn magnitude(&self) -> $float {
+                (self.x * self.x + self.y * self.y).sqrt()
+            }
+
+            pub fn normalize(&self) -> Self {
+                let len = (self.x * self.x + self.y * self.y).sqrt();
+                if len == 0.0 {
+                    Self::zero()
+                } else {
+                    Self {
+                        x: self.x / len,
+                        y: self.y / len,
+                    }
+                }
+            }
+
+            pub fn direction(&self, other: Self) -> Self {
+                (*self - other).normalize()
+            }
+
+            pub fn angle(v1: Self, v2: Self) -> $float {
+                let dot = v1.x * v2.x + v1.y * v2.y;
+                let det = v1.x * v2.y - v1.y * v2.x;
+                det.atan2(dot).abs()
+            }
+        }
+    };
+}
+
+impl_vec2_float!(f32);
+impl_vec2_float!(f64);
 
 impl<T> std::cmp::PartialEq for Vec2<T>
 where
@@ -363,6 +417,7 @@ where
     }
 }
 
+// Vector
 impl<T> std::ops::Add for Vec2<T>
 where
     T: std::ops::Add<T, Output = T>,
@@ -377,6 +432,22 @@ where
     }
 }
 
+// Scalar
+impl<T> std::ops::Add<T> for Vec2<T>
+where
+    T: Clone + std::ops::Add<T, Output = T>,
+{
+    type Output = Vec2<T>;
+
+    fn add(self, scalar: T) -> Self::Output {
+        Vec2 {
+            x: self.x + scalar.clone(),
+            y: self.y + scalar.clone(),
+        }
+    }
+}
+
+// Begin Vector assign
 impl<T> std::ops::AddAssign for Vec2<T>
 where
     T: std::ops::Add<T, Output = T> + Clone,
@@ -412,7 +483,24 @@ where
         *self = self.clone() / rhs
     }
 }
+// END Vector assign
 
+// Scalar
+impl<T> std::ops::Sub<T> for Vec2<T>
+where
+    T: Clone + std::ops::Sub<T, Output = T>,
+{
+    type Output = Vec2<T>;
+
+    fn sub(self, scalar: T) -> Self::Output {
+        Vec2 {
+            x: self.x - scalar.clone(),
+            y: self.y - scalar.clone(),
+        }
+    }
+}
+
+// Vector
 impl<T> std::ops::Sub for Vec2<T>
 where
     T: std::ops::Sub<T, Output = T>,
@@ -427,6 +515,7 @@ where
     }
 }
 
+// Vector
 impl<T> std::ops::Mul for Vec2<T>
 where
     T: std::ops::Mul<T, Output = T>,
@@ -441,6 +530,22 @@ where
     }
 }
 
+// Scalar
+impl<T> std::ops::Mul<T> for Vec2<T>
+where
+    T: Clone + std::ops::Mul<T, Output = T>,
+{
+    type Output = Vec2<T>;
+
+    fn mul(self, scalar: T) -> Self::Output {
+        Vec2 {
+            x: self.x * scalar.clone(),
+            y: self.y * scalar.clone(),
+        }
+    }
+}
+
+// Vector
 impl<T> std::ops::Div for Vec2<T>
 where
     T: std::ops::Div<T, Output = T>,
@@ -451,6 +556,21 @@ where
         Vec2 {
             x: self.x / rhs.x,
             y: self.y / rhs.y,
+        }
+    }
+}
+
+// Scalar
+impl<T> std::ops::Div<T> for Vec2<T>
+where
+    T: Clone + std::ops::Div<T, Output = T>,
+{
+    type Output = Vec2<T>;
+
+    fn div(self, scalar: T) -> Self::Output {
+        Vec2 {
+            x: self.x / scalar.clone(),
+            y: self.y / scalar.clone(),
         }
     }
 }

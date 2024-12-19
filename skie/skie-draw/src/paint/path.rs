@@ -35,6 +35,10 @@ impl GeometryPath {
         self.closed
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.points.is_empty()
+    }
+
     pub fn bounds(&self) -> Rect<f32> {
         let mut out = Rect::zero();
 

@@ -2,6 +2,16 @@ pub trait IsZero {
     fn is_zero(&self) -> bool;
 }
 
+pub trait One
+where
+    Self: Sized,
+{
+    fn one() -> Self;
+    fn to_one(&mut self) {
+        *self = Self::one()
+    }
+}
+
 pub trait Zero
 where
     Self: Sized,
@@ -59,24 +69,31 @@ impl_half!(u32, 2);
 impl_half!(u16, 2);
 impl_half!(u8, 2);
 
-macro_rules! impl_zero {
-    ($type:ty, $zero:tt) => {
+macro_rules! impl_zero_and_one {
+    ($type:ty, $zero:tt, $one:tt) => {
         impl Zero for $type {
             #[inline]
             fn zero() -> Self {
                 $zero
             }
         }
+
+        impl One for $type {
+            #[inline]
+            fn one() -> Self {
+                $one
+            }
+        }
     };
 }
 
-impl_zero!(f64, 0.0);
-impl_zero!(f32, 0.0);
+impl_zero_and_one!(f64, 0.0, 1.0);
+impl_zero_and_one!(f32, 0.0, 1.0);
 
-impl_zero!(i32, 0);
-impl_zero!(i16, 0);
-impl_zero!(i8, 0);
+impl_zero_and_one!(i32, 0, 1);
+impl_zero_and_one!(i16, 0, 1);
+impl_zero_and_one!(i8, 0, 1);
 
-impl_zero!(u32, 0);
-impl_zero!(u16, 0);
-impl_zero!(u8, 0);
+impl_zero_and_one!(u32, 0, 1);
+impl_zero_and_one!(u16, 0, 1);
+impl_zero_and_one!(u8, 0, 1);

@@ -27,22 +27,23 @@ impl FillStyle {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LineJoin {
-    Mitier,
-    Square,
+    Miter,
+    Bevel,
     Round,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LineCap {
-    Mitier,
+    Round,
     Square,
     Butt,
+    Joint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrokeStyle {
     pub color: Color,
-    pub line_width: u16,
+    pub line_width: u32,
     pub line_join: LineJoin,
     pub line_cap: LineCap,
 }
@@ -52,7 +53,7 @@ impl Default for StrokeStyle {
         Self {
             color: Default::default(),
             line_width: 2,
-            line_join: LineJoin::Square,
+            line_join: LineJoin::Bevel,
             line_cap: LineCap::Butt,
         }
     }
@@ -64,7 +65,7 @@ impl StrokeStyle {
         self
     }
 
-    pub fn with_line_width(mut self, line_width: u16) -> Self {
+    pub fn with_line_width(mut self, line_width: u32) -> Self {
         self.line_width = line_width;
         self
     }
@@ -125,7 +126,7 @@ impl Primitive {
         self
     }
 
-    pub fn with_line_width(mut self, width: u16) -> Self {
+    pub fn with_line_width(mut self, width: u32) -> Self {
         let stroke = self.stroke.get_or_insert(Default::default());
         stroke.line_width = width;
         self

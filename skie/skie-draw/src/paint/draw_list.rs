@@ -1,5 +1,7 @@
+use std::fmt::Debug;
+
 use super::path::GeometryPath;
-use super::{Color, Rgba, TextureId};
+use super::{Color, LineCap, Rgba, StrokeStyle, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
 
@@ -81,6 +83,11 @@ impl<'a> DrawList<'a> {
 
     pub(crate) fn fill_path_convex(&mut self, color: Color) {
         let points_count = self.path.points.len();
+
+        if points_count <= 2 {
+            return;
+        }
+
         let index_count = (points_count - 2) * 3;
         let vtx_count = points_count;
 
@@ -162,8 +169,8 @@ impl<'a> DrawList<'a> {
     }
 
     /// Strokes the current path
-    pub fn stroke_path(&mut self) {
-        todo!("Add polyline")
+    pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
+        self.add_polyline(&self.path.points, stroke_style)
     }
 
     pub fn fill_with_path(&mut self, _path: &GeometryPath) {
@@ -172,6 +179,35 @@ impl<'a> DrawList<'a> {
 
     pub fn stroke_with_path(&mut self, _path: &GeometryPath) {
         todo!()
+    }
+
+    fn add_polyline(&self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
+        let vertices = <Vec<Vec2<f32>>>::new();
+
+        if points.len() < 2 {
+            return;
+        }
+
+        let thickness = stroke_style.line_width as f32 / 2.0;
+
+        let mut segments: Vec<LineSegment<f32>> = points
+            .windows(2)
+            .filter(|p| p[0] != p[1])
+            .map(|p| LineSegment::new(p[0], p[1]))
+            .collect();
+
+        if stroke_style.line_cap == LineCap::Joint && points.first() != points.last() {
+            segments.push(LineSegment::new(
+                *points.last().unwrap(),
+                *points.first().unwrap(),
+            ));
+        }
+
+        if segments.is_empty() {
+            return;
+        }
+
+        dbg!("Hello");
     }
 
     pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {
@@ -227,6 +263,7 @@ impl<'a> DrawList<'a> {
         }
     }
 }
+
 impl From<DrawList<'_>> for Mesh {
     #[inline]
     fn from(value: DrawList<'_>) -> Self {
@@ -242,5 +279,58 @@ impl std::fmt::Display for DrawList<'_> {
             .field("indices", &self.cur_vertex_idx)
             .field("has_middleware", &format!("{}", self.middleware.is_some()))
             .finish()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LineSegment<T>
+where
+    T: Debug + Clone + Default,
+{
+    pub a: Vec2<T>,
+    pub b: Vec2<T>,
+}
+
+impl<T> LineSegment<T>
+where
+    T: Debug + Clone + Default,
+{
+    pub fn new(a: Vec2<T>, b: Vec2<T>) -> Self {
+        Self { a, b }
+    }
+}
+
+impl LineSegment<f32> {
+    pub fn direction(&self) -> Vec2<f32> {
+        self.a.direction(self.b)
+    }
+
+    pub fn direction_unnormalized(&self) -> Vec2<f32> {
+        self.a - self.b
+    }
+
+    pub fn normal(&self) -> Vec2<f32> {
+        Vec2::new(-(self.b.y - self.a.y), self.b.x - self.a.x).direction(Vec2::new(0.0, 0.0))
+    }
+
+    pub fn intersection(&self, other: &LineSegment<f32>, infinite_line: bool) -> Option<Vec2<f32>> {
+        let dir_self = self.b - self.a;
+        let dir_other = other.b - other.a;
+
+        let origin_dist = other.a - self.a;
+        let numerator = origin_dist.cross(&dir_self);
+        let denominator = dir_self.cross(&dir_other);
+
+        // parallel
+        if denominator.abs() < 0.0001 {
+            return None;
+        }
+        let u = numerator / denominator;
+        let t = origin_dist.cross(&dir_other) / denominator;
+
+        if !infinite_line && (!(0.0..=1.0).contains(&t) || !(0.0..=1.0).contains(&u)) {
+            return None;
+        }
+        Some(self.a + dir_self * t)
     }
 }
