@@ -170,36 +170,37 @@ impl<'a> DrawList<'a> {
 
     /// Strokes the current path
     pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
-        self.add_polyline(&self.path.points, stroke_style)
+        // FIXME: is this good
+        let points: Vec<Vec2<f32>> = std::mem::take(&mut self.path.points);
+        self.add_polyline(&points, stroke_style);
+        self.path.points = points;
     }
 
     pub fn fill_with_path(&mut self, _path: &GeometryPath) {
         todo!()
     }
 
-    pub fn stroke_with_path(&mut self, _path: &GeometryPath) {
-        todo!()
+    pub fn stroke_with_path(&mut self, path: &GeometryPath, stroke_style: &StrokeStyle) {
+        self.add_polyline(&path.points, stroke_style)
     }
 
     fn add_polyline(&self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
-        let vertices = <Vec<Vec2<f32>>>::new();
-
         if points.len() < 2 {
             return;
         }
 
-        let thickness = stroke_style.line_width as f32 / 2.0;
+        let h_linewidth = stroke_style.line_width as f32 / 2.0;
 
-        let mut segments: Vec<LineSegment<f32>> = points
+        let mut segments: Vec<PolySegment> = points
             .windows(2)
             .filter(|p| p[0] != p[1])
-            .map(|p| LineSegment::new(p[0], p[1]))
+            .map(|p| PolySegment::new(LineSegment::new(p[0], p[1]), h_linewidth))
             .collect();
 
         if stroke_style.line_cap == LineCap::Joint && points.first() != points.last() {
-            segments.push(LineSegment::new(
-                *points.last().unwrap(),
-                *points.first().unwrap(),
+            segments.push(PolySegment::new(
+                LineSegment::new(*points.last().unwrap(), *points.first().unwrap()),
+                h_linewidth,
             ));
         }
 
@@ -207,7 +208,25 @@ impl<'a> DrawList<'a> {
             return;
         }
 
-        dbg!("Hello");
+        {
+            let mut out = String::new();
+            out.push('[');
+
+            let mut push_vec = |l: &LineSegment| {
+                out.push_str(&format!("({},{}), ({}, {}),", l.a.x, l.a.y, l.b.x, l.b.y));
+            };
+
+            for segment in &segments {
+                push_vec(&segment.edge_1);
+                push_vec(&segment.center);
+                push_vec(&segment.edge_2);
+            }
+
+            out = out.trim_end_matches(',').to_string();
+            out.push(']');
+
+            println!("{}", out);
+        }
     }
 
     pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {
@@ -281,26 +300,77 @@ impl std::fmt::Display for DrawList<'_> {
             .finish()
     }
 }
+/*
+    -------------- edge_1 ---------| | |
+    -------------- center ---------| | |
+    -------------- edge_2 ---------| | |
+                                   | | |
+*/
 
-#[derive(Debug, Clone, Default)]
-pub struct LineSegment<T>
-where
-    T: Debug + Clone + Default,
-{
-    pub a: Vec2<T>,
-    pub b: Vec2<T>,
+#[derive(Debug, Clone)]
+pub struct PolySegment {
+    pub edge_1: LineSegment,
+    pub center: LineSegment,
+    pub edge_2: LineSegment,
 }
 
-impl<T> LineSegment<T>
-where
-    T: Debug + Clone + Default,
-{
-    pub fn new(a: Vec2<T>, b: Vec2<T>) -> Self {
+impl PolySegment {
+    pub fn new(center: LineSegment, line_width: f32) -> Self {
+        let normal = center.normal();
+        let edge_1 = center.clone() + normal * line_width;
+        let edge_2 = center.clone() - (normal * line_width);
+
+        Self {
+            center,
+            edge_1,
+            edge_2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LineSegment {
+    pub a: Vec2<f32>,
+    pub b: Vec2<f32>,
+}
+
+impl LineSegment {
+    pub fn new(a: Vec2<f32>, b: Vec2<f32>) -> Self {
         Self { a, b }
     }
 }
 
-impl LineSegment<f32> {
+impl std::ops::Add<Vec2<f32>> for LineSegment {
+    type Output = Self;
+    fn add(self, other: Vec2<f32>) -> Self::Output {
+        Self {
+            a: self.a + other,
+            b: self.b + other,
+        }
+    }
+}
+
+impl std::ops::Mul<f32> for LineSegment {
+    type Output = Self;
+    fn mul(self, scalar: f32) -> Self::Output {
+        Self {
+            a: self.a * scalar,
+            b: self.b + scalar,
+        }
+    }
+}
+
+impl std::ops::Sub<Vec2<f32>> for LineSegment {
+    type Output = Self;
+    fn sub(self, other: Vec2<f32>) -> Self::Output {
+        Self {
+            a: self.a - other,
+            b: self.b - other,
+        }
+    }
+}
+
+impl LineSegment {
     pub fn direction(&self) -> Vec2<f32> {
         self.a.direction(self.b)
     }
@@ -313,7 +383,12 @@ impl LineSegment<f32> {
         Vec2::new(-(self.b.y - self.a.y), self.b.x - self.a.x).direction(Vec2::new(0.0, 0.0))
     }
 
-    pub fn intersection(&self, other: &LineSegment<f32>, infinite_line: bool) -> Option<Vec2<f32>> {
+    // https://www.desmos.com/calculator/ujamclid3g
+    pub fn intersection(
+        &self,
+        other: &LineSegment,
+        allow_infinite_lines: bool,
+    ) -> Option<Vec2<f32>> {
         let dir_self = self.b - self.a;
         let dir_other = other.b - other.a;
 
@@ -328,9 +403,10 @@ impl LineSegment<f32> {
         let u = numerator / denominator;
         let t = origin_dist.cross(&dir_other) / denominator;
 
-        if !infinite_line && (!(0.0..=1.0).contains(&t) || !(0.0..=1.0).contains(&u)) {
+        if !allow_infinite_lines && (!(0.0..=1.0).contains(&t) || !(0.0..=1.0).contains(&u)) {
             return None;
         }
+
         Some(self.a + dir_self * t)
     }
 }

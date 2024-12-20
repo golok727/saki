@@ -258,6 +258,18 @@ impl<T> Vec2<T> {
 
 impl<T> Vec2<T>
 where
+    T: Clone + std::ops::Add<T, Output = T> + std::ops::Neg<Output = T>,
+{
+    pub fn normal(&self) -> Self {
+        Vec2 {
+            x: -self.y.clone(),
+            y: self.x.clone(),
+        }
+    }
+}
+
+impl<T> Vec2<T>
+where
     T: Clone + std::ops::Add<T, Output = T> + std::ops::Mul<T, Output = T>,
 {
     pub fn dot(&self, other: &Self) -> T {
@@ -345,25 +357,6 @@ where
         }
     }
 }
-
-macro_rules! impl_vec2_common {
-    ($t:ty) => {
-        impl Vec2<$t> {}
-    };
-}
-
-impl_vec2_common!(u8);
-impl_vec2_common!(u16);
-impl_vec2_common!(u32);
-impl_vec2_common!(u64);
-
-impl_vec2_common!(i8);
-impl_vec2_common!(i16);
-impl_vec2_common!(i32);
-impl_vec2_common!(i64);
-
-impl_vec2_common!(f64);
-impl_vec2_common!(f32);
 
 pub trait OneVec<T> {
     fn one() -> Vec2<T>;

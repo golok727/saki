@@ -79,6 +79,12 @@ impl StrokeStyle {
         self.line_cap = line_cap;
         self
     }
+
+    /// sets line cap to join which will join the last point to first point
+    pub fn join(mut self) -> Self {
+        self.line_cap = LineCap::Joint;
+        self
+    }
 }
 
 #[derive(Debug, Clone)]

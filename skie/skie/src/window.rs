@@ -15,7 +15,10 @@ use crate::{
 use skie_draw::{
     gpu::GpuContext,
     math::{Corners, Pixels, Rect, Size},
-    paint::{atlas::AtlasManager, circle, quad, AsPrimitive, Color, TextureId, TextureKind},
+    paint::{
+        atlas::AtlasManager, circle, path::GeometryPath, quad, AsPrimitive, Color, DrawList,
+        StrokeStyle, TextureId, TextureKind,
+    },
     scene::Scene,
     traits::Half,
     WgpuRenderer, WgpuRendererSpecs,
@@ -87,6 +90,15 @@ impl Window {
         texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
+        {
+            let mut list = DrawList::default();
+            let mut path = GeometryPath::default();
+            path.move_to((0., 0.).into());
+            path.line_to((20., 0.).into());
+            path.line_to((20., 20.).into());
+
+            list.stroke_with_path(&path, &StrokeStyle::default().with_line_width(2));
+        }
         let width = specs.width;
         let height = specs.height;
 
