@@ -2,7 +2,7 @@ use core::f32;
 use std::fmt::Debug;
 
 use super::path::GeometryPath;
-use super::{Color, LineCap, Rgba, StrokeStyle, TextureId};
+use super::{Color, LineCap, LineJoin, Rgba, StrokeStyle, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
 
@@ -165,27 +165,33 @@ impl<'a> DrawList<'a> {
     }
 
     /// Fills the current path
-    pub fn fill_path(&mut self) {
-        todo!("Fill Path")
+    pub fn fill_path(&mut self, color: Color) {
+        // FIXME:  add earcut("Fill Path")
+        self.fill_path_convex(color);
     }
 
     /// Strokes the current path
     pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
         // FIXME: is this good
         let points: Vec<Vec2<f32>> = std::mem::take(&mut self.path.points);
-        self.add_polyline(&points, stroke_style);
+        self.add_polyline(&points, stroke_style, true);
         self.path.points = points;
     }
 
-    pub fn fill_with_path(&mut self, _path: &GeometryPath) {
-        todo!()
+    pub fn fill_with_path(&mut self, _path: &GeometryPath, _color: Color) {
+        // TODO: earcut for user facing api
     }
 
     pub fn stroke_with_path(&mut self, path: &GeometryPath, stroke_style: &StrokeStyle) {
-        self.add_polyline(&path.points, stroke_style)
+        self.add_polyline(&path.points, stroke_style, true)
     }
 
-    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
+    fn add_polyline(
+        &mut self,
+        points: &[Vec2<f32>],
+        stroke_style: &StrokeStyle,
+        allow_overlap: bool,
+    ) {
         if points.len() < 2 {
             return;
         }
@@ -213,11 +219,11 @@ impl<'a> DrawList<'a> {
         let last_segment = segments.last().unwrap();
 
         // Path start and end edge vertices
-        let mut path_start_1 = first_segment.edge_1.a;
-        let mut path_start_2 = first_segment.edge_2.a;
+        let mut path_start_1 = first_segment.edge1.a;
+        let mut path_start_2 = first_segment.edge2.a;
 
-        let mut path_end_1 = last_segment.edge_1.b;
-        let mut path_end_2 = last_segment.edge_2.b;
+        let mut path_end_1 = last_segment.edge1.b;
+        let mut path_end_2 = last_segment.edge2.b;
 
         match stroke_style.line_cap {
             LineCap::Butt => {}
@@ -240,75 +246,227 @@ impl<'a> DrawList<'a> {
                     true,
                 );
             }
-            LineCap::Joint => {
-                todo!("Create a joint")
-            }
+            LineCap::Joint => self.polyline_create_joint(
+                stroke_style,
+                last_segment,
+                first_segment,
+                &mut path_end_1,
+                &mut path_end_2,
+                &mut path_start_1,
+                &mut path_start_2,
+                allow_overlap,
+            ),
             LineCap::Square => {
                 // off set the start and end with the half line width
-                path_start_1 = path_start_1 + first_segment.edge_1.direction() * h_linewidth;
-                path_start_2 = path_start_2 + first_segment.edge_2.direction() * h_linewidth;
-                path_end_1 = path_end_1 - last_segment.edge_1.direction() * h_linewidth;
-                path_end_2 = path_end_2 - last_segment.edge_2.direction() * h_linewidth;
+                path_start_1 += first_segment.edge1.direction() * h_linewidth;
+                path_start_2 += first_segment.edge2.direction() * h_linewidth;
+                path_end_1 -= last_segment.edge1.direction() * h_linewidth;
+                path_end_2 -= last_segment.edge2.direction() * h_linewidth;
             }
         }
 
-        for (i, segment) in segments.iter().enumerate() {}
+        let mut start_1: Vec2<f32> = Vec2::default();
+        let mut start_2: Vec2<f32> = Vec2::default();
 
-        let push_line_seg = |l: &LineSegment, out: &mut String| {
-            out.push_str(&format!("({},{}), ({}, {}),", l.a.x, l.a.y, l.b.x, l.b.y));
-        };
+        let mut next_start_1: Vec2<f32> = Vec2::default();
+        let mut next_start_2: Vec2<f32> = Vec2::default();
 
-        let push_vec = |v: &Vec2<f32>, out: &mut String| {
-            out.push_str(&format!("({},{}),", v.x, v.y));
-        };
+        let mut end_1: Vec2<f32> = Vec2::default();
+        let mut end_2: Vec2<f32> = Vec2::default();
 
-        // pass 1
-        {
-            let mut out = String::new();
-            out.push('[');
-
-            for segment in &segments {
-                push_line_seg(&segment.edge_1, &mut out);
-                push_line_seg(&segment.center, &mut out);
-                push_line_seg(&segment.edge_2, &mut out);
+        for (i, segment) in segments.iter().enumerate() {
+            if i == 0 {
+                start_1 = path_start_1;
+                start_2 = path_start_2;
             }
 
-            out = out.trim_end_matches(',').to_string();
-            out.push(']');
-
-            println!("{}", out);
-        }
-        // pass =
-        {
-            let mut out = String::new();
-            out.push('[');
-
-            for v in &self.vertices {
-                push_vec(&v.position.into(), &mut out);
+            if i + 1 == segments.len() {
+                end_1 = path_end_1;
+                end_2 = path_end_2;
+            } else {
+                self.polyline_create_joint(
+                    stroke_style,
+                    segment,
+                    &segments[i + 1],
+                    &mut end_1,
+                    &mut end_2,
+                    &mut next_start_1,
+                    &mut next_start_2,
+                    allow_overlap,
+                )
             }
 
-            out = out.trim_end_matches(',').to_string();
-            out.push(']');
+            let cur_vertex_idx = self.cur_vertex_idx;
 
-            println!("{}", out);
+            self.add_vertex(start_1, stroke_style.color, (0.0, 0.0));
+            self.add_vertex(start_2, stroke_style.color, (0.0, 0.0));
+            self.add_vertex(end_1, stroke_style.color, (0.0, 0.0));
+            self.add_vertex(end_2, stroke_style.color, (0.0, 0.0));
+            self.indices.extend_from_slice(&[
+                cur_vertex_idx,
+                cur_vertex_idx + 1,
+                cur_vertex_idx + 2,
+                cur_vertex_idx + 2,
+                cur_vertex_idx + 1,
+                cur_vertex_idx + 3,
+            ]);
+            self.cur_vertex_idx += 4;
+
+            start_1 = next_start_1;
+            start_2 = next_start_2;
         }
+
+        // let push_vec = |v: &Vec2<f32>, out: &mut String| {
+        //     out.push_str(&format!("({},{}),", v.x, v.y));
+        // };
+
+        // {
+        //     let mut out = String::new();
+        //     out.push('[');
+        //
+        //     for v in &self.vertices {
+        //         push_vec(&v.position.into(), &mut out);
+        //     }
+        //
+        //     out = out.trim_end_matches(',').to_string();
+        //     out.push(']');
+        //
+        //     println!("{}", out);
+        // }
+        //
         // pass -2
-        #[cfg(never)]
-        {
-            let mut vertices: Vec<Vec2<f32>> = Vec::new();
-            vertices.extend_from_slice(&[path_start_1, path_start_2, path_end_1, path_end_2]);
+        // {
+        //     let mut vertices: Vec<Vec2<f32>> = Vec::new();
+        //     vertices.extend_from_slice(&[path_start_1, path_start_2, path_end_1, path_end_2]);
+        //
+        //     let mut out = String::new();
+        //     out.push('[');
+        //
+        //     for v in &vertices {
+        //         push_vec(v, &mut out);
+        //     }
+        //
+        //     out = out.trim_end_matches(',').to_string();
+        //     out.push(']');
+        //
+        //     println!("{}", out);
+        // }
+    }
 
-            let mut out = String::new();
-            out.push('[');
+    #[allow(clippy::too_many_arguments)]
+    pub fn polyline_create_joint(
+        &mut self,
 
-            for v in &vertices {
-                push_vec(v, &mut out);
+        style: &StrokeStyle,
+        segment1: &PolySegment,
+        segment2: &PolySegment,
+
+        end1: &mut Vec2<f32>,
+        end2: &mut Vec2<f32>,
+
+        next_start1: &mut Vec2<f32>,
+        next_start2: &mut Vec2<f32>,
+        allow_overlap: bool,
+    ) {
+        let dir1 = segment1.center.direction();
+        let dir2 = segment2.center.direction();
+
+        let angle = dir1.angle(&dir2);
+
+        let mut wrapped_angle = angle;
+        if wrapped_angle > f32::consts::FRAC_PI_2 {
+            wrapped_angle = f32::consts::PI - wrapped_angle;
+        }
+
+        const MITER_MIN_ANGLE: f32 = 0.349066; // ~20 degrees
+        let mut joint_style = style.line_join;
+
+        if joint_style == LineJoin::Miter && wrapped_angle < MITER_MIN_ANGLE {
+            joint_style = LineJoin::Bevel;
+        }
+
+        if joint_style == LineJoin::Miter {
+            // calculate each edge's intersection point
+            // with the next segment's central line
+            let sec1 = segment1.edge1.intersection(&segment2.edge1, true);
+            let sec2 = segment1.edge2.intersection(&segment2.edge2, true);
+
+            *end1 = sec1.unwrap_or(segment1.edge1.b);
+            *end2 = sec2.unwrap_or(segment1.edge2.b);
+
+            *next_start1 = *end1;
+            *next_start2 = *end2;
+        } else {
+            let x1 = dir1.x;
+            let x2 = dir2.x;
+            let y1 = dir1.y;
+            let y2 = dir2.y;
+
+            let clockwise = x1 * y2 - x2 * y1 < 0.;
+
+            let inner1: &LineSegment;
+            let inner2: &LineSegment;
+            let outer1: &LineSegment;
+            let outer2: &LineSegment;
+
+            if clockwise {
+                outer1 = &segment1.edge1;
+                outer2 = &segment2.edge1;
+                inner1 = &segment1.edge2;
+                inner2 = &segment2.edge2;
+            } else {
+                outer1 = &segment1.edge2;
+                outer2 = &segment2.edge2;
+                inner1 = &segment1.edge1;
+                inner2 = &segment2.edge1;
             }
 
-            out = out.trim_end_matches(',').to_string();
-            out.push(']');
+            let inner_sec_option = inner1.intersection(inner2, allow_overlap);
+            let inner_sec = inner_sec_option.unwrap_or(inner1.b);
 
-            println!("{}", out);
+            let inner_start = if inner_sec_option.is_some() {
+                inner_sec
+            } else if angle > f32::consts::FRAC_PI_2 {
+                outer1.b
+            } else {
+                inner1.b
+            };
+
+            if clockwise {
+                *end1 = outer1.b;
+                *end2 = inner_sec;
+
+                *next_start1 = outer2.a;
+                *next_start2 = inner_start;
+            } else {
+                *end1 = inner_sec;
+                *end2 = outer1.b;
+
+                *next_start1 = inner_start;
+                *next_start2 = outer2.a;
+            }
+
+            if joint_style == LineJoin::Bevel {
+                // simply connect the intersection points
+                self.add_vertex(outer1.b, style.color, (0.0, 0.0));
+                self.add_vertex(outer2.a, style.color, (0.0, 0.0));
+                self.add_vertex(inner_sec, style.color, (0.0, 0.0));
+                self.indices.extend_from_slice(&[
+                    self.cur_vertex_idx,
+                    self.cur_vertex_idx + 1,
+                    self.cur_vertex_idx + 2,
+                ]);
+                self.cur_vertex_idx += 3;
+            } else if joint_style == LineJoin::Round {
+                self.add_triangle_fan(
+                    style.color,
+                    inner_sec,
+                    segment1.center.b,
+                    outer1.b,
+                    outer2.a,
+                    clockwise,
+                );
+            }
         }
     }
 
@@ -414,7 +572,7 @@ impl<'a> DrawList<'a> {
         self.cur_vertex_idx += 4;
     }
 
-    pub fn build(mut self, texture: TextureId) -> Mesh {
+    pub fn build(mut self) -> Mesh {
         let vertices = std::mem::take(&mut self.vertices);
 
         let indices = std::mem::take(&mut self.indices);
@@ -422,7 +580,7 @@ impl<'a> DrawList<'a> {
         Mesh {
             vertices,
             indices,
-            texture,
+            texture: TextureId::WHITE_TEXTURE,
         }
     }
 }
@@ -430,7 +588,7 @@ impl<'a> DrawList<'a> {
 impl From<DrawList<'_>> for Mesh {
     #[inline]
     fn from(value: DrawList<'_>) -> Self {
-        value.build(TextureId::WHITE_TEXTURE)
+        value.build()
     }
 }
 
@@ -453,9 +611,9 @@ impl std::fmt::Display for DrawList<'_> {
 
 #[derive(Debug, Clone)]
 pub struct PolySegment {
-    pub edge_1: LineSegment,
+    pub edge1: LineSegment,
     pub center: LineSegment,
-    pub edge_2: LineSegment,
+    pub edge2: LineSegment,
 }
 
 impl PolySegment {
@@ -466,8 +624,8 @@ impl PolySegment {
 
         Self {
             center,
-            edge_1,
-            edge_2,
+            edge1: edge_1,
+            edge2: edge_2,
         }
     }
 }

@@ -401,9 +401,9 @@ macro_rules! impl_vec2_float {
                 (*self - other).normalize()
             }
 
-            pub fn angle(v1: Self, v2: Self) -> $float {
-                let dot = v1.x * v2.x + v1.y * v2.y;
-                let det = v1.x * v2.y - v1.y * v2.x;
+            pub fn angle(&self, v2: &Self) -> $float {
+                let dot = self.x * v2.x + self.y * v2.y;
+                let det = self.x * v2.y - self.y * v2.x;
                 det.atan2(dot).abs()
             }
         }

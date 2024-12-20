@@ -212,7 +212,10 @@ impl<'a> SceneBatchIterator<'a> {
                 PrimitiveKind::Path(path) => {
                     self.with_path(path, |path| {
                         // FIXME: use drawlist fill or stroke path after adding earcut
-                        drawlist.fill_with_path(path);
+                        drawlist.fill_with_path(path, prim.fill.color);
+                        if let Some(stroke_style) = &prim.stroke {
+                            drawlist.stroke_with_path(path, stroke_style)
+                        }
                     });
                 }
             }
@@ -220,7 +223,9 @@ impl<'a> SceneBatchIterator<'a> {
 
         self.cur_group += 1;
 
-        Some(drawlist.build(TextureId::AtlasTexture(atlas_tex_id)))
+        let mut mesh = drawlist.build();
+        mesh.texture = TextureId::AtlasTexture(atlas_tex_id);
+        Some(mesh)
     }
 
     fn with_path<R>(&self, path: &Path2D, mut f: impl FnMut(&GeometryPath) -> R) -> R {

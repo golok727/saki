@@ -53,7 +53,7 @@ impl Default for StrokeStyle {
         Self {
             color: Default::default(),
             line_width: 2,
-            line_join: LineJoin::Bevel,
+            line_join: LineJoin::Miter,
             line_cap: LineCap::Butt,
         }
     }
@@ -80,11 +80,32 @@ impl StrokeStyle {
         self
     }
 
+    pub fn with_default_join(mut self) -> Self {
+        self.line_join = LineJoin::Miter;
+        self
+    }
+
+    pub fn with_miter_join(mut self) -> Self {
+        self.line_join = LineJoin::Miter;
+        self
+    }
+
+    pub fn with_bevel_join(mut self) -> Self {
+        self.line_join = LineJoin::Bevel;
+        self
+    }
+
+    pub fn with_round_join(mut self) -> Self {
+        self.line_join = LineJoin::Round;
+        self
+    }
+
     pub fn with_round_cap(mut self) -> Self {
         self.line_cap = LineCap::Round;
         self
     }
 
+    /// aka with_butt_join lol
     pub fn with_default_cap(mut self) -> Self {
         self.line_cap = LineCap::Butt;
         self
