@@ -80,6 +80,21 @@ impl StrokeStyle {
         self
     }
 
+    pub fn with_round_cap(mut self) -> Self {
+        self.line_cap = LineCap::Round;
+        self
+    }
+
+    pub fn with_default_cap(mut self) -> Self {
+        self.line_cap = LineCap::Butt;
+        self
+    }
+
+    pub fn with_square_cap(mut self) -> Self {
+        self.line_cap = LineCap::Square;
+        self
+    }
+
     /// sets line cap to join which will join the last point to first point
     pub fn join(mut self) -> Self {
         self.line_cap = LineCap::Joint;

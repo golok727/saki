@@ -301,6 +301,18 @@ impl<T> From<Vec2<T>> for (T, T) {
     }
 }
 
+impl<T> From<[T; 2]> for Vec2<T>
+where
+    T: Clone,
+{
+    fn from(arr: [T; 2]) -> Self {
+        Self {
+            x: arr[0].clone(),
+            y: arr[1].clone(),
+        }
+    }
+}
+
 impl<T> From<(T, T)> for Vec2<T> {
     fn from((x, y): (T, T)) -> Self {
         Self { x, y }

@@ -16,8 +16,8 @@ use skie_draw::{
     gpu::GpuContext,
     math::{Corners, Pixels, Rect, Size},
     paint::{
-        atlas::AtlasManager, circle, path::GeometryPath, quad, AsPrimitive, Color, DrawList,
-        StrokeStyle, TextureId, TextureKind,
+        atlas::AtlasManager, circle, draw_list, path::GeometryPath, quad, AsPrimitive, Color,
+        DrawList, StrokeStyle, TextureId, TextureKind, WHITE_TEXTURE_UV,
     },
     scene::Scene,
     traits::Half,
@@ -95,9 +95,12 @@ impl Window {
             let mut path = GeometryPath::default();
             path.move_to((0., 0.).into());
             path.line_to((20., 0.).into());
-            path.line_to((20., 20.).into());
+            path.line_to((40., 20.).into());
 
-            list.stroke_with_path(&path, &StrokeStyle::default().with_line_width(2));
+            list.stroke_with_path(
+                &path,
+                &StrokeStyle::default().with_line_width(2).with_round_cap(),
+            );
         }
         let width = specs.width;
         let height = specs.height;
@@ -309,10 +312,33 @@ impl Window {
             .texture_system
             .get_texture_infos(self.scene.get_required_textures());
 
+        #[cfg(never)]
+        {
+            if let Some(info) = info_map.get(&TextureId::WHITE_TEXTURE) {
+                let mut list = DrawList::default();
+                list.set_middleware(|mut vertex| {
+                    vertex.uv = info.uv_to_atlas_space(0.0, 0.0);
+                    vertex
+                });
+                let mut path = GeometryPath::default();
+                path.move_to((100., 100.).into());
+                path.line_to((400.0, 100.0).into());
+                path.line_to((300.0, 400.0).into());
+
+                list.stroke_with_path(
+                    &path,
+                    &StrokeStyle::default().with_line_width(100).with_round_cap(),
+                );
+
+                let thing = &[list.build(TextureId::AtlasTexture(info.atlas_texture))];
+                self.renderer.update_buffers(thing);
+                self.renderer.render(thing);
+            }
+        }
+
         let batches = self.scene.batches(info_map).collect::<Vec<_>>();
 
         self.renderer.update_buffers(&batches);
-
         self.renderer.render(&batches);
     }
 

@@ -1,3 +1,4 @@
+use core::f32;
 use std::fmt::Debug;
 
 use super::path::GeometryPath;
@@ -184,7 +185,7 @@ impl<'a> DrawList<'a> {
         self.add_polyline(&path.points, stroke_style)
     }
 
-    fn add_polyline(&self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
+    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
         if points.len() < 2 {
             return;
         }
@@ -208,24 +209,166 @@ impl<'a> DrawList<'a> {
             return;
         }
 
+        let first_segment = segments.first().unwrap();
+        let last_segment = segments.last().unwrap();
+
+        // Path start and end edge vertices
+        let mut path_start_1 = first_segment.edge_1.a;
+        let mut path_start_2 = first_segment.edge_2.a;
+
+        let mut path_end_1 = last_segment.edge_1.b;
+        let mut path_end_2 = last_segment.edge_2.b;
+
+        match stroke_style.line_cap {
+            LineCap::Butt => {}
+            LineCap::Round => {
+                self.add_triangle_fan(
+                    stroke_style.color,
+                    first_segment.center.a,
+                    first_segment.center.a,
+                    path_start_1,
+                    path_start_2,
+                    false,
+                );
+
+                self.add_triangle_fan(
+                    stroke_style.color,
+                    last_segment.center.b,
+                    last_segment.center.b,
+                    path_end_1,
+                    path_end_2,
+                    true,
+                );
+            }
+            LineCap::Joint => {
+                todo!("Create a joint")
+            }
+            LineCap::Square => {
+                // off set the start and end with the half line width
+                path_start_1 = path_start_1 + first_segment.edge_1.direction() * h_linewidth;
+                path_start_2 = path_start_2 + first_segment.edge_2.direction() * h_linewidth;
+                path_end_1 = path_end_1 - last_segment.edge_1.direction() * h_linewidth;
+                path_end_2 = path_end_2 - last_segment.edge_2.direction() * h_linewidth;
+            }
+        }
+
+        for (i, segment) in segments.iter().enumerate() {}
+
+        let push_line_seg = |l: &LineSegment, out: &mut String| {
+            out.push_str(&format!("({},{}), ({}, {}),", l.a.x, l.a.y, l.b.x, l.b.y));
+        };
+
+        let push_vec = |v: &Vec2<f32>, out: &mut String| {
+            out.push_str(&format!("({},{}),", v.x, v.y));
+        };
+
+        // pass 1
         {
             let mut out = String::new();
             out.push('[');
 
-            let mut push_vec = |l: &LineSegment| {
-                out.push_str(&format!("({},{}), ({}, {}),", l.a.x, l.a.y, l.b.x, l.b.y));
-            };
-
             for segment in &segments {
-                push_vec(&segment.edge_1);
-                push_vec(&segment.center);
-                push_vec(&segment.edge_2);
+                push_line_seg(&segment.edge_1, &mut out);
+                push_line_seg(&segment.center, &mut out);
+                push_line_seg(&segment.edge_2, &mut out);
             }
 
             out = out.trim_end_matches(',').to_string();
             out.push(']');
 
             println!("{}", out);
+        }
+        // pass =
+        {
+            let mut out = String::new();
+            out.push('[');
+
+            for v in &self.vertices {
+                push_vec(&v.position.into(), &mut out);
+            }
+
+            out = out.trim_end_matches(',').to_string();
+            out.push(']');
+
+            println!("{}", out);
+        }
+        // pass -2
+        #[cfg(never)]
+        {
+            let mut vertices: Vec<Vec2<f32>> = Vec::new();
+            vertices.extend_from_slice(&[path_start_1, path_start_2, path_end_1, path_end_2]);
+
+            let mut out = String::new();
+            out.push('[');
+
+            for v in &vertices {
+                push_vec(v, &mut out);
+            }
+
+            out = out.trim_end_matches(',').to_string();
+            out.push(']');
+
+            println!("{}", out);
+        }
+    }
+
+    pub fn add_triangle_fan(
+        &mut self,
+        color: Color,
+        connect_to: Vec2<f32>,
+        origin: Vec2<f32>,
+        start: Vec2<f32>,
+        end: Vec2<f32>,
+        clockwise: bool,
+    ) {
+        let from = start - origin;
+        let to = end - origin;
+
+        let mut from_angle = from.y.atan2(from.x);
+        let mut to_angle = to.y.atan2(to.x);
+
+        if clockwise {
+            if to_angle > from_angle {
+                to_angle -= f32::consts::TAU;
+            }
+        } else if from_angle > to_angle {
+            from_angle -= f32::consts::TAU;
+        }
+
+        const ROUND_MIN_ANGLE: f32 = 0.174533; // ~10 deg
+
+        let angle = to_angle - from_angle;
+        let num_triangles = (angle / ROUND_MIN_ANGLE).abs().floor().max(1.0) as usize;
+        let seg_angle = angle / num_triangles as f32;
+
+        let mut start_point = start;
+
+        let center_vertex_index = self.cur_vertex_idx;
+
+        self.add_vertex(connect_to, color, (0.0, 0.0));
+        self.cur_vertex_idx += 1;
+
+        for i in 0..num_triangles {
+            let end_point = if i + 1 == num_triangles {
+                end
+            } else {
+                let rotation = (i as f32 + 1.0) * seg_angle;
+                Vec2::new(
+                    rotation.cos() * from.x - rotation.sin() * from.y,
+                    rotation.sin() * from.x + rotation.cos() * from.y,
+                ) + origin
+            };
+
+            self.add_vertex(start_point, color, (0.0, 0.0));
+            self.add_vertex(end_point, color, (0.0, 0.0));
+            self.indices.extend_from_slice(&[
+                center_vertex_index,
+                self.cur_vertex_idx,
+                self.cur_vertex_idx + 1,
+            ]);
+            self.cur_vertex_idx += 2;
+
+            start_point = end_point;
         }
     }
 
@@ -273,6 +416,7 @@ impl<'a> DrawList<'a> {
 
     pub fn build(mut self, texture: TextureId) -> Mesh {
         let vertices = std::mem::take(&mut self.vertices);
+
         let indices = std::mem::take(&mut self.indices);
 
         Mesh {
