@@ -46,6 +46,7 @@ pub struct StrokeStyle {
     pub line_width: u32,
     pub line_join: LineJoin,
     pub line_cap: LineCap,
+    pub allow_overlap: bool,
 }
 
 impl Default for StrokeStyle {
@@ -55,11 +56,17 @@ impl Default for StrokeStyle {
             line_width: 2,
             line_join: LineJoin::Miter,
             line_cap: LineCap::Butt,
+            allow_overlap: false,
         }
     }
 }
 
 impl StrokeStyle {
+    pub fn allow_overlap(mut self, allow: bool) -> Self {
+        self.allow_overlap = allow;
+        self
+    }
+
     pub fn with_color(mut self, color: Color) -> Self {
         self.color = color;
         self
@@ -132,6 +139,11 @@ pub struct Primitive {
 }
 
 impl Primitive {
+    pub(crate) fn can_render(&self) -> bool {
+        let stroke_color = self.stroke.map_or(Color::TRANSPARENT, |s| s.color);
+        !self.fill.color.is_transparent() || !stroke_color.is_transparent()
+    }
+
     pub fn textured(mut self, tex: TextureId) -> Self {
         self.texture = tex;
         self
@@ -168,7 +180,7 @@ impl Primitive {
         self
     }
 
-    pub fn with_line_width(mut self, width: u32) -> Self {
+    pub fn with_stroke_width(mut self, width: u32) -> Self {
         let stroke = self.stroke.get_or_insert(Default::default());
         stroke.line_width = width;
         self
@@ -312,7 +324,7 @@ impl Path2D {
         self.ops.push(PathOp::QuadratcBezierTo { control, to })
     }
 
-    pub fn close_path(&mut self) {
+    pub fn close(&mut self) {
         self.dirty.set(true);
         self.ops.push(PathOp::ClosePath)
     }

@@ -147,6 +147,10 @@ impl<'a> SceneBatchIterator<'a> {
         for entry in &group.1 {
             let prim = &self.scene.items[entry.index];
 
+            if !prim.can_render() {
+                continue;
+            }
+
             let tile_tex_id = entry.texture_id;
             let is_default_texture = tile_tex_id == TextureId::WHITE_TEXTURE;
 
@@ -169,9 +173,7 @@ impl<'a> SceneBatchIterator<'a> {
 
             drawlist.set_middleware(uv_middleware);
 
-            // we purposefully inline calls here
             match &prim.kind {
-                // TODO: ? Should be move this to a trait to build the shape
                 PrimitiveKind::Circle(circle) => {
                     let fill_color = prim.fill.color;
 
@@ -185,36 +187,38 @@ impl<'a> SceneBatchIterator<'a> {
                     );
 
                     drawlist.fill_path_convex(fill_color);
-
-                    if prim.stroke.is_some() {
-                        // TODO: stroke the current_path
-                        log::error!("Stroke is not implemented yet")
+                    if let Some(stroke_style) = &prim.stroke {
+                        drawlist.stroke_path(&stroke_style.join())
                     }
                 }
 
                 PrimitiveKind::Quad(quad) => {
                     let fill_color = prim.fill.color;
 
-                    if quad.corners.is_zero() {
+                    if quad.corners.is_zero() && prim.stroke.is_none() {
                         drawlist.add_prim_quad(&quad.bounds, fill_color);
                     } else {
                         drawlist.path.clear();
                         drawlist.path.round_rect(&quad.bounds, &quad.corners);
                         drawlist.fill_path_convex(fill_color);
-                    }
 
-                    if prim.stroke.is_some() {
-                        // TODO: stroke the current_path
-                        log::error!("Stroke is not implemented yet")
+                        if let Some(stroke_style) = &prim.stroke {
+                            drawlist.stroke_path(&stroke_style.join())
+                        }
                     }
                 }
 
                 PrimitiveKind::Path(path) => {
                     self.with_path(path, |path| {
-                        // FIXME: use drawlist fill or stroke path after adding earcut
                         drawlist.fill_with_path(path, prim.fill.color);
+
                         if let Some(stroke_style) = &prim.stroke {
-                            drawlist.stroke_with_path(path, stroke_style)
+                            let stroke_style = if path.closed {
+                                stroke_style.join()
+                            } else {
+                                *stroke_style
+                            };
+                            drawlist.stroke_with_path(path, &stroke_style);
                         }
                     });
                 }

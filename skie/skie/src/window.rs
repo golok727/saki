@@ -17,7 +17,7 @@ use skie_draw::{
     math::{Corners, Pixels, Rect, Size},
     paint::{
         atlas::AtlasManager, circle, path::GeometryPath, quad, AsPrimitive, Color, DrawList,
-        StrokeStyle, TextureId, TextureKind,
+        Path2D, StrokeStyle, TextureId, TextureKind,
     },
     scene::Scene,
     traits::Half,
@@ -237,7 +237,9 @@ impl Window {
                 .with_pos(400.0, 500.0)
                 .with_radius(300.0)
                 .primitive()
-                .with_fill_color(Color::KHAKI),
+                .with_fill_color(Color::KHAKI)
+                .with_stroke_color(Color::DARK_BLUE)
+                .with_stroke_width(20),
         );
 
         self.scene.add(
@@ -292,7 +294,9 @@ impl Window {
                 .with_size(200.0, 500.0)
                 .with_corners(Corners::with_all(100.0).with_top_left(50.0))
                 .primitive()
-                .with_fill_color(Color::LIGHT_GREEN),
+                .with_fill_color(Color::LIGHT_GREEN)
+                .with_stroke_width(20)
+                .with_stroke_color(Color::TORCH_RED),
         );
 
         self.scene.add(
@@ -301,7 +305,19 @@ impl Window {
                 .with_size(100.0, 50.0)
                 .with_corners(Corners::with_all(10.0))
                 .primitive()
-                .with_fill_color(Color::TORCH_RED),
+                .with_fill_color(Color::TORCH_RED)
+                .with_stroke_width(5),
+        );
+
+        let mut path = Path2D::default();
+        path.move_to((100.0, 100.0).into());
+        path.line_to((500.0, 100.0).into());
+        path.line_to((100.0, 400.0).into());
+        path.close();
+
+        self.scene.add(
+            path.primitive()
+                .stroke(StrokeStyle::default().with_round_join().with_line_width(50)),
         );
     }
 

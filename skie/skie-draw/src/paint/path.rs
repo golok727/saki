@@ -118,7 +118,7 @@ impl GeometryPath {
     }
 
     /// Closes the current subpath by drawing a line back to the starting point.
-    pub fn close_path(&mut self) {
+    pub fn close(&mut self) {
         self.closed = true;
         // if let Some(start) = &self.start {
         //     self.line_to(*start);
@@ -256,7 +256,7 @@ impl GeometryPath {
                     end_angle,
                     clockwise,
                 } => builder.arc(*center, *radius, *start_angle, *end_angle, *clockwise),
-                PathOp::ClosePath => builder.close_path(),
+                PathOp::ClosePath => builder.close(),
             }
         }
 

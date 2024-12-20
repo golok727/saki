@@ -85,7 +85,7 @@ impl<'a> DrawList<'a> {
     pub(crate) fn fill_path_convex(&mut self, color: Color) {
         let points_count = self.path.points.len();
 
-        if points_count <= 2 {
+        if points_count <= 2 || color.is_transparent() {
             return;
         }
 
@@ -132,7 +132,7 @@ impl<'a> DrawList<'a> {
 
     #[inline]
     pub fn close_path(&mut self) {
-        self.path.close_path();
+        self.path.close();
     }
 
     #[inline]
@@ -172,9 +172,13 @@ impl<'a> DrawList<'a> {
 
     /// Strokes the current path
     pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
+        if stroke_style.color.is_transparent() {
+            return;
+        }
+
         // FIXME: is this good
         let points: Vec<Vec2<f32>> = std::mem::take(&mut self.path.points);
-        self.add_polyline(&points, stroke_style, true);
+        self.add_polyline(&points, stroke_style);
         self.path.points = points;
     }
 
@@ -183,15 +187,13 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn stroke_with_path(&mut self, path: &GeometryPath, stroke_style: &StrokeStyle) {
-        self.add_polyline(&path.points, stroke_style, true)
+        self.add_polyline(&path.points, stroke_style)
     }
 
-    fn add_polyline(
-        &mut self,
-        points: &[Vec2<f32>],
-        stroke_style: &StrokeStyle,
-        allow_overlap: bool,
-    ) {
+    // Adapted from
+    // https://github.com/CrushedPixel/Polyline2D
+    // https://artgrammer.blogspot.com/2011/07/drawing-polylines-by-tessellation.html?m=1
+    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
         if points.len() < 2 {
             return;
         }
@@ -254,7 +256,6 @@ impl<'a> DrawList<'a> {
                 &mut path_end_2,
                 &mut path_start_1,
                 &mut path_start_2,
-                allow_overlap,
             ),
             LineCap::Square => {
                 // off set the start and end with the half line width
@@ -292,7 +293,6 @@ impl<'a> DrawList<'a> {
                     &mut end_2,
                     &mut next_start_1,
                     &mut next_start_2,
-                    allow_overlap,
                 )
             }
 
@@ -366,7 +366,6 @@ impl<'a> DrawList<'a> {
 
         next_start1: &mut Vec2<f32>,
         next_start2: &mut Vec2<f32>,
-        allow_overlap: bool,
     ) {
         let dir1 = segment1.center.direction();
         let dir2 = segment2.center.direction();
@@ -421,7 +420,7 @@ impl<'a> DrawList<'a> {
                 inner2 = &segment2.edge1;
             }
 
-            let inner_sec_option = inner1.intersection(inner2, allow_overlap);
+            let inner_sec_option = inner1.intersection(inner2, style.allow_overlap);
             let inner_sec = inner_sec_option.unwrap_or(inner1.b);
 
             let inner_start = if inner_sec_option.is_some() {
@@ -542,6 +541,9 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn add_prim_quad(&mut self, rect: &Rect<f32>, color: Color) {
+        if color.is_transparent() {
+            return;
+        }
         let v_index_offset = self.cur_vertex_idx;
 
         let Rect {
