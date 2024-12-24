@@ -309,8 +309,6 @@ impl Window {
                 .with_stroke_width(5),
         );
 
-        self.scene.clear();
-
         let mut path = Path2D::default();
         path.move_to((100.0, 100.0).into());
         path.line_to((500.0, 100.0).into());
