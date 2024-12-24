@@ -420,7 +420,6 @@ impl WgpuRenderer {
             pass.set_bind_group(0, &self.state.global_uniforms.bind_group, &[]);
 
             for mesh in batches {
-                dbg!(mesh.vertices.len());
                 let texture = mesh.texture;
                 if let Some(RendererTexture { bindgroup, .. }) = self.state.textures.get(&texture) {
                     let vb_slice = vb_slices.next().expect("No next vb_slice");
