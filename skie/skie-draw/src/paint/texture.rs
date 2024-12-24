@@ -24,7 +24,7 @@ impl TextureId {
     pub const WHITE_TEXTURE: Self = TextureId::Internal(1);
 }
 
-pub static WHITE_TEXTURE_UV: (f32, f32) = (0.0, 0.0);
+pub static WHITE_UV: (f32, f32) = (0.0, 0.0);
 
 pub struct Texture2DSpecs {
     pub size: Size<DevicePixels>,

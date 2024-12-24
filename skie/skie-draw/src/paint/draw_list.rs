@@ -5,7 +5,7 @@ use super::path::Path2D;
 use super::{Color, LineCap, LineJoin, Rgba, StrokeStyle, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
-use crate::paint::WHITE_TEXTURE_UV;
+use crate::paint::WHITE_UV;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -469,8 +469,10 @@ impl<'a> DrawList<'a> {
         let num_triangles = (angle / ROUND_MIN_ANGLE).abs().floor().max(1.0) as usize;
         let seg_angle = angle / num_triangles as f32;
 
-        self.add_vertex(connect_to, color, WHITE_TEXTURE_UV);
-        self.add_vertex(start, color, WHITE_TEXTURE_UV);
+        self.reserve_prim(2 + num_triangles, num_triangles * 3);
+
+        self.add_vertex(connect_to, color, WHITE_UV);
+        self.add_vertex(start, color, WHITE_UV);
 
         let conn_vertex_index = self.cur_vertex_idx;
         let start_vertex_index = self.cur_vertex_idx + 1;
@@ -480,12 +482,11 @@ impl<'a> DrawList<'a> {
 
         for i in 0..num_triangles - 1 {
             let rotation = (i as f32 + 1.0) * seg_angle;
-            let end_point = Vec2::new(
-                rotation.cos() * from.x - rotation.sin() * from.y,
-                rotation.sin() * from.x + rotation.cos() * from.y,
-            ) + origin;
+            let c = rotation.cos();
+            let s = rotation.sin();
+            let end_point = Vec2::new(c * from.x - s * from.y, s * from.x + c * from.y) + origin;
 
-            self.add_vertex(end_point, color, WHITE_TEXTURE_UV);
+            self.add_vertex(end_point, color, WHITE_UV);
             self.indices.extend_from_slice(&[
                 conn_vertex_index,
                 prev_vertex_index,
@@ -495,13 +496,14 @@ impl<'a> DrawList<'a> {
             self.cur_vertex_idx += 1;
         }
 
-        // add the end point avoids redudent end point calculation
-        self.add_vertex(end, color, WHITE_TEXTURE_UV);
+        // add the end point
+        self.add_vertex(end, color, WHITE_UV);
         self.indices.extend_from_slice(&[
             conn_vertex_index,
             prev_vertex_index,
             self.cur_vertex_idx,
         ]);
+
         self.cur_vertex_idx += 1;
     }
 

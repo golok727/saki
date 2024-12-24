@@ -347,7 +347,6 @@ impl Window {
             path.primitive().stroke(
                 StrokeStyle::default()
                     .with_color(Color::LIGHT_RED)
-                    .with_round_join()
                     .with_round_cap()
                     .with_line_width(30),
             ),
