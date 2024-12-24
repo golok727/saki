@@ -12,9 +12,17 @@ pub enum PrimitiveKind {
     Circle(Circle),
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FillStyle {
     pub color: Color,
+}
+
+impl Default for FillStyle {
+    fn default() -> Self {
+        Self {
+            color: Color::WHITE,
+        }
+    }
 }
 
 impl FillStyle {
@@ -51,7 +59,7 @@ pub struct StrokeStyle {
 impl Default for StrokeStyle {
     fn default() -> Self {
         Self {
-            color: Default::default(),
+            color: Color::WHITE,
             line_width: 2,
             line_join: LineJoin::Miter,
             line_cap: LineCap::Butt,

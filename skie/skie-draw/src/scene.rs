@@ -148,7 +148,7 @@ impl<'a> SceneBatchIterator<'a> {
                     //     false,
                     // );
 
-                    drawlist.fill_path_convex(fill_color);
+                    drawlist.fill_path_convex(fill_color, !is_default_texture);
                     if let Some(stroke_style) = &prim.stroke {
                         drawlist.stroke_path(&stroke_style.join())
                     }
@@ -162,7 +162,7 @@ impl<'a> SceneBatchIterator<'a> {
                     } else {
                         drawlist.path.clear();
                         drawlist.path.round_rect(&quad.bounds, &quad.corners);
-                        drawlist.fill_path_convex(fill_color);
+                        drawlist.fill_path_convex(fill_color, !is_default_texture);
 
                         if let Some(stroke_style) = &prim.stroke {
                             drawlist.stroke_path(&stroke_style.join())

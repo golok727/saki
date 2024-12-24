@@ -82,47 +82,96 @@ impl<'a> DrawList<'a> {
         vertex
     }
 
-    pub(crate) fn fill_path_convex(&mut self, color: Color) {
+    pub(crate) fn fill_path_convex(&mut self, color: Color, calc_uv: bool) {
+        // FIXME: move to drawlist;
+        const FEATHERING: f32 = 1.0;
+        let feathering = FEATHERING;
         let points_count = self.path.points.len();
 
         if points_count <= 2 || color.is_transparent() {
             return;
         }
 
-        let index_count = (points_count - 2) * 3;
-        let vtx_count = points_count;
+        let bounds = if calc_uv {
+            self.path.bounds()
+        } else {
+            Default::default()
+        };
 
-        self.reserve_prim(vtx_count, index_count);
-
-        let bounds = self.path.bounds();
         let min_x = bounds.x;
         let min_y = bounds.y;
         let max_x = bounds.x + bounds.width;
         let max_y = bounds.y + bounds.height;
 
-        for point in &self.path.points {
-            let uv_x = (point.x - min_x) / (max_x - min_x);
-            let uv_y = (point.y - min_y) / (max_y - min_y);
-            let uv = (uv_x, uv_y);
+        let get_uv = |point: &Vec2<f32>| {
+            if calc_uv {
+                let uv_x = (point.x - min_x) / (max_x - min_x);
+                let uv_y = (point.y - min_y) / (max_y - min_y);
+                (uv_x, uv_y)
+            } else {
+                WHITE_UV
+            }
+        };
 
-            self.vertices
-                .push(self.apply_mw(DrawVert::new(*point, color, uv)));
+        if feathering > 0.0 {
+            // AA fill
+            let idx_count = (points_count - 2) * 3 + points_count * 6;
+            let vtx_count = points_count * 2;
+            self.reserve_prim(vtx_count, idx_count);
+
+            let vtx_inner_idx = self.cur_vertex_idx;
+            let vtx_outer_idx = vtx_inner_idx + 1;
+            for i in 2..points_count {
+                self.indices.push(vtx_inner_idx);
+                self.indices.push(vtx_inner_idx + ((i - 1) << 1) as u32);
+                self.indices.push(vtx_inner_idx + (i << 1) as u32)
+            }
+
+            let mut i0 = points_count - 1;
+            for i1 in 0..points_count {
+                let p1 = self.path.points[i1];
+                let dm = p1.normalize().normal() * 0.5 * feathering;
+
+                let pos_inner = p1 - dm;
+                let pos_outer = p1 + dm;
+
+                self.add_vertex(pos_inner, color, get_uv(&pos_inner));
+                self.add_vertex(pos_outer, color, get_uv(&pos_outer));
+
+                self.indices.push(vtx_inner_idx + (i1 << 1) as u32);
+                self.indices.push(vtx_inner_idx + (i0 << 1) as u32);
+
+                self.indices.push(vtx_outer_idx + (i0 << 1) as u32);
+                self.indices.push(vtx_outer_idx + (i0 << 1) as u32);
+                self.indices.push(vtx_outer_idx + (i1 << 1) as u32);
+
+                self.indices.push(vtx_inner_idx + (i1 << 1) as u32);
+                i0 = i1;
+            }
+
+            self.cur_vertex_idx += vtx_count as u32;
+        } else {
+            // no AA fill
+            let index_count = (points_count - 2) * 3;
+            let vtx_count = points_count;
+
+            self.reserve_prim(vtx_count, index_count);
+            for point in &self.path.points {
+                let uv = get_uv(point);
+                self.vertices
+                    .push(self.apply_mw(DrawVert::new(*point, color, uv)));
+            }
+
+            let base_idx = self.cur_vertex_idx;
+
+            for i in 2..points_count {
+                self.indices.push(base_idx);
+                self.indices.push(base_idx + i as u32 - 1);
+                self.indices.push(base_idx + i as u32);
+            }
+
+            self.cur_vertex_idx += vtx_count as u32;
         }
-
-        let base_idx = self.cur_vertex_idx;
-
-        // We assume the first vertex (base) is the center of the fan
-        for i in 2..points_count {
-            let idx0 = base_idx; // First vertex (center of the fan)
-            let idx1 = base_idx + i as u32 - 1; // The second vertex in the fan
-            let idx2 = base_idx + i as u32; // The next vertex in the fan
-
-            self.indices.push(idx0);
-            self.indices.push(idx1);
-            self.indices.push(idx2);
-        }
-
-        self.cur_vertex_idx += vtx_count as u32;
     }
 
     #[inline]
@@ -167,7 +216,7 @@ impl<'a> DrawList<'a> {
     /// Fills the current path
     pub fn fill_path(&mut self, color: Color) {
         // FIXME:  add earcut("Fill Path")
-        self.fill_path_convex(color);
+        self.fill_path_convex(color, false);
     }
 
     /// Strokes the current path

@@ -22,6 +22,10 @@ impl Default for TextureId {
 
 impl TextureId {
     pub const WHITE_TEXTURE: Self = TextureId::Internal(1);
+    #[inline(always)]
+    pub fn is_white(&self) -> bool {
+        self == &Self::WHITE_TEXTURE
+    }
 }
 
 pub static WHITE_UV: (f32, f32) = (0.0, 0.0);

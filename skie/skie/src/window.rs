@@ -221,7 +221,8 @@ impl Window {
                 .with_pos(width - 300.0, height - 300.0)
                 .with_size(200.0, 200.0)
                 .primitive()
-                .textured(self.yellow_thing_texture_id),
+                .textured(self.yellow_thing_texture_id)
+                .with_stroke_width(10),
         );
 
         self.scene.add(
@@ -237,9 +238,7 @@ impl Window {
                 .with_pos(400.0, 500.0)
                 .with_radius(300.0)
                 .primitive()
-                .with_fill_color(Color::KHAKI)
-                .with_stroke_color(Color::DARK_BLUE)
-                .with_stroke_width(20),
+                .with_fill_color(Color::KHAKI),
         );
 
         self.scene.add(

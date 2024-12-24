@@ -110,6 +110,20 @@ where
         + std::ops::Add<T, Output = T>
         + std::ops::Sub<T, Output = T>,
 {
+    pub fn extend(&mut self, delta: T) {
+        self.x = self.x.clone() - delta.clone();
+        self.y = self.y.clone() - delta.clone();
+        self.width = self.width.clone() + delta.clone();
+        self.height = self.height.clone() + delta.clone();
+    }
+
+    pub fn pad(&mut self, pad_x: T, pad_y: T) {
+        self.x = self.x.clone() - pad_x.clone();
+        self.y = self.y.clone() - pad_y.clone();
+        self.width = self.width.clone() + pad_x.clone();
+        self.height = self.height.clone() + pad_y.clone();
+    }
+
     pub fn include_point(&mut self, p: &Vec2<T>) {
         let x = self.x.clone();
         let y = self.y.clone();
