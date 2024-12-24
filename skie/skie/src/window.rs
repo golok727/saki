@@ -346,8 +346,9 @@ impl Window {
         self.scene.add(
             path.primitive().stroke(
                 StrokeStyle::default()
-                    .with_color(Color::LIGHT_RED)
+                    .with_color(Color::WHITE)
                     .with_round_cap()
+                    .with_bevel_join()
                     .with_line_width(30),
             ),
         );

@@ -301,13 +301,12 @@ impl<'a> DrawList<'a> {
             }
 
             let cur_vertex_idx = self.cur_vertex_idx;
-
             // emit vertices
             self.reserve_prim(4, 6);
-            self.add_vertex(start_1, stroke_style.color, (0.0, 0.0));
-            self.add_vertex(start_2, stroke_style.color, (0.0, 0.0));
-            self.add_vertex(end_1, stroke_style.color, (0.0, 0.0));
-            self.add_vertex(end_2, stroke_style.color, (0.0, 0.0));
+            self.add_vertex(start_1, stroke_style.color, WHITE_UV);
+            self.add_vertex(start_2, stroke_style.color, WHITE_UV);
+            self.add_vertex(end_1, stroke_style.color, WHITE_UV);
+            self.add_vertex(end_2, stroke_style.color, WHITE_UV);
             self.indices.extend_from_slice(&[
                 cur_vertex_idx,
                 cur_vertex_idx + 1,
@@ -390,10 +389,10 @@ impl<'a> DrawList<'a> {
                 inner2 = &segment2.edge1;
             }
 
-            let inner_sec_option = inner1.intersection(inner2, style.allow_overlap);
-            let inner_sec = inner_sec_option.unwrap_or(inner1.b);
+            let inner_sec_maybe = inner1.intersection(inner2, style.allow_overlap);
+            let inner_sec = inner_sec_maybe.unwrap_or(inner1.b);
 
-            let inner_start = if inner_sec_option.is_some() {
+            let inner_start = if inner_sec_maybe.is_some() {
                 inner_sec
             } else if angle > f32::consts::FRAC_PI_2 {
                 outer1.b
@@ -418,9 +417,9 @@ impl<'a> DrawList<'a> {
             if joint_style == LineJoin::Bevel {
                 // simply connect the intersection points
                 self.reserve_prim(3, 3);
-                self.add_vertex(outer1.b, style.color, (0.0, 0.0));
-                self.add_vertex(outer2.a, style.color, (0.0, 0.0));
-                self.add_vertex(inner_sec, style.color, (0.0, 0.0));
+                self.add_vertex(outer1.b, style.color, WHITE_UV);
+                self.add_vertex(outer2.a, style.color, WHITE_UV);
+                self.add_vertex(inner_sec, style.color, WHITE_UV);
                 self.indices.extend_from_slice(&[
                     self.cur_vertex_idx,
                     self.cur_vertex_idx + 1,

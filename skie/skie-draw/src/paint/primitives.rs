@@ -145,6 +145,9 @@ impl Primitive {
 
     pub fn textured(mut self, tex: TextureId) -> Self {
         self.texture = tex;
+        if self.fill.color.is_transparent() {
+            self.fill.color = Color::WHITE;
+        }
         self
     }
 
