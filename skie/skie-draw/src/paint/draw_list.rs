@@ -5,13 +5,13 @@ use super::path::Path2D;
 use super::{Color, LineCap, LineJoin, Rgba, StrokeStyle, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
+use crate::paint::WHITE_TEXTURE_UV;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct DrawVert {
     pub position: [f32; 2],
     pub uv: [f32; 2],
-    // FIXME: use u32 maybe?
     pub color: Rgba,
 }
 
@@ -228,8 +228,11 @@ impl<'a> DrawList<'a> {
         let mut path_end_2 = last_segment.edge2.b;
 
         match stroke_style.line_cap {
-            LineCap::Butt => {}
+            LineCap::Butt => {
+                // NOOP
+            }
             LineCap::Round => {
+                // add the start and end round caps
                 self.add_triangle_fan(
                     stroke_style.color,
                     first_segment.center.a,
@@ -258,7 +261,7 @@ impl<'a> DrawList<'a> {
                 &mut path_start_2,
             ),
             LineCap::Square => {
-                // off set the start and end with the half line width
+                // offset the start and end with the half line width
                 path_start_1 += first_segment.edge1.direction() * h_linewidth;
                 path_start_2 += first_segment.edge2.direction() * h_linewidth;
                 path_end_1 -= last_segment.edge1.direction() * h_linewidth;
@@ -285,6 +288,7 @@ impl<'a> DrawList<'a> {
                 end_1 = path_end_1;
                 end_2 = path_end_2;
             } else {
+                // join the two segments
                 self.polyline_create_joint(
                     stroke_style,
                     segment,
@@ -298,6 +302,8 @@ impl<'a> DrawList<'a> {
 
             let cur_vertex_idx = self.cur_vertex_idx;
 
+            // emit vertices
+            self.reserve_prim(4, 6);
             self.add_vertex(start_1, stroke_style.color, (0.0, 0.0));
             self.add_vertex(start_2, stroke_style.color, (0.0, 0.0));
             self.add_vertex(end_1, stroke_style.color, (0.0, 0.0));
@@ -315,42 +321,6 @@ impl<'a> DrawList<'a> {
             start_1 = next_start_1;
             start_2 = next_start_2;
         }
-
-        // let push_vec = |v: &Vec2<f32>, out: &mut String| {
-        //     out.push_str(&format!("({},{}),", v.x, v.y));
-        // };
-
-        // {
-        //     let mut out = String::new();
-        //     out.push('[');
-        //
-        //     for v in &self.vertices {
-        //         push_vec(&v.position.into(), &mut out);
-        //     }
-        //
-        //     out = out.trim_end_matches(',').to_string();
-        //     out.push(']');
-        //
-        //     println!("{}", out);
-        // }
-        //
-        // pass -2
-        // {
-        //     let mut vertices: Vec<Vec2<f32>> = Vec::new();
-        //     vertices.extend_from_slice(&[path_start_1, path_start_2, path_end_1, path_end_2]);
-        //
-        //     let mut out = String::new();
-        //     out.push('[');
-        //
-        //     for v in &vertices {
-        //         push_vec(v, &mut out);
-        //     }
-        //
-        //     out = out.trim_end_matches(',').to_string();
-        //     out.push(']');
-        //
-        //     println!("{}", out);
-        // }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -447,6 +417,7 @@ impl<'a> DrawList<'a> {
 
             if joint_style == LineJoin::Bevel {
                 // simply connect the intersection points
+                self.reserve_prim(3, 3);
                 self.add_vertex(outer1.b, style.color, (0.0, 0.0));
                 self.add_vertex(outer2.a, style.color, (0.0, 0.0));
                 self.add_vertex(inner_sec, style.color, (0.0, 0.0));
@@ -498,35 +469,40 @@ impl<'a> DrawList<'a> {
         let num_triangles = (angle / ROUND_MIN_ANGLE).abs().floor().max(1.0) as usize;
         let seg_angle = angle / num_triangles as f32;
 
-        let mut start_point = start;
+        self.add_vertex(connect_to, color, WHITE_TEXTURE_UV);
+        self.add_vertex(start, color, WHITE_TEXTURE_UV);
 
-        let center_vertex_index = self.cur_vertex_idx;
+        let conn_vertex_index = self.cur_vertex_idx;
+        let start_vertex_index = self.cur_vertex_idx + 1;
+        self.cur_vertex_idx += 2;
 
-        self.add_vertex(connect_to, color, (0.0, 0.0));
-        self.cur_vertex_idx += 1;
+        let mut prev_vertex_index = start_vertex_index;
 
-        for i in 0..num_triangles {
-            let end_point = if i + 1 == num_triangles {
-                end
-            } else {
-                let rotation = (i as f32 + 1.0) * seg_angle;
-                Vec2::new(
-                    rotation.cos() * from.x - rotation.sin() * from.y,
-                    rotation.sin() * from.x + rotation.cos() * from.y,
-                ) + origin
-            };
+        for i in 0..num_triangles - 1 {
+            let rotation = (i as f32 + 1.0) * seg_angle;
+            let end_point = Vec2::new(
+                rotation.cos() * from.x - rotation.sin() * from.y,
+                rotation.sin() * from.x + rotation.cos() * from.y,
+            ) + origin;
 
-            self.add_vertex(start_point, color, (0.0, 0.0));
-            self.add_vertex(end_point, color, (0.0, 0.0));
+            self.add_vertex(end_point, color, WHITE_TEXTURE_UV);
             self.indices.extend_from_slice(&[
-                center_vertex_index,
+                conn_vertex_index,
+                prev_vertex_index,
                 self.cur_vertex_idx,
-                self.cur_vertex_idx + 1,
             ]);
-            self.cur_vertex_idx += 2;
-
-            start_point = end_point;
+            prev_vertex_index = self.cur_vertex_idx;
+            self.cur_vertex_idx += 1;
         }
+
+        // add the end point avoids redudent end point calculation
+        self.add_vertex(end, color, WHITE_TEXTURE_UV);
+        self.indices.extend_from_slice(&[
+            conn_vertex_index,
+            prev_vertex_index,
+            self.cur_vertex_idx,
+        ]);
+        self.cur_vertex_idx += 1;
     }
 
     pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {

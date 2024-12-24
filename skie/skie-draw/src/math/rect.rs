@@ -12,6 +12,16 @@ pub struct Rect<T: Debug + Clone + Default> {
     pub height: T,
 }
 
+impl<T: Debug + Clone + Default> From<(T, T, T, T)> for Rect<T> {
+    fn from(v: (T, T, T, T)) -> Self {
+        Self {
+            x: v.0,
+            y: v.1,
+            width: v.2,
+            height: v.3,
+        }
+    }
+}
 impl<T: Debug + Clone + Default> Rect<T> {
     pub fn position(&self) -> Vec2<T> {
         Vec2 {

@@ -74,6 +74,19 @@ impl Mat3 {
         self.translate(0., dy)
     }
 
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        let cos = angle.cos();
+        let sin = angle.sin();
+
+        let rotation = Self {
+            data: [cos, -sin, 0.0, sin, cos, 0.0, 0.0, 0.0, 1.0],
+        };
+
+        *self = *self * rotation;
+
+        self
+    }
+
     #[inline]
     pub fn scale(&mut self, sx: f32, sy: f32) -> &mut Self {
         self.data[0] *= sx;

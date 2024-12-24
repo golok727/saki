@@ -14,7 +14,7 @@ use crate::{
 
 use skie_draw::{
     gpu::GpuContext,
-    math::{Corners, Pixels, Rect, Size},
+    math::{Corners, Mat3, Pixels, Rect, Size},
     paint::{
         atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, DrawList, StrokeStyle,
         TextureId, TextureKind,
@@ -166,7 +166,7 @@ impl Window {
 
     pub fn set_bg_color(&mut self, color: Color) {
         self.renderer.set_clear_color(color);
-        self.handle.request_redraw();
+        self.refresh();
     }
 
     #[inline]
@@ -309,6 +309,8 @@ impl Window {
                 .with_stroke_width(5),
         );
 
+        self.scene.clear();
+
         let mut path = Path2D::default();
         path.move_to((100.0, 100.0).into());
         path.line_to((500.0, 100.0).into());
@@ -318,6 +320,39 @@ impl Window {
         self.scene.add(
             path.primitive()
                 .stroke(StrokeStyle::default().with_round_join().with_line_width(50)),
+        );
+
+        let mut path = Path2D::default();
+        path.move_to((300.0, 500.0).into());
+        path.line_to((600.0, 500.0).into());
+        path.line_to((400.0, 700.0).into());
+
+        let bounds = path.bounds();
+        let mut transform = Mat3::new();
+
+        transform.translate(
+            -(bounds.x + bounds.width) + bounds.width.half(),
+            -(bounds.y + bounds.height) + bounds.height.half(),
+        );
+
+        transform.rotate(45f32.to_radians());
+        transform.scale(2.0, 2.0);
+
+        transform.translate(
+            (bounds.x + bounds.width) - bounds.width.half(),
+            (bounds.y + bounds.height) - bounds.height.half(),
+        );
+
+        transform * &mut path;
+
+        self.scene.add(
+            path.primitive().stroke(
+                StrokeStyle::default()
+                    .with_color(Color::LIGHT_RED)
+                    .with_round_join()
+                    .with_round_cap()
+                    .with_line_width(30),
+            ),
         );
     }
 

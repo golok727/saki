@@ -1,5 +1,5 @@
 use crate::{
-    math::{Corners, Rect, Vec2},
+    math::{Corners, Mat3, Rect, Vec2},
     traits::{IsZero, Zero},
 };
 
@@ -27,10 +27,6 @@ impl Default for Path2D {
 impl Path2D {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.closed
     }
 
     pub fn is_empty(&self) -> bool {
@@ -236,6 +232,15 @@ impl Path2D {
         );
 
         self.set_segment_count(segcount);
+    }
+}
+
+impl std::ops::Mul<&mut Path2D> for Mat3 {
+    type Output = ();
+    fn mul(self, path: &mut Path2D) -> Self::Output {
+        for point in path.points.iter_mut() {
+            *point = self * (*point)
+        }
     }
 }
 
