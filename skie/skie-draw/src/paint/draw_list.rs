@@ -1,7 +1,7 @@
 use core::f32;
 use std::fmt::Debug;
 
-use super::path::GeometryPath;
+use super::path::Path2D;
 use super::{Color, LineCap, LineJoin, Rgba, StrokeStyle, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
@@ -38,7 +38,7 @@ pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
 pub struct DrawList<'a> {
     pub(crate) vertices: Vec<DrawVert>,
     pub(crate) indices: Vec<u32>,
-    pub(crate) path: GeometryPath,
+    pub(crate) path: Path2D,
     cur_vertex_idx: u32,
 
     middleware: Option<DrawListMiddleware<'a>>,
@@ -182,11 +182,11 @@ impl<'a> DrawList<'a> {
         self.path.points = points;
     }
 
-    pub fn fill_with_path(&mut self, _path: &GeometryPath, _color: Color) {
+    pub fn fill_with_path(&mut self, _path: &Path2D, _color: Color) {
         // TODO: earcut for user facing api
     }
 
-    pub fn stroke_with_path(&mut self, path: &GeometryPath, stroke_style: &StrokeStyle) {
+    pub fn stroke_with_path(&mut self, path: &Path2D, stroke_style: &StrokeStyle) {
         self.add_polyline(&path.points, stroke_style)
     }
 

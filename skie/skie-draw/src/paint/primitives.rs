@@ -1,10 +1,9 @@
 use crate::math::Corners;
-use std::cell::Cell;
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
 
-use super::{Color, TextureId};
+use super::{path::Path2D, Color, TextureId};
 
 #[derive(Debug, Clone)]
 pub enum PrimitiveKind {
@@ -241,11 +240,6 @@ impl Quad {
         self.corners = corners;
         self
     }
-
-    pub(crate) fn into_primitive_kind(self) -> PrimitiveKind {
-        // TODO: use path if its a rounded rectangle
-        PrimitiveKind::Quad(self)
-    }
 }
 
 impl Default for Quad {
@@ -272,91 +266,10 @@ pub fn circle() -> Circle {
     Circle::default()
 }
 
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct PathId(pub(crate) usize);
-
-pub static DEFAULT_PATH_ID: PathId = PathId(0);
-
-#[derive(Debug, Clone)]
-pub enum PathOp {
-    MoveTo(Vec2<f32>),
-    LineTo(Vec2<f32>),
-    QuadratcBezierTo {
-        control: Vec2<f32>,
-        to: Vec2<f32>,
-    },
-    ArcTo {
-        center: Vec2<f32>,
-        radius: f32,
-        start_angle: f32,
-        end_angle: f32,
-        clockwise: bool,
-    },
-    ClosePath,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct Path2D {
-    pub id: PathId,
-    pub(crate) ops: Vec<PathOp>,
-    pub(crate) dirty: Cell<bool>,
-    // pub(crate) flags
-}
-
-impl Path2D {
-    #[allow(unused)]
-    pub(crate) fn with_flags(&mut self) {
-        todo!()
-    }
-
-    pub fn move_to(&mut self, to: Vec2<f32>) {
-        self.dirty.set(true);
-        self.ops.push(PathOp::MoveTo(to))
-    }
-
-    pub fn line_to(&mut self, to: Vec2<f32>) {
-        self.dirty.set(true);
-        self.ops.push(PathOp::MoveTo(to))
-    }
-
-    pub fn quadratic_bezier_to(&mut self, control: Vec2<f32>, to: Vec2<f32>) {
-        self.dirty.set(true);
-        self.ops.push(PathOp::QuadratcBezierTo { control, to })
-    }
-
-    pub fn close(&mut self) {
-        self.dirty.set(true);
-        self.ops.push(PathOp::ClosePath)
-    }
-
-    pub fn arc(
-        &mut self,
-        center: Vec2<f32>,
-        radius: f32,
-        start_angle: f32,
-        end_angle: f32,
-        clockwise: bool,
-    ) {
-        self.dirty.set(true);
-        self.ops.push(PathOp::ArcTo {
-            center,
-            radius,
-            start_angle,
-            end_angle,
-            clockwise,
-        })
-    }
-
-    pub fn clear(&mut self) {
-        self.dirty.set(true);
-        self.ops.clear()
-    }
-}
-
 impl From<Quad> for PrimitiveKind {
     #[inline]
     fn from(quad: Quad) -> Self {
-        quad.into_primitive_kind()
+        PrimitiveKind::Quad(quad)
     }
 }
 

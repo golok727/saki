@@ -1,4 +1,9 @@
-use crate::{gpu::GpuContext, paint::TextureFormat};
+use crate::{
+    gpu::GpuContext,
+    paint::{TextureFormat, WgpuTextureView},
+};
+
+use super::RenderTarget;
 
 #[derive(Debug)]
 pub struct OffscreenRenderTargetSpec {
@@ -92,20 +97,6 @@ impl OffscreenRenderTarget {
         })
     }
 
-    pub fn resize(&mut self, new_width: u32, new_height: u32) {
-        if self.width == new_width && self.height == new_height {
-            return;
-        }
-
-        let new_width = new_width.max(1);
-        let new_height = new_height.max(1);
-
-        self.width = new_width;
-        self.height = new_height;
-
-        self.dirty = true;
-    }
-
     pub fn sync(&mut self, gpu: &GpuContext) {
         if !self.dirty {
             return;
@@ -160,5 +151,29 @@ impl OffscreenRenderTarget {
                 depth_or_array_layers: 1,
             },
         );
+    }
+}
+
+impl RenderTarget for OffscreenRenderTarget {
+    fn begin_frame(&mut self) -> &WgpuTextureView {
+        self.texture_view()
+    }
+
+    fn resize(&mut self, new_width: u32, new_height: u32) {
+        if self.width == new_width && self.height == new_height {
+            return;
+        }
+
+        let new_width = new_width.max(1);
+        let new_height = new_height.max(1);
+
+        self.width = new_width;
+        self.height = new_height;
+
+        self.dirty = true;
+    }
+
+    fn pre_render(&mut self, gpu: &GpuContext) {
+        self.sync(gpu);
     }
 }

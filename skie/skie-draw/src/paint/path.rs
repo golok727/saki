@@ -3,10 +3,8 @@ use crate::{
     traits::{IsZero, Zero},
 };
 
-use super::{Path2D, PathOp};
-
 #[derive(Debug, Clone)]
-pub struct GeometryPath {
+pub struct Path2D {
     pub points: Vec<Vec2<f32>>,
     pub(crate) closed: bool,
     cursor: Vec2<f32>,
@@ -14,7 +12,7 @@ pub struct GeometryPath {
     segment_count: u8,
 }
 
-impl Default for GeometryPath {
+impl Default for Path2D {
     fn default() -> Self {
         Self {
             points: Default::default(),
@@ -26,7 +24,7 @@ impl Default for GeometryPath {
     }
 }
 
-impl GeometryPath {
+impl Path2D {
     pub fn new() -> Self {
         Self::default()
     }
@@ -82,7 +80,7 @@ impl GeometryPath {
         res
     }
 
-    pub fn extend(&mut self, _path: &GeometryPath) {
+    pub fn extend(&mut self, _path: &Path2D) {
         todo!()
     }
 
@@ -239,47 +237,6 @@ impl GeometryPath {
 
         self.set_segment_count(segcount);
     }
-
-    fn from_ops(ops: &[PathOp]) -> Self {
-        let mut builder = Self::default();
-        for op in ops {
-            match op {
-                PathOp::MoveTo(to) => builder.line_to(*to),
-                PathOp::LineTo(to) => builder.line_to(*to),
-                PathOp::QuadratcBezierTo { control, to } => {
-                    builder.quadratic_bezier_to(*control, *to)
-                }
-                PathOp::ArcTo {
-                    center,
-                    radius,
-                    start_angle,
-                    end_angle,
-                    clockwise,
-                } => builder.arc(*center, *radius, *start_angle, *end_angle, *clockwise),
-                PathOp::ClosePath => builder.close(),
-            }
-        }
-
-        builder
-    }
-}
-
-impl From<&Path2D> for GeometryPath {
-    fn from(path: &Path2D) -> Self {
-        Self::from_ops(&path.ops)
-    }
-}
-
-impl From<Path2D> for GeometryPath {
-    fn from(path: Path2D) -> Self {
-        Self::from_ops(&path.ops)
-    }
-}
-
-impl From<&[PathOp]> for GeometryPath {
-    fn from(ops: &[PathOp]) -> Self {
-        Self::from_ops(ops)
-    }
 }
 
 #[cfg(test)]
@@ -291,7 +248,7 @@ mod tests {
     #[test]
     fn test_line_to_multiple_lines() {
         // Create a new GeometryPath
-        let mut path = GeometryPath::new();
+        let mut path = Path2D::new();
 
         path.move_to(vec2(50.0, 50.0));
         path.line_to(vec2(100.0, 100.0));
@@ -350,7 +307,7 @@ mod tests {
             vec2(200.0, 300.0),
         ];
 
-        let mut path = GeometryPath::default();
+        let mut path = Path2D::default();
 
         path.arc(
             (300.0, 300.0).into(),
