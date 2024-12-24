@@ -593,7 +593,7 @@ where
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn vec2<T>(x: T, y: T) -> Vec2<T> {
     Vec2 { x, y }
 }

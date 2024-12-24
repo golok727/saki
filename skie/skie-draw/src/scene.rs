@@ -139,13 +139,14 @@ impl<'a> SceneBatchIterator<'a> {
                     let fill_color = prim.fill.color;
 
                     drawlist.path.clear();
-                    drawlist.path.arc(
-                        circle.center,
-                        circle.radius,
-                        0.0,
-                        std::f32::consts::TAU,
-                        false,
-                    );
+                    drawlist.path.circle(circle.center, circle.radius);
+                    // drawlist.path.arc(
+                    //     circle.center,
+                    //     circle.radius,
+                    //     0.0,
+                    //     std::f32::consts::TAU,
+                    //     false,
+                    // );
 
                     drawlist.fill_path_convex(fill_color);
                     if let Some(stroke_style) = &prim.stroke {
