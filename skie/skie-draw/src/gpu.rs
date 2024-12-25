@@ -1,6 +1,8 @@
 pub mod error;
 pub mod surface;
 
+pub use wgpu::CommandEncoder;
+
 #[derive(Debug)]
 pub struct GpuContext {
     pub device: wgpu::Device,

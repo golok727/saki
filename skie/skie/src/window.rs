@@ -1,4 +1,6 @@
 pub mod error;
+mod painter;
+use painter::Painter;
 
 use core::f32;
 use std::{future::Future, io::Read, sync::Arc};
@@ -21,7 +23,7 @@ use skie_draw::{
     },
     scene::Scene,
     traits::Half,
-    WgpuRenderer, WgpuRendererSpecs,
+    WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -69,11 +71,12 @@ enum Object {
 
 #[derive(Debug)]
 pub struct Window {
-    pub(crate) renderer: WgpuRenderer,
+    pub(crate) painter: Painter,
     pub(crate) handle: Arc<WinitWindow>,
     pub(crate) scene: Scene,
 
     objects: Vec<Object>,
+    clear_color: Color,
 
     yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
@@ -112,7 +115,8 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
-        let mut renderer = WgpuRenderer::windowed(
+        // TODO: handle error
+        let mut painter = Painter::new(
             gpu,
             texture_system.clone(),
             Arc::clone(&handle),
@@ -148,24 +152,27 @@ impl Window {
             )
         });
 
-        renderer.set_atlas_texture(&checker_texture_id);
-        renderer.set_atlas_texture(&yellow_thing_texture_id);
+        painter.renderer.set_texture_from_atlas(&checker_texture_id);
+        painter
+            .renderer
+            .set_texture_from_atlas(&yellow_thing_texture_id);
 
         Ok(Self {
             scene: Scene::default(),
             handle,
-            renderer,
+            painter,
             texture_system,
             yellow_thing_texture_id,
             checker_texture_id,
             objects: Vec::new(),
+            clear_color: Color::WHITE,
             // FIXME: this is bad
             next_texture_id: 10000,
         })
     }
 
     pub fn set_bg_color(&mut self, color: Color) {
-        self.renderer.set_clear_color(color);
+        self.clear_color = color;
         self.refresh();
     }
 
@@ -175,7 +182,7 @@ impl Window {
     }
 
     pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
-        self.renderer.resize(width, height);
+        self.painter.resize(width, height);
     }
 
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
@@ -362,8 +369,7 @@ impl Window {
 
         let batches = self.scene.batches(info_map).collect::<Vec<_>>();
 
-        self.renderer.update_buffers(&batches);
-        self.renderer.render(&batches);
+        self.painter.paint(self.clear_color.into(), &batches);
     }
 
     fn get_next_tex_id(&mut self) -> TextureId {
@@ -485,7 +491,7 @@ impl<'a> WindowContext<'a> {
                     )
                 });
 
-                cx.window.renderer.set_atlas_texture(&id);
+                cx.window.painter.renderer.set_texture_from_atlas(&id);
                 cx.window.objects.push(Object::Image {
                     bbox: rect,
                     natural_width: width as f32,

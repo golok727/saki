@@ -202,6 +202,17 @@ impl From<Color> for Rgba {
     }
 }
 
+impl From<Rgba> for wgpu::Color {
+    fn from(value: Rgba) -> Self {
+        Self {
+            r: value.r as f64,
+            g: value.g as f64,
+            b: value.b as f64,
+            a: value.a as f64,
+        }
+    }
+}
+
 impl Rgba {
     pub const TRANSPARENT: Self = Rgba {
         r: 0.0,

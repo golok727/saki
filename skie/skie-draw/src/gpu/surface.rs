@@ -11,39 +11,24 @@ pub struct GpuSurfaceSpecification {
 pub struct GpuSurface {
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
-    dirty: bool,
 }
 
 impl GpuSurface {
     pub(super) fn new(surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration) -> Self {
-        Self {
-            surface,
-            config,
-            dirty: false,
-        }
+        Self { surface, config }
     }
 
-    pub fn sync(&mut self, gpu: &GpuContext) {
-        if !self.dirty {
-            return;
-        }
-
-        self.dirty = false;
-
-        self.surface.configure(&gpu.device, &self.config);
-
-        log::trace!(
-            "Surface target resize:  width = {} height = {}",
-            self.config.width,
-            self.config.height
-        );
-    }
-
-    pub fn resize(&mut self, new_width: u32, new_height: u32) {
+    pub fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {
         if self.config.width != new_width || self.config.height != new_height {
             self.config.width = new_width.max(1);
             self.config.height = new_height.max(1);
-            self.dirty = true;
+
+            self.surface.configure(&gpu.device, &self.config);
+            log::trace!(
+                "Surface target resize:  width = {} height = {}",
+                self.config.width,
+                self.config.height
+            );
         }
     }
 }
@@ -73,6 +58,7 @@ impl GpuContext {
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
+            // TODO: make format configurable
             format: wgpu::TextureFormat::Rgba8Unorm,
             width,
             height,

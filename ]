@@ -210,9 +210,12 @@ impl WgpuRenderer {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         let proj = Mat3::ortho(0.0, 0.0, height as f32, width as f32);
+        let mut view = Mat3::new();
+        view.scale(0.8, 0.8);
 
+        let pv = view * proj;
         self.global_uniforms.map(|data| {
-            data.proj = proj.into();
+            data.proj = pv.into();
         });
     }
 
