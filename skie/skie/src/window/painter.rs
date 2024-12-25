@@ -6,7 +6,8 @@ use skie_draw::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
-    paint::{atlas::AtlasManager, Mesh, Rgba},
+    paint::{atlas::AtlasManager, Rgba},
+    renderer::Renderable,
     WgpuRenderer, WgpuRendererSpecs,
 };
 
@@ -39,7 +40,7 @@ impl Painter {
         self.surface.resize(self.renderer.gpu(), width, height);
     }
 
-    pub fn paint(&mut self, clear_color: Rgba, renderables: &[Mesh]) {
+    pub fn paint(&mut self, clear_color: Rgba, renderables: &[Renderable]) {
         let cur_texture = self.surface.surface.get_current_texture().unwrap();
         let view = cur_texture
             .texture
@@ -65,8 +66,11 @@ impl Painter {
                 }),
             );
 
-            self.renderer.update_buffers(renderables);
-            self.renderer.render(&mut pass, renderables);
+            for renderable in renderables {
+                // FIXME: this will not work correctly
+                self.renderer.update_buffers(renderable);
+                self.renderer.render(&mut pass, renderable);
+            }
         }
 
         self.renderer

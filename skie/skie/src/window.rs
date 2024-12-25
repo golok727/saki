@@ -21,6 +21,7 @@ use skie_draw::{
         atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, DrawList, StrokeStyle,
         TextureId, TextureKind,
     },
+    renderer::Renderable,
     scene::Scene,
     traits::Half,
     WgpuRendererSpecs,
@@ -367,9 +368,24 @@ impl Window {
             .texture_system
             .get_texture_infos(self.scene.get_required_textures());
 
+        let size = self.handle.inner_size();
+
+        let scissor: Rect<u32> = Rect {
+            x: 0,
+            y: 0,
+            width: size.width,
+            height: size.height,
+        };
+
         let batches = self.scene.batches(info_map).collect::<Vec<_>>();
 
-        self.painter.paint(self.clear_color.into(), &batches);
+        let r1 = Renderable {
+            scissor: scissor.clone(),
+            items: &batches,
+        };
+
+        // FIXME: we cannot use this correctly with multiple renderables for now
+        self.painter.paint(self.clear_color.into(), &[r1]);
     }
 
     fn get_next_tex_id(&mut self) -> TextureId {

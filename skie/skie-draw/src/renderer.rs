@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::gpu::CommandEncoder;
-use crate::math::Size;
+use crate::math::{Rect, Size};
 use crate::paint::atlas::AtlasManager;
 use crate::paint::{TextureKind, WgpuTextureView};
 use crate::{
@@ -15,6 +15,23 @@ use wgpu::util::DeviceExt;
 
 static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<DrawVert>() * 1024) as u64;
 static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) as u64;
+
+// #[derive(Debug, Default)]
+// pub struct RenderStage<'a> {
+//     renderables: Vec<&'a Renderable<'a>>,
+// }
+//
+// impl<'a> RenderStage<'a> {
+//     pub fn add(&mut self, renderable: &'a Renderable<'a>) {
+//         self.renderables.push(renderable)
+//     }
+// }
+
+#[derive(Debug)]
+pub struct Renderable<'a> {
+    pub scissor: Rect<u32>,
+    pub items: &'a [Mesh],
+}
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
 #[repr(C)]
@@ -119,6 +136,8 @@ pub struct WgpuRendererSpecs {
 pub struct WgpuRenderer {
     gpu: Arc<GpuContext>,
 
+    size: Size<u32>,
+
     texture_system: AtlasManager,
 
     global_uniforms: GlobalUniformsBuffer,
@@ -131,8 +150,6 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-    /// Creates a new Windowed renderer
-    ///
     pub fn new(
         gpu: Arc<GpuContext>,
         texture_system: AtlasManager,
@@ -193,6 +210,10 @@ impl WgpuRenderer {
             textures: Default::default(),
             scene_pipe,
             texture_bindgroup_layout,
+            size: Size {
+                width: specs.width,
+                height: specs.height,
+            },
         };
 
         renderer.set_texture_from_atlas(&TextureId::WHITE_TEXTURE);
@@ -210,6 +231,9 @@ impl WgpuRenderer {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         let proj = Mat3::ortho(0.0, 0.0, height as f32, width as f32);
+
+        self.size.width = width;
+        self.size.height = height;
 
         self.global_uniforms.map(|data| {
             data.proj = proj.into();
@@ -299,12 +323,13 @@ impl WgpuRenderer {
         }
     }
 
-    pub fn update_buffers(&mut self, data: &[Mesh]) {
+    pub fn update_buffers(&mut self, renderable: &Renderable) {
         self.global_uniforms.sync(&self.gpu);
 
-        let (vertex_count, index_count): (usize, usize) = data.iter().fold((0, 0), |res, mesh| {
-            (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
-        });
+        let (vertex_count, index_count): (usize, usize) =
+            renderable.items.iter().fold((0, 0), |res, mesh| {
+                (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
+            });
 
         if vertex_count > 0 {
             let vb = &mut self.scene_pipe.vertex_buffer;
@@ -329,7 +354,8 @@ impl WgpuRenderer {
                 .expect("Failed to create stating buffer for vertex");
 
             let mut vertex_offset = 0;
-            for mesh in data {
+
+            for mesh in renderable.items {
                 let size = mesh.vertices.len() * std::mem::size_of::<DrawVert>();
                 let slice = vertex_offset..size + vertex_offset;
                 staging_vertex[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.vertices));
@@ -361,7 +387,7 @@ impl WgpuRenderer {
                 .expect("Failed to create staging buffer for");
 
             let mut index_offset = 0;
-            for mesh in data {
+            for mesh in renderable.items {
                 let size = mesh.indices.len() * std::mem::size_of::<u32>();
                 let slice = index_offset..size + index_offset;
                 staging_index[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.indices));
@@ -375,43 +401,51 @@ impl WgpuRenderer {
             .create_command_encoder(Some("skie_command_encoder"))
     }
 
-    pub fn render(&mut self, render_pass: &mut wgpu::RenderPass<'_>, batches: &[Mesh]) {
+    pub fn render(&mut self, render_pass: &mut wgpu::RenderPass<'_>, renderable: &Renderable) {
         let mut vb_slices = self.scene_pipe.vertex_buffer.slices.iter();
         let mut ib_slices = self.scene_pipe.index_buffer.slices.iter();
+        render_pass.set_pipeline(&self.scene_pipe.pipeline);
 
-        {
-            render_pass.set_pipeline(&self.scene_pipe.pipeline);
-            render_pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
+        let scissor = &renderable.scissor;
+        render_pass.set_scissor_rect(scissor.x, scissor.y, scissor.width, scissor.height);
 
-            for mesh in batches {
-                let texture = mesh.texture;
-                if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(&texture) {
-                    let vb_slice = vb_slices.next().expect("No next vb_slice");
-                    let ib_slice = ib_slices.next().expect("No next ib_slice");
+        render_pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
 
-                    render_pass.set_bind_group(1, bindgroup, &[]);
-                    render_pass.set_vertex_buffer(
-                        0,
-                        self.scene_pipe
-                            .vertex_buffer
-                            .buffer
-                            .slice(vb_slice.start as u64..vb_slice.end as u64),
-                    );
-                    render_pass.set_index_buffer(
-                        self.scene_pipe
-                            .index_buffer
-                            .buffer
-                            .slice(ib_slice.start as u64..ib_slice.end as u64),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
-                } else {
-                    let _ = vb_slices.next().expect("No next vb_slice");
-                    let _ = ib_slices.next().expect("No next ib_slice");
-                    log::error!("Texture: {} not found skipping", texture);
-                }
+        for mesh in renderable.items {
+            let texture = mesh.texture;
+            if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(&texture) {
+                let vb_slice = vb_slices.next().expect("No next vb_slice");
+                let ib_slice = ib_slices.next().expect("No next ib_slice");
+
+                render_pass.set_bind_group(1, bindgroup, &[]);
+                render_pass.set_vertex_buffer(
+                    0,
+                    self.scene_pipe
+                        .vertex_buffer
+                        .buffer
+                        .slice(vb_slice.start as u64..vb_slice.end as u64),
+                );
+                render_pass.set_index_buffer(
+                    self.scene_pipe
+                        .index_buffer
+                        .buffer
+                        .slice(ib_slice.start as u64..ib_slice.end as u64),
+                    wgpu::IndexFormat::Uint32,
+                );
+                render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+            } else {
+                let _ = vb_slices.next().expect("No next vb_slice");
+                let _ = ib_slices.next().expect("No next ib_slice");
+                log::error!("Texture: {} not found skipping", texture);
             }
         }
+
+        render_pass.set_scissor_rect(0, 0, self.size.width, self.size.height);
+    }
+
+    pub fn end(&mut self) {
+        self.scene_pipe.vertex_buffer.slices.clear();
+        self.scene_pipe.index_buffer.slices.clear();
     }
 }
 

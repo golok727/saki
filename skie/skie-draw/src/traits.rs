@@ -47,6 +47,7 @@ impl_is_zero!(i8, 0);
 impl_is_zero!(u32, 0);
 impl_is_zero!(u16, 0);
 impl_is_zero!(u8, 0);
+impl_is_zero!(usize, 0);
 
 macro_rules! impl_half {
     ($type:ty, $div:tt) => {
@@ -68,6 +69,7 @@ impl_half!(i8, 2);
 impl_half!(u32, 2);
 impl_half!(u16, 2);
 impl_half!(u8, 2);
+impl_half!(usize, 2);
 
 macro_rules! impl_zero_and_one {
     ($type:ty, $zero:tt, $one:tt) => {
@@ -97,3 +99,4 @@ impl_zero_and_one!(i8, 0, 1);
 impl_zero_and_one!(u32, 0, 1);
 impl_zero_and_one!(u16, 0, 1);
 impl_zero_and_one!(u8, 0, 1);
+impl_zero_and_one!(usize, 0, 1);
