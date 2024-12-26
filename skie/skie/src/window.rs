@@ -12,11 +12,12 @@ pub(crate) use winit::window::Window as WinitWindow;
 use crate::{
     app::{AppContext, AsyncAppContext},
     jobs::Job,
+    Pixels,
 };
 
 use skie_draw::{
     gpu::GpuContext,
-    math::{Corners, Mat3, Pixels, Rect, Size},
+    math::{Corners, Rect, Size},
     paint::{
         atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, DrawList, StrokeStyle,
         TextureId, TextureKind,
@@ -134,8 +135,8 @@ impl Window {
             (
                 TextureKind::Color,
                 Size {
-                    width: 250.into(),
-                    height: 250.into(),
+                    width: 250,
+                    height: 250,
                 },
                 &checker_data,
             )
@@ -146,8 +147,8 @@ impl Window {
             (
                 TextureKind::Color,
                 Size {
-                    width: thing_data.width().into(),
-                    height: thing_data.height().into(),
+                    width: thing_data.width() as _,
+                    height: thing_data.height() as _,
                 },
                 &thing_data,
             )
@@ -278,10 +279,10 @@ impl Window {
                     natural_height,
                 } => {
                     let aspect = natural_width / natural_height;
-                    let x: f32 = bbox.x.into();
-                    let y: f32 = bbox.y.into();
-                    let width: f32 = (bbox.width * aspect).into();
-                    let height: f32 = (bbox.height).into();
+                    let x: f32 = bbox.origin.x.into();
+                    let y: f32 = bbox.origin.y.into();
+                    let width: f32 = (bbox.size.width * aspect).into();
+                    let height: f32 = (bbox.size.height).into();
 
                     self.scene.add(
                         quad()
@@ -332,24 +333,6 @@ impl Window {
         path.line_to((600.0, 500.0).into());
         path.line_to((400.0, 700.0).into());
 
-        let bounds = path.bounds();
-        let mut transform = Mat3::new();
-
-        transform.translate(
-            -(bounds.x + bounds.width) + bounds.width.half(),
-            -(bounds.y + bounds.height) + bounds.height.half(),
-        );
-
-        transform.rotate(45f32.to_radians());
-        transform.scale(2.0, 2.0);
-
-        transform.translate(
-            (bounds.x + bounds.width) - bounds.width.half(),
-            (bounds.y + bounds.height) - bounds.height.half(),
-        );
-
-        transform * &mut path;
-
         self.scene.add(
             path.primitive().stroke(
                 StrokeStyle::default()
@@ -370,22 +353,17 @@ impl Window {
 
         let size = self.handle.inner_size();
 
-        let scissor: Rect<u32> = Rect {
-            x: 0,
-            y: 0,
-            width: size.width,
-            height: size.height,
-        };
+        let scissor: Rect<u32> = Rect::new(0, 0, size.width, size.height);
+        let renderables = self
+            .scene
+            .batches(info_map)
+            .map(|mesh| Renderable {
+                clip_rect: scissor.clone(),
+                mesh,
+            })
+            .collect::<Vec<_>>();
 
-        let batches = self.scene.batches(info_map).collect::<Vec<_>>();
-
-        let r1 = Renderable {
-            scissor: scissor.clone(),
-            items: &batches,
-        };
-
-        // FIXME: we cannot use this correctly with multiple renderables for now
-        self.painter.paint(self.clear_color.into(), &[r1]);
+        self.painter.paint(self.clear_color.into(), &renderables);
     }
 
     fn get_next_tex_id(&mut self) -> TextureId {
@@ -500,8 +478,8 @@ impl<'a> WindowContext<'a> {
                     (
                         TextureKind::Color,
                         Size {
-                            width: width.into(),
-                            height: height.into(),
+                            width: width as _,
+                            height: height as _,
                         },
                         &img,
                     )

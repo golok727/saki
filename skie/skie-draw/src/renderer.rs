@@ -16,21 +16,10 @@ use wgpu::util::DeviceExt;
 static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<DrawVert>() * 1024) as u64;
 static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) as u64;
 
-// #[derive(Debug, Default)]
-// pub struct RenderStage<'a> {
-//     renderables: Vec<&'a Renderable<'a>>,
-// }
-//
-// impl<'a> RenderStage<'a> {
-//     pub fn add(&mut self, renderable: &'a Renderable<'a>) {
-//         self.renderables.push(renderable)
-//     }
-// }
-
 #[derive(Debug)]
-pub struct Renderable<'a> {
-    pub scissor: Rect<u32>,
-    pub items: &'a [Mesh],
+pub struct Renderable {
+    pub clip_rect: Rect<u32>,
+    pub mesh: Mesh,
 }
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -159,8 +148,8 @@ impl WgpuRenderer {
             (
                 TextureKind::Color,
                 Size {
-                    width: (1).into(),
-                    height: (1).into(),
+                    width: 1,
+                    height: 1,
                 },
                 &[255, 255, 255, 255],
             )
@@ -323,12 +312,15 @@ impl WgpuRenderer {
         }
     }
 
-    pub fn update_buffers(&mut self, renderable: &Renderable) {
+    pub fn update_buffers(&mut self, renderables: &[Renderable]) {
         self.global_uniforms.sync(&self.gpu);
 
         let (vertex_count, index_count): (usize, usize) =
-            renderable.items.iter().fold((0, 0), |res, mesh| {
-                (res.0 + mesh.vertices.len(), res.1 + mesh.indices.len())
+            renderables.iter().fold((0, 0), |res, renderable| {
+                (
+                    res.0 + renderable.mesh.vertices.len(),
+                    res.1 + renderable.mesh.indices.len(),
+                )
             });
 
         if vertex_count > 0 {
@@ -355,10 +347,11 @@ impl WgpuRenderer {
 
             let mut vertex_offset = 0;
 
-            for mesh in renderable.items {
-                let size = mesh.vertices.len() * std::mem::size_of::<DrawVert>();
+            for renderable in renderables {
+                let size = renderable.mesh.vertices.len() * std::mem::size_of::<DrawVert>();
                 let slice = vertex_offset..size + vertex_offset;
-                staging_vertex[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.vertices));
+                staging_vertex[slice.clone()]
+                    .copy_from_slice(bytemuck::cast_slice(&renderable.mesh.vertices));
                 vb.slices.push(slice);
                 vertex_offset += size;
             }
@@ -387,10 +380,11 @@ impl WgpuRenderer {
                 .expect("Failed to create staging buffer for");
 
             let mut index_offset = 0;
-            for mesh in renderable.items {
-                let size = mesh.indices.len() * std::mem::size_of::<u32>();
+            for renderable in renderables {
+                let size = renderable.mesh.indices.len() * std::mem::size_of::<u32>();
                 let slice = index_offset..size + index_offset;
-                staging_index[slice.clone()].copy_from_slice(bytemuck::cast_slice(&mesh.indices));
+                staging_index[slice.clone()]
+                    .copy_from_slice(bytemuck::cast_slice(&renderable.mesh.indices));
                 ib.slices.push(slice);
                 index_offset += size;
             }
@@ -401,18 +395,23 @@ impl WgpuRenderer {
             .create_command_encoder(Some("skie_command_encoder"))
     }
 
-    pub fn render(&mut self, render_pass: &mut wgpu::RenderPass<'_>, renderable: &Renderable) {
+    pub fn render(&mut self, render_pass: &mut wgpu::RenderPass<'_>, renderables: &[Renderable]) {
         let mut vb_slices = self.scene_pipe.vertex_buffer.slices.iter();
         let mut ib_slices = self.scene_pipe.index_buffer.slices.iter();
         render_pass.set_pipeline(&self.scene_pipe.pipeline);
 
-        let scissor = &renderable.scissor;
-        render_pass.set_scissor_rect(scissor.x, scissor.y, scissor.width, scissor.height);
-
         render_pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
 
-        for mesh in renderable.items {
-            let texture = mesh.texture;
+        for renderable in renderables {
+            let scissor = &renderable.clip_rect;
+            render_pass.set_scissor_rect(
+                scissor.origin.x,
+                scissor.origin.y,
+                scissor.size.width,
+                scissor.size.height,
+            );
+
+            let texture = renderable.mesh.texture;
             if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(&texture) {
                 let vb_slice = vb_slices.next().expect("No next vb_slice");
                 let ib_slice = ib_slices.next().expect("No next ib_slice");
@@ -432,7 +431,7 @@ impl WgpuRenderer {
                         .slice(ib_slice.start as u64..ib_slice.end as u64),
                     wgpu::IndexFormat::Uint32,
                 );
-                render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                render_pass.draw_indexed(0..renderable.mesh.indices.len() as u32, 0, 0..1);
             } else {
                 let _ = vb_slices.next().expect("No next vb_slice");
                 let _ = ib_slices.next().expect("No next ib_slice");

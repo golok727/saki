@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 skie-draw = { path = "../skie-draw" }
+derive_more.workspace = true
 pollster.workspace = true
 wgpu.workspace = true
 winit.workspace = true

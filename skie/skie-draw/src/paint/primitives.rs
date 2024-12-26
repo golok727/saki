@@ -1,4 +1,4 @@
-use crate::math::Corners;
+use crate::{math::Corners, traits::Zero};
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
@@ -146,6 +146,7 @@ pub struct Primitive {
 }
 
 impl Primitive {
+    #[inline(always)]
     pub(crate) fn can_render(&self) -> bool {
         let stroke_color = self.stroke.map_or(Color::TRANSPARENT, |s| s.color);
         !self.fill.color.is_transparent() || !stroke_color.is_transparent()
@@ -236,14 +237,14 @@ pub struct Quad {
 
 impl Quad {
     pub fn with_size(mut self, width: f32, height: f32) -> Self {
-        self.bounds.width = width;
-        self.bounds.height = height;
+        self.bounds.size.width = width;
+        self.bounds.size.height = height;
         self
     }
 
     pub fn with_pos(mut self, x: f32, y: f32) -> Self {
-        self.bounds.x = x;
-        self.bounds.y = y;
+        self.bounds.origin.x = x;
+        self.bounds.origin.y = y;
         self
     }
 
@@ -256,12 +257,7 @@ impl Quad {
 impl Default for Quad {
     fn default() -> Self {
         Self {
-            bounds: Rect {
-                x: 0.,
-                y: 0.,
-                width: 10.,
-                height: 10.,
-            },
+            bounds: Rect::zero(),
             corners: Corners::default(),
         }
     }

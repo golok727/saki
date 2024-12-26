@@ -1,4 +1,4 @@
-use crate::math::{DevicePixels, Size};
+use crate::math::Size;
 
 use super::atlas::AtlasTextureId;
 
@@ -31,7 +31,7 @@ impl TextureId {
 pub static WHITE_UV: (f32, f32) = (0.0, 0.0);
 
 pub struct Texture2DSpecs {
-    pub size: Size<DevicePixels>,
+    pub size: Size<u32>,
     pub format: TextureFormat,
 }
 

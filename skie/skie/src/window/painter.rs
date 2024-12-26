@@ -66,11 +66,8 @@ impl Painter {
                 }),
             );
 
-            for renderable in renderables {
-                // FIXME: this will not work correctly
-                self.renderer.update_buffers(renderable);
-                self.renderer.render(&mut pass, renderable);
-            }
+            self.renderer.update_buffers(renderables);
+            self.renderer.render(&mut pass, renderables);
         }
 
         self.renderer

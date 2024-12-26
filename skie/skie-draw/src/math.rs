@@ -1,14 +1,13 @@
 pub mod geometry;
 pub mod rect;
 pub mod size;
-pub mod unit;
+
+use std::fmt::Display;
+use std::ops::{Add, Mul, Sub};
 
 pub use geometry::*;
 pub use rect::*;
 pub use size::*;
-pub use unit::*;
-
-pub use unit::{DevicePixels, ScaledPixels};
 
 use crate::traits::{IsZero, One, Zero};
 
@@ -212,7 +211,7 @@ impl Default for Mat3 {
     }
 }
 
-impl std::ops::Mul for Mat3 {
+impl Mul for Mat3 {
     type Output = Self;
 
     /*
@@ -243,7 +242,7 @@ impl std::ops::Mul for Mat3 {
 }
 
 // :) we just need a vec2 for or needs!
-impl std::ops::Mul<Vec2<f32>> for Mat3 {
+impl Mul<Vec2<f32>> for Mat3 {
     type Output = Vec2<f32>;
 
     fn mul(self, v: Vec2<f32>) -> Self::Output {
@@ -256,7 +255,7 @@ impl std::ops::Mul<Vec2<f32>> for Mat3 {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Vec2<T> {
     pub x: T,
     pub y: T,
@@ -269,9 +268,57 @@ impl<T> Vec2<T> {
     }
 }
 
+impl<T> Display for Vec2<T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{ x: {}, y: {} }}", &self.x, &self.y)
+    }
+}
+
 impl<T> Vec2<T>
 where
-    T: Clone + std::ops::Add<T, Output = T> + std::ops::Neg<Output = T>,
+    T: Clone + PartialOrd,
+{
+    pub fn max(&self, other: &Self) -> Self {
+        Self {
+            x: if self.x > other.x {
+                self.x.clone()
+            } else {
+                other.x.clone()
+            },
+            y: if self.y > other.y {
+                self.y.clone()
+            } else {
+                other.y.clone()
+            },
+        }
+    }
+
+    pub fn min(&self, other: &Self) -> Self {
+        Self {
+            x: if self.x <= other.x {
+                self.x.clone()
+            } else {
+                other.x.clone()
+            },
+            y: if self.y <= other.y {
+                self.y.clone()
+            } else {
+                other.y.clone()
+            },
+        }
+    }
+
+    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
+        self.max(min).min(max)
+    }
+}
+
+impl<T> Vec2<T>
+where
+    T: Clone + Add<T, Output = T> + std::ops::Neg<Output = T>,
 {
     pub fn normal(&self) -> Self {
         Vec2 {
@@ -283,7 +330,7 @@ where
 
 impl<T> Vec2<T>
 where
-    T: Clone + std::ops::Add<T, Output = T> + std::ops::Mul<T, Output = T>,
+    T: Clone + Add<T, Output = T> + Mul<T, Output = T>,
 {
     pub fn dot(&self, other: &Self) -> T {
         self.x.clone() * other.x.clone() + self.y.clone() * other.y.clone()
@@ -292,10 +339,7 @@ where
 
 impl<T> Vec2<T>
 where
-    T: Clone
-        + std::ops::Add<T, Output = T>
-        + std::ops::Mul<T, Output = T>
-        + std::ops::Sub<T, Output = T>,
+    T: Clone + Add<T, Output = T> + Mul<T, Output = T> + Sub<T, Output = T>,
 {
     pub fn cross(&self, other: &Self) -> T {
         self.x.clone() * other.y.clone() - self.y.clone() * other.x.clone()
@@ -426,19 +470,19 @@ macro_rules! impl_vec2_float {
 impl_vec2_float!(f32);
 impl_vec2_float!(f64);
 
-impl<T> std::cmp::PartialEq for Vec2<T>
+impl<T> Vec2<T>
 where
-    T: std::cmp::PartialEq,
+    T: Clone,
 {
-    fn eq(&self, other: &Self) -> bool {
-        self.x == other.x && self.y == other.y
+    fn map<U>(self, f: impl FnOnce(Self) -> U) -> U {
+        f(self)
     }
 }
 
 // Vector
-impl<T> std::ops::Add for Vec2<T>
+impl<T> Add for Vec2<T>
 where
-    T: std::ops::Add<T, Output = T>,
+    T: Add<T, Output = T>,
 {
     type Output = Vec2<T>;
 
@@ -451,9 +495,9 @@ where
 }
 
 // Scalar
-impl<T> std::ops::Add<T> for Vec2<T>
+impl<T> Add<T> for Vec2<T>
 where
-    T: Clone + std::ops::Add<T, Output = T>,
+    T: Clone + Add<T, Output = T>,
 {
     type Output = Vec2<T>;
 
@@ -468,7 +512,7 @@ where
 // Begin Vector assign
 impl<T> std::ops::AddAssign for Vec2<T>
 where
-    T: std::ops::Add<T, Output = T> + Clone,
+    T: Add<T, Output = T> + Clone,
 {
     fn add_assign(&mut self, rhs: Self) {
         *self = self.clone() + rhs
@@ -477,7 +521,7 @@ where
 
 impl<T> std::ops::SubAssign for Vec2<T>
 where
-    T: std::ops::Sub<T, Output = T> + Clone,
+    T: Sub<T, Output = T> + Clone,
 {
     fn sub_assign(&mut self, rhs: Self) {
         *self = self.clone() - rhs
@@ -486,7 +530,7 @@ where
 
 impl<T> std::ops::MulAssign for Vec2<T>
 where
-    T: std::ops::Mul<T, Output = T> + Clone,
+    T: Mul<T, Output = T> + Clone,
 {
     fn mul_assign(&mut self, rhs: Self) {
         *self = self.clone() * rhs
@@ -504,9 +548,9 @@ where
 // END Vector assign
 
 // Scalar
-impl<T> std::ops::Sub<T> for Vec2<T>
+impl<T> Sub<T> for Vec2<T>
 where
-    T: Clone + std::ops::Sub<T, Output = T>,
+    T: Clone + Sub<T, Output = T>,
 {
     type Output = Vec2<T>;
 
@@ -519,9 +563,9 @@ where
 }
 
 // Vector
-impl<T> std::ops::Sub for Vec2<T>
+impl<T> Sub for Vec2<T>
 where
-    T: std::ops::Sub<T, Output = T>,
+    T: Sub<T, Output = T>,
 {
     type Output = Vec2<T>;
 
@@ -534,9 +578,9 @@ where
 }
 
 // Vector
-impl<T> std::ops::Mul for Vec2<T>
+impl<T> Mul for Vec2<T>
 where
-    T: std::ops::Mul<T, Output = T>,
+    T: Mul<T, Output = T>,
 {
     type Output = Vec2<T>;
 
@@ -549,9 +593,9 @@ where
 }
 
 // Scalar
-impl<T> std::ops::Mul<T> for Vec2<T>
+impl<T> Mul<T> for Vec2<T>
 where
-    T: Clone + std::ops::Mul<T, Output = T>,
+    T: Clone + Mul<T, Output = T>,
 {
     type Output = Vec2<T>;
 

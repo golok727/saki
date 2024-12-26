@@ -1,20 +1,30 @@
-use std::fmt::Debug;
+use std::{
+    fmt::{Debug, Display},
+    ops::Add,
+};
 
-use derive_more::Div;
-
-use crate::traits::IsZero;
+use crate::traits::{IsZero, Zero};
 
 use super::{Half, Vec2};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Div)]
-pub struct Size<T: Debug + Clone + Default> {
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct Size<T> {
     pub width: T,
     pub height: T,
 }
 
+impl<T> std::fmt::Display for Size<T>
+where
+    T: Display + Clone + Debug + Default,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{ width: {}, height: {} }}", &self.width, &self.height)
+    }
+}
+
 impl<T> Size<T>
 where
-    T: Clone + Default + Debug + Half,
+    T: Half,
 {
     pub fn center(&self) -> Vec2<T> {
         Vec2 {
@@ -26,7 +36,7 @@ where
 
 impl<T> Half for Size<T>
 where
-    T: Half + Debug + Default + Clone,
+    T: Half,
 {
     fn half(&self) -> Self {
         Self {
@@ -38,16 +48,28 @@ where
 
 impl<T> IsZero for Size<T>
 where
-    T: IsZero + Debug + Default + Clone,
+    T: IsZero,
 {
     fn is_zero(&self) -> bool {
         self.width.is_zero() && self.height.is_zero()
     }
 }
 
+impl<T> Zero for Size<T>
+where
+    T: Zero,
+{
+    fn zero() -> Self {
+        Self {
+            width: T::zero(),
+            height: T::zero(),
+        }
+    }
+}
+
 impl<T> Size<T>
 where
-    T: IsZero + Debug + Default + Clone,
+    T: IsZero,
 {
     pub fn empty(&self) -> bool {
         self.width.is_zero() && self.height.is_zero()
@@ -56,7 +78,59 @@ where
 
 impl<T> Size<T>
 where
-    T: PartialOrd + Clone + Default + Debug,
+    T: Clone,
+{
+    pub fn map<U>(self, f: impl FnOnce(Self) -> U) -> U {
+        f(self)
+    }
+}
+
+impl<T> Add<Size<T>> for Vec2<T>
+where
+    T: Clone + Add<T, Output = T>,
+{
+    type Output = Vec2<T>;
+
+    fn add(self, rhs: Size<T>) -> Self::Output {
+        Self {
+            x: self.x.clone() + rhs.width.clone(),
+            y: self.y.clone() + rhs.height.clone(),
+        }
+    }
+}
+
+// add a scalar value to this size
+impl<T> Add<T> for Size<T>
+where
+    T: Clone + Add<T, Output = T>,
+{
+    type Output = Self;
+
+    fn add(self, rhs: T) -> Self::Output {
+        Self {
+            width: self.width.clone() + rhs.clone(),
+            height: self.height.clone() + rhs.clone(),
+        }
+    }
+}
+
+impl<T> Add<T> for &Size<T>
+where
+    T: Clone + Add<T, Output = T>,
+{
+    type Output = Size<T>;
+
+    fn add(self, rhs: T) -> Self::Output {
+        Size {
+            width: self.width.clone() + rhs.clone(),
+            height: self.height.clone() + rhs.clone(),
+        }
+    }
+}
+
+impl<T> Size<T>
+where
+    T: PartialOrd + Clone,
 {
     pub fn max(&self, other: &Self) -> Self {
         Size {
@@ -86,5 +160,9 @@ where
                 self.height.clone()
             },
         }
+    }
+
+    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
+        self.max(min).min(max)
     }
 }

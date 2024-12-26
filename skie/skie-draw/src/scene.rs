@@ -122,10 +122,10 @@ impl<'a> SceneBatchIterator<'a> {
                 if let Some(info) = info {
                     if is_default_texture {
                         // should we cache this?
-                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0);
+                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
                     } else {
                         let [u, v] = vertex.uv;
-                        vertex.uv = info.uv_to_atlas_space(u, v);
+                        vertex.uv = info.uv_to_atlas_space(u, v).into();
                     }
                 }
 
@@ -140,13 +140,6 @@ impl<'a> SceneBatchIterator<'a> {
 
                     drawlist.path.clear();
                     drawlist.path.circle(circle.center, circle.radius);
-                    // drawlist.path.arc(
-                    //     circle.center,
-                    //     circle.radius,
-                    //     0.0,
-                    //     std::f32::consts::TAU,
-                    //     false,
-                    // );
 
                     drawlist.fill_path_convex(fill_color, !is_default_texture);
                     if let Some(stroke_style) = &prim.stroke {

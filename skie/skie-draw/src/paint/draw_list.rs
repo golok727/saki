@@ -32,6 +32,17 @@ pub struct Mesh {
     pub texture: TextureId,
 }
 
+impl Mesh {
+    pub fn is_vaid(&self) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    pub fn index_count(&self) -> u32 {
+        self.indices.len() as u32
+    }
+}
+
 pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
 
 #[derive(Default)]
@@ -98,15 +109,13 @@ impl<'a> DrawList<'a> {
             Default::default()
         };
 
-        let min_x = bounds.x;
-        let min_y = bounds.y;
-        let max_x = bounds.x + bounds.width;
-        let max_y = bounds.y + bounds.height;
+        let min = bounds.min();
+        let max = bounds.max();
 
         let get_uv = |point: &Vec2<f32>| {
             if calc_uv {
-                let uv_x = (point.x - min_x) / (max_x - min_x);
-                let uv_y = (point.y - min_y) / (max_y - min_y);
+                let uv_x = (point.x - min.x) / (max.x - min.x);
+                let uv_y = (point.y - min.y) / (max.y - min.y);
                 (uv_x, uv_y)
             } else {
                 WHITE_UV
@@ -572,21 +581,19 @@ impl<'a> DrawList<'a> {
         }
         let v_index_offset = self.cur_vertex_idx;
 
-        let Rect {
-            x,
-            y,
-            width,
-            height,
-        } = *rect;
+        let tl = rect.top_left();
+        let tr = rect.top_right();
+        let bl = rect.bottom_left();
+        let br = rect.bottom_right();
 
         let uvs: [(f32, f32); 4] = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)];
 
         self.reserve_prim(4, 6);
 
-        self.add_vertex((x, y).into(), color, uvs[0]); // Top-left
-        self.add_vertex((x + width, y).into(), color, uvs[1]); // Top-right
-        self.add_vertex((x, y + height).into(), color, uvs[2]); // Bottom-left
-        self.add_vertex((x + width, y + height).into(), color, uvs[3]); // Bottom-right
+        self.add_vertex(tl, color, uvs[0]); // Top-left
+        self.add_vertex(tr, color, uvs[1]); // Top-right
+        self.add_vertex(bl, color, uvs[2]); // Bottom-left
+        self.add_vertex(br, color, uvs[3]); // Bottom-right
 
         self.indices.extend_from_slice(&[
             v_index_offset,

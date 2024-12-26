@@ -1,12 +1,10 @@
 use std::io::Write;
 
 use skie::{
-    math::{
-        unit::{px, Pixels},
-        Rect,
-    },
+    math::Rect,
+    px,
     window::{WindowContext, WindowSpecification},
-    Color,
+    Color, Pixels,
 };
 
 /*
@@ -39,18 +37,8 @@ fn load_images_from_args(cx: &mut WindowContext) {
 
     // Define the positions and sizes for the images
     let rects = [
-        Rect {
-            x: px(350),
-            y: px(100),
-            width: px(500),
-            height: px(500),
-        },
-        Rect {
-            x: px(800),
-            y: px(600),
-            width: px(300),
-            height: px(300),
-        },
+        Rect::new(px(350), px(100), px(500), px(500)),
+        Rect::new(px(800), px(600), px(300), px(300)),
     ];
 
     // Attempt to load up to two images

@@ -1,6 +1,6 @@
 use crate::{
     math::{Corners, Mat3, Rect, Vec2},
-    traits::{IsZero, Zero},
+    traits::IsZero,
 };
 
 #[derive(Debug, Clone)]
@@ -34,8 +34,6 @@ impl Path2D {
     }
 
     pub fn bounds(&self) -> Rect<f32> {
-        let mut out = Rect::zero();
-
         let mut min_x = f32::INFINITY;
         let mut max_x = f32::NEG_INFINITY;
 
@@ -52,12 +50,7 @@ impl Path2D {
             max_y = if y > max_y { y } else { max_y };
         }
 
-        out.x = min_x;
-        out.width = max_x - min_x;
-
-        out.y = min_y;
-        out.height = max_y - min_y;
-        out
+        Rect::from_corners((min_x, min_y).into(), (max_x, max_y).into())
     }
 
     pub fn segment_count(&self) -> u8 {
@@ -208,9 +201,9 @@ impl Path2D {
         self.set_segment_count(16);
 
         // top-left-corner
-        self.move_to((rect.x, rect.y + top_left).into());
+        // self.move_to((rect.x(), rect.y() + top_left).into());
         self.arc(
-            (rect.x + top_left, rect.y + top_left).into(),
+            (rect.x() + top_left, rect.y() + top_left).into(),
             *top_left,
             PI,
             (3.0 * PI) / 2.0,
@@ -218,9 +211,9 @@ impl Path2D {
         );
 
         // top-right-corner
-        self.move_to((rect.x + top_right, rect.y + rect.height).into());
+        // self.move_to((rect.x() + top_right, rect.y() + rect.height()).into());
         self.arc(
-            (rect.x + rect.width - top_right, rect.y + top_right).into(),
+            (rect.x() + rect.width() - top_right, rect.y() + top_right).into(),
             *top_right,
             -PI / 2.0,
             0.0,
@@ -228,11 +221,11 @@ impl Path2D {
         );
 
         // bottom-right-corner
-        self.move_to((rect.x + rect.width, rect.y + rect.height - bottom_right).into());
+        // self.move_to((rect.x + rect.width, rect.y + rect.height - bottom_right).into());
         self.arc(
             (
-                rect.x + rect.width - bottom_right,
-                rect.y + rect.height - bottom_right,
+                rect.x() + rect.width() - bottom_right,
+                rect.y() + rect.height() - bottom_right,
             )
                 .into(),
             *bottom_right,
@@ -242,9 +235,13 @@ impl Path2D {
         );
 
         // bottom-left-corner
-        self.move_to((rect.x + bottom_left, rect.y + rect.height).into());
+        // self.move_to((rect.x + bottom_left, rect.y + rect.height).into());
         self.arc(
-            (rect.x + bottom_left, rect.y + rect.height - bottom_left).into(),
+            (
+                rect.x() + bottom_left,
+                rect.y() + rect.height() - bottom_left,
+            )
+                .into(),
             *bottom_left,
             PI / 2.0,
             PI,

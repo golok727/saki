@@ -1,4 +1,7 @@
-use derive_more::{Add, AddAssign, Display, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use derive_more::{
+    derive::{Add, AddAssign},
+    Display, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign,
+};
 
 #[derive(Debug, Default, Clone, Copy, Display, PartialEq, PartialOrd)]
 #[repr(transparent)]
