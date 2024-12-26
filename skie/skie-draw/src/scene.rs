@@ -1,3 +1,5 @@
+use ahash::HashSet;
+
 use crate::paint::atlas::AtlasTextureId;
 use crate::paint::atlas::AtlasTextureInfoMap;
 use crate::paint::DrawList;
@@ -32,7 +34,11 @@ impl Scene {
     }
 
     pub fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
-        self.items.iter().map(|f| f.texture)
+        self.items
+            .iter()
+            .map(|f| f.texture)
+            .collect::<HashSet<_>>()
+            .into_iter()
     }
 
     pub fn batches(&self, tex_info: AtlasTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {

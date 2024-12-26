@@ -6,9 +6,10 @@ use skie_draw::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
+    math::{Rect, Size},
     paint::{atlas::AtlasManager, Rgba},
     renderer::Renderable,
-    WgpuRenderer, WgpuRendererSpecs,
+    Scene, WgpuRenderer, WgpuRendererSpecs,
 };
 
 //  Winit window painter
@@ -40,7 +41,22 @@ impl Painter {
         self.surface.resize(self.renderer.gpu(), width, height);
     }
 
-    pub fn paint(&mut self, clear_color: Rgba, renderables: &[Renderable]) {
+    pub fn paint(&mut self, clear_color: Rgba, screen_size: Size<u32>, scene: &Scene) {
+        let info_map = self
+            .renderer
+            .texture_system()
+            .get_texture_infos(scene.get_required_textures());
+
+        let scissor: Rect<u32> = Rect::new(0, 0, screen_size.width, screen_size.height);
+
+        let renderables = scene
+            .batches(info_map)
+            .map(|mesh| Renderable {
+                clip_rect: scissor.clone(),
+                mesh,
+            })
+            .collect::<Vec<_>>();
+
         let cur_texture = self.surface.surface.get_current_texture().unwrap();
         let view = cur_texture
             .texture
@@ -66,8 +82,8 @@ impl Painter {
                 }),
             );
 
-            self.renderer.update_buffers(renderables);
-            self.renderer.render(&mut pass, renderables);
+            self.renderer.update_buffers(&renderables);
+            self.renderer.render(&mut pass, &renderables);
         }
 
         self.renderer

@@ -19,10 +19,9 @@ use skie_draw::{
     gpu::GpuContext,
     math::{Corners, Rect, Size},
     paint::{
-        atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, DrawList, StrokeStyle,
+        atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, StrokeStyle,
         TextureId, TextureKind,
     },
-    renderer::Renderable,
     scene::Scene,
     traits::Half,
     WgpuRendererSpecs,
@@ -95,18 +94,6 @@ impl Window {
         texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
-        {
-            let mut list = DrawList::default();
-            let mut path = Path2D::default();
-            path.move_to((0., 0.).into());
-            path.line_to((20., 0.).into());
-            path.line_to((40., 20.).into());
-
-            list.stroke_with_path(
-                &path,
-                &StrokeStyle::default().with_line_width(2).with_bevel_join(),
-            );
-        }
         let width = specs.width;
         let height = specs.height;
 
@@ -168,6 +155,7 @@ impl Window {
             checker_texture_id,
             objects: Vec::new(),
             clear_color: Color::WHITE,
+
             // FIXME: this is bad
             next_texture_id: 10000,
         })
@@ -347,23 +335,15 @@ impl Window {
     pub(crate) fn paint(&mut self) {
         self.build_scene();
 
-        let info_map = self
-            .texture_system
-            .get_texture_infos(self.scene.get_required_textures());
-
         let size = self.handle.inner_size();
 
-        let scissor: Rect<u32> = Rect::new(0, 0, size.width, size.height);
-        let renderables = self
-            .scene
-            .batches(info_map)
-            .map(|mesh| Renderable {
-                clip_rect: scissor.clone(),
-                mesh,
-            })
-            .collect::<Vec<_>>();
+        let screen_size = Size {
+            width: size.width,
+            height: size.height,
+        };
 
-        self.painter.paint(self.clear_color.into(), &renderables);
+        self.painter
+            .paint(self.clear_color.into(), screen_size, &self.scene);
     }
 
     fn get_next_tex_id(&mut self) -> TextureId {
