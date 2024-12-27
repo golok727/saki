@@ -4,9 +4,9 @@ use std::{
     ops::{Add, Sub},
 };
 
-use crate::traits::{IsZero, Zero};
+use crate::traits::{Half, IsZero, Zero};
 
-use super::{Half, Size, Vec2};
+use super::{Size, Vec2};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Rect<T> {

@@ -3,9 +3,9 @@ use std::{
     ops::Add,
 };
 
-use crate::traits::{IsZero, Zero};
+use crate::traits::{Half, IsZero, Zero};
 
-use super::{Half, Vec2};
+use super::Vec2;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Size<T> {
