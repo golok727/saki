@@ -16,6 +16,42 @@ TODO
  - [] Layout system
 */
 
+fn main() {
+    println!("Radhe Shyam!");
+    init_stdout_logger();
+    let app = skie::app::App::new();
+
+    log::info!("Welcome to saki!");
+
+    app.run(|cx| {
+        let window_specs = WindowSpecification {
+            width: 1875,
+            height: 1023,
+            ..Default::default()
+        };
+
+        cx.open_window(window_specs.clone(), |cx| {
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(Color::YELLOW);
+                },
+                std::time::Duration::from_secs(3),
+            );
+
+            cx.set_timeout(
+                |cx| {
+                    cx.window.set_bg_color(Color::from_rgb(0x181818));
+                },
+                std::time::Duration::from_secs(5),
+            );
+
+            cx.window.set_bg_color(Color::from_rgb(0x181818));
+
+            load_images_from_args(cx);
+        });
+    });
+}
+
 fn load_images_from_args(cx: &mut WindowContext) {
     // TODO: Add Assets system to preload assets and pass in the asset handle
     let mut args = std::env::args();
@@ -50,43 +86,6 @@ fn load_images_from_args(cx: &mut WindowContext) {
             break;
         }
     }
-}
-
-fn main() {
-    println!("Radhe Shyam!");
-    init_stdout_logger();
-    let app = skie::app::App::new();
-
-    log::info!("Welcome to saki!");
-
-    app.run(|cx| {
-        log::info!("Hello From init fn");
-        let window_specs = WindowSpecification {
-            width: 1875,
-            height: 1023,
-            ..Default::default()
-        };
-
-        cx.open_window(window_specs.clone(), |cx| {
-            cx.set_timeout(
-                |cx| {
-                    cx.window.set_bg_color(Color::YELLOW);
-                },
-                std::time::Duration::from_secs(3),
-            );
-
-            cx.set_timeout(
-                |cx| {
-                    cx.window.set_bg_color(Color::from_rgb(0x181818));
-                },
-                std::time::Duration::from_secs(5),
-            );
-
-            cx.window.set_bg_color(Color::from_rgb(0x181818));
-
-            load_images_from_args(cx);
-        });
-    });
 }
 
 fn init_stdout_logger() {

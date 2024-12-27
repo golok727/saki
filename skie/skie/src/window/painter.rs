@@ -6,18 +6,21 @@ use skie_draw::{
         surface::{GpuSurface, GpuSurfaceSpecification},
         GpuContext,
     },
-    math::{Rect, Size},
-    paint::{atlas::AtlasManager, Rgba},
+    math::Rect,
+    paint::{atlas::AtlasManager, Primitive, Rgba},
     renderer::Renderable,
-    Scene, WgpuRenderer, WgpuRendererSpecs,
+    Scene, Size, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
 };
+
 //  Winit window painter
 #[derive(Debug)]
 pub struct Painter {
     pub(crate) renderer: WgpuRenderer,
     pub(crate) surface: GpuSurface,
     pub(crate) scene: Scene,
-    // todo mmsa
+    pub renderables: Vec<Renderable>, // todo mmsa
+    pub screen: Size<u32>,
+    pub clip_rects: Vec<Rect<u32>>,
 }
 
 impl Painter {
@@ -37,32 +40,106 @@ impl Painter {
             renderer,
             surface,
             scene: Scene::default(),
+            renderables: Default::default(),
+            screen: Size {
+                width: specs.width,
+                height: specs.height,
+            },
+            clip_rects: Default::default(),
         })
+    }
+
+    pub fn get_clip_rect(&self) -> Rect<u32> {
+        self.clip_rects
+            .last()
+            .cloned()
+            .unwrap_or(Rect::new_from_origin_size(Vec2::zero(), self.screen))
+    }
+
+    pub fn begin_frame(&mut self) {
+        self.clear_all();
+    }
+
+    pub fn clear_all(&mut self) {
+        self.renderables.clear();
+        self.scene.clear();
+    }
+
+    pub fn clear_staged(&mut self) {
+        self.renderables.clear();
+    }
+
+    pub fn clear_unstaged(&mut self) {
+        self.scene.clear();
+    }
+
+    /// adds a primitive to th current scene does nothing until paint is called!
+    pub fn add_primitive(&mut self, prim: impl Into<Primitive>) {
+        self.scene.add(prim)
+    }
+
+    fn build_renderables<'scene>(
+        texture_system: &AtlasManager,
+        scene: &'scene Scene,
+        clip_rect: Rect<u32>,
+    ) -> impl Iterator<Item = Renderable> + 'scene {
+        let info_map = texture_system.get_texture_infos(scene.get_required_textures());
+
+        scene.batches(info_map.clone()).map(move |mesh| Renderable {
+            clip_rect: clip_rect.clone(),
+            mesh,
+        })
+    }
+
+    pub fn paint_scene(&mut self, scene: &Scene) {
+        let renderables =
+            Self::build_renderables(self.renderer.texture_system(), scene, self.get_clip_rect());
+
+        self.renderables.extend(renderables);
+    }
+
+    pub fn paint(&mut self) {
+        let renderables = Self::build_renderables(
+            self.renderer.texture_system(),
+            &self.scene,
+            self.get_clip_rect(),
+        );
+
+        self.renderables.extend(renderables);
+        self.scene.clear();
+    }
+
+    pub fn paint_with_clip_rect(&mut self, clip: &Rect<u32>, f: impl FnOnce(&mut Self)) {
+        let cur_rect = self.get_clip_rect();
+
+        self.clip_rects.push(cur_rect.intersect(clip));
+        f(self);
+        self.paint();
+        self.clip_rects.pop();
+    }
+
+    pub fn with_clip_rect(&mut self, clip: &Rect<u32>, f: impl FnOnce(&mut Self)) {
+        let cur_rect = self.get_clip_rect();
+
+        self.clip_rects.push(cur_rect.intersect(clip));
+        f(self);
+        self.clip_rects.pop();
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
         self.surface.resize(self.renderer.gpu(), width, height);
+        self.screen = *self.renderer.size();
     }
 
-    pub fn paint(&mut self, clear_color: Rgba, screen_size: Size<u32>) {
-        let info_map = self
-            .renderer
-            .texture_system()
-            .get_texture_infos(self.scene.get_required_textures());
+    /// Renders and presets to the screen
+    pub fn finish(&mut self, clear_color: Rgba) {
+        let Ok(cur_texture) = self.surface.surface.get_current_texture() else {
+            // TODO: return error ?
+            log::error!("Error getting texture");
+            return;
+        };
 
-        let scissor: Rect<u32> = Rect::new(0, 0, screen_size.width, screen_size.height);
-
-        let renderables = self
-            .scene
-            .batches(info_map.clone())
-            .map(|mesh| Renderable {
-                clip_rect: scissor.clone(),
-                mesh,
-            })
-            .collect::<Vec<_>>();
-
-        let cur_texture = self.surface.surface.get_current_texture().unwrap();
         let view = cur_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -87,8 +164,8 @@ impl Painter {
                 }),
             );
 
-            self.renderer.set_renderables(&renderables);
-            self.renderer.render(&mut pass, &renderables);
+            self.renderer.set_renderables(&self.renderables);
+            self.renderer.render(&mut pass, &self.renderables);
         }
 
         self.renderer

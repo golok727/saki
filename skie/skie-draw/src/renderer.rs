@@ -210,6 +210,10 @@ impl WgpuRenderer {
         renderer
     }
 
+    pub fn size(&self) -> &Size<u32> {
+        &self.size
+    }
+
     pub fn gpu(&self) -> &GpuContext {
         &self.gpu
     }
@@ -401,13 +405,15 @@ impl WgpuRenderer {
 
         render_pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
 
+        log::info!("Rendering {} renderables", renderables.len());
+
         for renderable in renderables {
             let scissor = &renderable.clip_rect;
             render_pass.set_scissor_rect(
                 scissor.origin.x,
                 scissor.origin.y,
-                scissor.size.width,
-                scissor.size.height,
+                scissor.size.width.min(self.size.width),
+                scissor.size.height.min(self.size.height),
             );
 
             let texture = renderable.mesh.texture;

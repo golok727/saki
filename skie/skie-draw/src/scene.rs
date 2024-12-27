@@ -28,6 +28,10 @@ impl Scene {
         self.items.push(prim.into())
     }
 
+    pub fn extend(&mut self, other: &Self) {
+        self.items.extend_from_slice(&other.items)
+    }
+
     pub fn clear(&mut self) -> Vec<Primitive> {
         let old: Vec<Primitive> = std::mem::take(&mut self.items);
         old
@@ -89,8 +93,6 @@ impl<'a> SceneBatchIterator<'a> {
 
         // FIXME: Is this correct ?
         groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
-
-        log::trace!("Batches: {}", groups.len());
 
         Self {
             scene,

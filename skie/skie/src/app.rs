@@ -14,7 +14,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use winit::event::{KeyEvent, WindowEvent};
+use winit::event::{KeyEvent, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
@@ -355,6 +355,13 @@ impl AppContext {
             WindowEvent::RedrawRequested => {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
                 window.paint();
+            }
+            WindowEvent::MouseWheel {
+                delta: MouseScrollDelta::LineDelta(dx, dy),
+                ..
+            } => {
+                let window = self.windows.get_mut(&window_id).expect("expected a window");
+                window.handle_scroll_wheel(dx, dy);
             }
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {

@@ -13,6 +13,11 @@ pub struct Size<T> {
     pub height: T,
 }
 
+impl<T> Size<T> {
+    pub fn new(width: T, height: T) -> Self {
+        Self { width, height }
+    }
+}
 impl<T> std::fmt::Display for Size<T>
 where
     T: Display + Clone + Debug + Default,

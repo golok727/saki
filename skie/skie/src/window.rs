@@ -1,5 +1,6 @@
 pub mod error;
-mod painter;
+// FIXME: for now make it pub(crate)
+pub mod painter;
 use painter::Painter;
 
 use core::f32;
@@ -23,7 +24,7 @@ use skie_draw::{
         TextureId, TextureKind,
     },
     traits::Half,
-    WgpuRendererSpecs,
+    vec2, Scene, WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -83,6 +84,8 @@ pub struct Window {
     #[allow(unused)]
     pub(crate) texture_system: AtlasManager,
     next_texture_id: usize,
+
+    scroller: Scroller,
 }
 
 impl Window {
@@ -144,6 +147,20 @@ impl Window {
             .renderer
             .set_texture_from_atlas(&yellow_thing_texture_id);
 
+        let scroller = {
+            let size = handle.inner_size();
+            let size = Size {
+                width: size.width as f32,
+                height: size.height as f32,
+            };
+
+            let mut dims = Rect::new(size.width.half(), size.height.half(), 500.0, 500.0);
+            dims.origin.x -= dims.size.width.half();
+            dims.origin.y -= dims.size.height.half();
+
+            Scroller::new(dims)
+        };
+
         Ok(Self {
             handle,
             painter,
@@ -152,6 +169,7 @@ impl Window {
             checker_texture_id,
             objects: Vec::new(),
             clear_color: Color::WHITE,
+            scroller,
 
             // FIXME: this is bad
             next_texture_id: 10000,
@@ -182,8 +200,7 @@ impl Window {
         let width = size.width as f32;
         let height = size.height as f32;
 
-        let scene = &mut self.painter.scene;
-        scene.clear();
+        let mut scene = Scene::default();
 
         scene.add(
             quad()
@@ -328,19 +345,23 @@ impl Window {
                     .with_line_width(30),
             ),
         );
+
+        self.painter.paint_scene(&scene);
+        self.scroller.render(&mut self.painter);
+    }
+
+    pub(crate) fn handle_scroll_wheel(&mut self, _dx: f32, dy: f32) {
+        let something = (10.0 * 10.0 * 10.0) * 0.05 * dy;
+
+        self.scroller.scroll_x += something;
+        // FIXME: notify app to redraw
+        self.winit_handle().request_redraw();
     }
 
     pub(crate) fn paint(&mut self) {
+        self.painter.begin_frame();
         self.build_scene();
-
-        let size = self.handle.inner_size();
-
-        let screen_size = Size {
-            width: size.width,
-            height: size.height,
-        };
-
-        self.painter.paint(self.clear_color.into(), screen_size);
+        self.painter.finish(self.clear_color.into());
     }
 
     fn get_next_tex_id(&mut self) -> TextureId {
@@ -521,4 +542,84 @@ fn load_thing() -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
 
     let thing = image::load_from_memory(thing_buffer).unwrap();
     thing.into_rgba8()
+}
+
+#[derive(Debug)]
+struct Scroller {
+    scroll_x: f32,
+    dims: Rect<f32>,
+}
+
+impl Scroller {
+    fn new(dims: Rect<f32>) -> Self {
+        Self {
+            dims,
+            scroll_x: 0.0,
+        }
+    }
+
+    fn render(&self, painter: &mut Painter) {
+        let container = &self.dims;
+        let stroke_width = 20;
+
+        painter.add_primitive(
+            quad()
+                .with_rect(container.clone())
+                .primitive()
+                .with_fill_color(Color::WHITE)
+                .with_stroke_color(Color::DARK_GRAY)
+                .with_stroke_width(stroke_width),
+        );
+
+        painter.paint();
+        // paint children clipped to this rect
+        let mut clip = Rect::new(
+            container.x() as u32,
+            container.y() as u32,
+            container.width() as u32,
+            container.height() as u32,
+        );
+
+        let hsw = &stroke_width.half();
+        clip.origin.x += hsw;
+        clip.origin.y += hsw;
+        clip.size.width -= stroke_width;
+        clip.size.height -= stroke_width;
+
+        let mut cursor = container.origin + 10.0;
+        let margin = 20.0;
+
+        let size = Size {
+            width: 100.0,
+            height: 100.0,
+        };
+
+        let colors = [
+            Color::BLACK,
+            Color::KHAKI,
+            Color::LIGHT_RED,
+            Color::TORCH_RED,
+            Color::DARK_BLUE,
+        ];
+
+        // paint children overflow hidden
+        painter.paint_with_clip_rect(&clip, |painter| {
+            for _ in 0..10 {
+                for i in 0..10 {
+                    painter.add_primitive(
+                        quad()
+                            .with_rect(Rect::new_from_origin_size(
+                                cursor + vec2(-self.scroll_x, 0.0),
+                                size,
+                            ))
+                            .primitive()
+                            .with_fill_color(colors[i % colors.len()]),
+                    );
+                    cursor.x += margin + size.width;
+                }
+                cursor.y += 30.0 + margin + size.height;
+                cursor.x = container.origin.x + 10.0;
+            }
+        });
+    }
 }
