@@ -24,8 +24,8 @@ impl Scene {
         todo!()
     }
 
-    pub fn add(&mut self, prim: Primitive) {
-        self.items.push(prim)
+    pub fn add(&mut self, prim: impl Into<Primitive>) {
+        self.items.push(prim.into())
     }
 
     pub fn clear(&mut self) -> Vec<Primitive> {

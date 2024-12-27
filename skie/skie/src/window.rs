@@ -22,7 +22,6 @@ use skie_draw::{
         atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, StrokeStyle,
         TextureId, TextureKind,
     },
-    scene::Scene,
     traits::Half,
     WgpuRendererSpecs,
 };
@@ -74,7 +73,6 @@ enum Object {
 pub struct Window {
     pub(crate) painter: Painter,
     pub(crate) handle: Arc<WinitWindow>,
-    pub(crate) scene: Scene,
 
     objects: Vec<Object>,
     clear_color: Color,
@@ -147,7 +145,6 @@ impl Window {
             .set_texture_from_atlas(&yellow_thing_texture_id);
 
         Ok(Self {
-            scene: Scene::default(),
             handle,
             painter,
             texture_system,
@@ -181,13 +178,14 @@ impl Window {
 
     // FIXME: for now
     pub fn build_scene(&mut self) {
-        self.scene.clear();
-
         let size = self.winit_handle().inner_size();
         let width = size.width as f32;
         let height = size.height as f32;
 
-        self.scene.add(
+        let scene = &mut self.painter.scene;
+        scene.clear();
+
+        scene.add(
             quad()
                 .with_pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
                 .with_size(700.0, 700.0)
@@ -195,7 +193,7 @@ impl Window {
                 .textured(self.yellow_thing_texture_id),
         );
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(100.0, height - 400.0)
                 .with_size(300.0, 300.0)
@@ -204,7 +202,7 @@ impl Window {
                 .with_fill_color(Color::from_rgb(0xFF0000)),
         );
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
@@ -213,7 +211,7 @@ impl Window {
                 .with_fill_color(Color::from_rgb(0xFFFF00)),
         );
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(width - 300.0, height - 300.0)
                 .with_size(200.0, 200.0)
@@ -222,7 +220,7 @@ impl Window {
                 .with_stroke_width(10),
         );
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(100.0, 500.0)
                 .with_size(300.0, 100.0)
@@ -230,7 +228,7 @@ impl Window {
                 .with_fill_color(Color::from_rgb(0x55a09e)),
         );
 
-        self.scene.add(
+        scene.add(
             circle()
                 .with_pos(400.0, 500.0)
                 .with_radius(300.0)
@@ -238,7 +236,7 @@ impl Window {
                 .with_fill_color(Color::KHAKI),
         );
 
-        self.scene.add(
+        scene.add(
             circle()
                 .with_pos(400.0, 500.0)
                 .with_radius(200.0)
@@ -250,7 +248,7 @@ impl Window {
         let bar_height: f32 = 50.0;
         let margin_bottom: f32 = 30.0;
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(0.0, height - bar_height - margin_bottom)
                 .with_size(width, bar_height)
@@ -272,7 +270,7 @@ impl Window {
                     let width: f32 = (bbox.size.width * aspect).into();
                     let height: f32 = (bbox.size.height).into();
 
-                    self.scene.add(
+                    scene.add(
                         quad()
                             .with_pos(x, y)
                             .with_size(width, height)
@@ -284,7 +282,7 @@ impl Window {
             }
         }
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(800.0, 200.0)
                 .with_size(200.0, 500.0)
@@ -295,7 +293,7 @@ impl Window {
                 .with_stroke_color(Color::TORCH_RED),
         );
 
-        self.scene.add(
+        scene.add(
             quad()
                 .with_pos(width - 200.0, 50.0)
                 .with_size(100.0, 50.0)
@@ -311,7 +309,7 @@ impl Window {
         path.line_to((100.0, 400.0).into());
         path.close();
 
-        self.scene.add(
+        scene.add(
             path.primitive()
                 .stroke(StrokeStyle::default().with_round_join().with_line_width(50)),
         );
@@ -321,7 +319,7 @@ impl Window {
         path.line_to((600.0, 500.0).into());
         path.line_to((400.0, 700.0).into());
 
-        self.scene.add(
+        scene.add(
             path.primitive().stroke(
                 StrokeStyle::default()
                     .with_color(Color::WHITE)
@@ -342,8 +340,7 @@ impl Window {
             height: size.height,
         };
 
-        self.painter
-            .paint(self.clear_color.into(), screen_size, &self.scene);
+        self.painter.paint(self.clear_color.into(), screen_size);
     }
 
     fn get_next_tex_id(&mut self) -> TextureId {

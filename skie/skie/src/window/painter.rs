@@ -11,12 +11,12 @@ use skie_draw::{
     renderer::Renderable,
     Scene, WgpuRenderer, WgpuRendererSpecs,
 };
-
 //  Winit window painter
 #[derive(Debug)]
 pub struct Painter {
     pub(crate) renderer: WgpuRenderer,
     pub(crate) surface: GpuSurface,
+    pub(crate) scene: Scene,
     // todo mmsa
 }
 
@@ -33,7 +33,11 @@ impl Painter {
         let surface = gpu.create_surface(window, &(GpuSurfaceSpecification { width, height }))?;
         let renderer = WgpuRenderer::new(gpu, texture_system, specs);
 
-        Ok(Self { renderer, surface })
+        Ok(Self {
+            renderer,
+            surface,
+            scene: Scene::default(),
+        })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -41,16 +45,17 @@ impl Painter {
         self.surface.resize(self.renderer.gpu(), width, height);
     }
 
-    pub fn paint(&mut self, clear_color: Rgba, screen_size: Size<u32>, scene: &Scene) {
+    pub fn paint(&mut self, clear_color: Rgba, screen_size: Size<u32>) {
         let info_map = self
             .renderer
             .texture_system()
-            .get_texture_infos(scene.get_required_textures());
+            .get_texture_infos(self.scene.get_required_textures());
 
         let scissor: Rect<u32> = Rect::new(0, 0, screen_size.width, screen_size.height);
 
-        let renderables = scene
-            .batches(info_map)
+        let renderables = self
+            .scene
+            .batches(info_map.clone())
             .map(|mesh| Renderable {
                 clip_rect: scissor.clone(),
                 mesh,
@@ -82,7 +87,7 @@ impl Painter {
                 }),
             );
 
-            self.renderer.update_buffers(&renderables);
+            self.renderer.set_renderables(&renderables);
             self.renderer.render(&mut pass, &renderables);
         }
 

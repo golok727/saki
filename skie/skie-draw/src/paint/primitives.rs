@@ -20,7 +20,7 @@ pub struct FillStyle {
 impl Default for FillStyle {
     fn default() -> Self {
         Self {
-            color: Color::WHITE,
+            color: Color::TRANSPARENT,
         }
     }
 }
@@ -245,6 +245,11 @@ impl Quad {
     pub fn with_pos(mut self, x: f32, y: f32) -> Self {
         self.bounds.origin.x = x;
         self.bounds.origin.y = y;
+        self
+    }
+
+    pub fn with_rect(mut self, rect: Rect<f32>) -> Self {
+        self.bounds = rect;
         self
     }
 

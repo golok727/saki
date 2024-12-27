@@ -312,9 +312,7 @@ impl WgpuRenderer {
         }
     }
 
-    pub fn update_buffers(&mut self, renderables: &[Renderable]) {
-        self.global_uniforms.sync(&self.gpu);
-
+    pub fn set_renderables(&mut self, renderables: &[Renderable]) {
         let (vertex_count, index_count): (usize, usize) =
             renderables.iter().fold((0, 0), |res, renderable| {
                 (
@@ -396,6 +394,7 @@ impl WgpuRenderer {
     }
 
     pub fn render(&mut self, render_pass: &mut wgpu::RenderPass<'_>, renderables: &[Renderable]) {
+        self.global_uniforms.sync(&self.gpu);
         let mut vb_slices = self.scene_pipe.vertex_buffer.slices.iter();
         let mut ib_slices = self.scene_pipe.index_buffer.slices.iter();
         render_pass.set_pipeline(&self.scene_pipe.pipeline);

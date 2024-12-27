@@ -46,6 +46,27 @@ where
     }
 }
 
+impl<T> From<&Size<T>> for Vec2<T>
+where
+    T: Clone,
+{
+    fn from(value: &Size<T>) -> Self {
+        Self {
+            x: value.width.clone(),
+            y: value.height.clone(),
+        }
+    }
+}
+
+impl<T> From<Size<T>> for Vec2<T> {
+    fn from(value: Size<T>) -> Self {
+        Self {
+            x: value.width,
+            y: value.height,
+        }
+    }
+}
+
 impl<T> IsZero for Size<T>
 where
     T: IsZero,
