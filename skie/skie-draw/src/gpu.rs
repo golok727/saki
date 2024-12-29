@@ -8,8 +8,8 @@ pub struct GpuContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 
-    pub(crate) instance: wgpu::Instance,
-    pub(crate) adapter: wgpu::Adapter,
+    pub instance: wgpu::Instance,
+    pub adapter: wgpu::Adapter,
 }
 
 impl GpuContext {

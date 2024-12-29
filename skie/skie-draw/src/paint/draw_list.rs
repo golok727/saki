@@ -38,6 +38,11 @@ impl Mesh {
     }
 
     #[inline(always)]
+    pub fn vertex_count(&self) -> u32 {
+        self.vertices.len() as u32
+    }
+
+    #[inline(always)]
     pub fn index_count(&self) -> u32 {
         self.indices.len() as u32
     }
@@ -51,7 +56,6 @@ pub struct DrawList<'a> {
     pub(crate) indices: Vec<u32>,
     pub(crate) path: Path2D,
     cur_vertex_idx: u32,
-
     middleware: Option<DrawListMiddleware<'a>>,
 }
 
@@ -84,7 +88,7 @@ impl<'a> DrawList<'a> {
         self.cur_vertex_idx = 0;
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn apply_mw(&self, vertex: DrawVert) -> DrawVert {
         let mut vertex = vertex;
         if let Some(middleware) = &self.middleware {
@@ -205,8 +209,7 @@ impl<'a> DrawList<'a> {
 
     #[inline]
     pub fn path_circle(&mut self, center: Vec2<f32>, radius: f32) {
-        self.path
-            .arc(center, radius, 0.0, std::f32::consts::TAU, false);
+        self.path.circle(center, radius);
     }
 
     #[inline]
@@ -228,13 +231,26 @@ impl<'a> DrawList<'a> {
         self.fill_path_convex(color, false);
     }
 
+    pub fn capture<F, M>(&mut self, f: F, map: M)
+    where
+        F: FnOnce(&mut Self),
+        M: Fn(&mut DrawVert),
+    {
+        let start = self.vertices.len();
+        f(self);
+        let end = self.vertices.len();
+
+        for vertex in &mut self.vertices[start..end] {
+            map(vertex)
+        }
+    }
+
     /// Strokes the current path
     pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
         if stroke_style.color.is_transparent() {
             return;
         }
-
-        // FIXME: is this good
+        // FIXME: : (
         let points: Vec<Vec2<f32>> = std::mem::take(&mut self.path.points);
         self.add_polyline(&points, stroke_style);
         self.path.points = points;
@@ -569,10 +585,16 @@ impl<'a> DrawList<'a> {
         self.indices.reserve(index_count);
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn add_vertex(&mut self, pos: Vec2<f32>, color: Color, uv: (f32, f32)) {
-        self.vertices
-            .push(self.apply_mw(DrawVert::new(pos, color, uv))); // Top-left
+        self.vertices.push({
+            let vertex = DrawVert::new(pos, color, uv);
+            let mut vertex = vertex;
+            if let Some(middleware) = &self.middleware {
+                vertex = middleware(vertex);
+            }
+            vertex
+        }); // Top-left
     }
 
     pub fn add_prim_quad(&mut self, rect: &Rect<f32>, color: Color) {
@@ -581,19 +603,12 @@ impl<'a> DrawList<'a> {
         }
         let v_index_offset = self.cur_vertex_idx;
 
-        let tl = rect.top_left();
-        let tr = rect.top_right();
-        let bl = rect.bottom_left();
-        let br = rect.bottom_right();
-
-        let uvs: [(f32, f32); 4] = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)];
-
         self.reserve_prim(4, 6);
 
-        self.add_vertex(tl, color, uvs[0]); // Top-left
-        self.add_vertex(tr, color, uvs[1]); // Top-right
-        self.add_vertex(bl, color, uvs[2]); // Bottom-left
-        self.add_vertex(br, color, uvs[3]); // Bottom-right
+        self.add_vertex(rect.top_left(), color, (0.0, 0.0)); // Top-left
+        self.add_vertex(rect.top_right(), color, (1.0, 0.0)); // Top-right
+        self.add_vertex(rect.bottom_left(), color, (0.0, 1.0)); // Bottom-left
+        self.add_vertex(rect.bottom_right(), color, (1.0, 1.0)); // Bottom-right
 
         self.indices.extend_from_slice(&[
             v_index_offset,
@@ -609,7 +624,6 @@ impl<'a> DrawList<'a> {
 
     pub fn build(mut self) -> Mesh {
         let vertices = std::mem::take(&mut self.vertices);
-
         let indices = std::mem::take(&mut self.indices);
 
         Mesh {

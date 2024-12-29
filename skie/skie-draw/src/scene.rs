@@ -189,7 +189,7 @@ impl<'a> SceneBatchIterator<'a> {
         self.cur_group += 1;
 
         let mut mesh = drawlist.build();
-        mesh.texture = TextureId::AtlasTexture(atlas_tex_id);
+        mesh.texture = TextureId::Atlas(atlas_tex_id);
         Some(mesh)
     }
 }

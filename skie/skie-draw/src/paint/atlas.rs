@@ -40,13 +40,27 @@ struct AtlasStorage {
 impl AtlasManager {
     pub fn new(gpu: Arc<GpuContext>) -> Self {
         // TODO should we initialize the white_texture in here ?
-        Self(Arc::new(Mutex::new(AtlasStorage {
+        let sys = Self(Arc::new(Mutex::new(AtlasStorage {
             gpu,
             gray_textures: Default::default(),
             color_textures: Default::default(),
             texture_id_to_tile: ahash::AHashMap::new(),
             next_texture_id: 0,
-        })))
+        })));
+
+        // add the default white texture
+        sys.get_or_insert(&TextureId::WHITE_TEXTURE, || {
+            (
+                TextureKind::Color,
+                Size {
+                    width: 1,
+                    height: 1,
+                },
+                &[255, 255, 255, 255],
+            )
+        });
+
+        sys
     }
 
     pub fn with_texture<R>(&self, id: &TextureId, f: impl FnOnce(&AtlasTexture) -> R) -> Option<R> {

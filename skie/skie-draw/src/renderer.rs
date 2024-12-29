@@ -4,7 +4,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 use crate::gpu::CommandEncoder;
 use crate::math::{Rect, Size};
 use crate::paint::atlas::AtlasManager;
-use crate::paint::{TextureKind, WgpuTextureView};
+use crate::paint::WgpuTextureView;
 use crate::{
     gpu::GpuContext,
     math::Mat3,
@@ -144,17 +144,6 @@ impl WgpuRenderer {
         texture_system: AtlasManager,
         specs: &WgpuRendererSpecs,
     ) -> Self {
-        texture_system.get_or_insert(&TextureId::WHITE_TEXTURE, || {
-            (
-                TextureKind::Color,
-                Size {
-                    width: 1,
-                    height: 1,
-                },
-                &[255, 255, 255, 255],
-            )
-        });
-
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let global_uniforms =
@@ -280,7 +269,7 @@ impl WgpuRenderer {
         let contains_texture = self
             .texture_system
             .with_texture::<Option<(TextureId, wgpu::BindGroup)>>(texture_id, |texture| {
-                let atlas_tex_id = TextureId::AtlasTexture(texture.id());
+                let atlas_tex_id = TextureId::Atlas(texture.id());
                 if self.textures.contains_key(&atlas_tex_id) {
                     None
                 } else {
