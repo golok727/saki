@@ -1,6 +1,7 @@
 pub mod async_context;
 pub mod events;
 pub use async_context::AsyncAppContext;
+use skie_draw::TextSystem;
 mod handle;
 
 use crate::window::error::CreateWindowError;
@@ -102,12 +103,23 @@ pub struct AppContext {
 
     pending_user_events: ahash::AHashSet<AppAction>,
 
+    pub(crate) text_system: Arc<TextSystem>,
+
     pub(crate) texture_system: AtlasManager,
 
     pub(crate) windows: ahash::AHashMap<WindowId, Window>,
 
     pub(crate) gpu: Arc<GpuContext>,
 }
+
+#[cfg(target_os = "windows")]
+static DEFAULT_FONT: &[u8] = include_bytes!("C:\\Windows\\Fonts\\segoeui.ttf");
+
+// #[cfg(target_os = "macos")]
+// static DEFAULT_FONT: &[u8] = include_bytes!("/System/Library/Fonts/Supplemental/Arial.ttf");
+//
+// #[cfg(target_os = "linux")]
+// static DEFAULT_FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
 
 impl AppContext {
     fn new(handle: &mut AppHandle) -> AppContextRef {
@@ -116,6 +128,13 @@ impl AppContext {
         let gpu = Arc::new(pollster::block_on(GpuContext::new()).unwrap());
 
         let texture_system = AtlasManager::new(gpu.clone());
+
+        let text_system = TextSystem::default();
+
+        #[cfg(target_os = "windows")]
+        {
+            let _ = text_system.add_fonts(vec![std::borrow::Cow::Borrowed(DEFAULT_FONT)]);
+        }
 
         let cx = Rc::new_cyclic(|this| {
             RefCell::new(Self {
@@ -131,6 +150,7 @@ impl AppContext {
                 pending_user_events: Default::default(),
 
                 texture_system,
+                text_system: Arc::new(text_system),
                 windows: ahash::AHashMap::new(),
             })
         });
@@ -172,6 +192,10 @@ impl AppContext {
         }
 
         cx
+    }
+
+    pub fn text_system(&self) -> &Arc<TextSystem> {
+        &self.text_system
     }
 
     pub fn to_async(&self) -> AsyncAppContext {
@@ -240,16 +264,10 @@ impl AppContext {
         &mut self,
         specs: &WindowSpecification,
         event_loop: &winit::event_loop::ActiveEventLoop,
-    ) -> Result<(WindowId, Window), CreateWindowError> {
-        let window = Window::new(
-            event_loop,
-            Arc::clone(&self.gpu),
-            self.texture_system.clone(),
-            specs,
-        )?;
-        let window_id = window.handle.id();
+    ) -> Result<Window, CreateWindowError> {
+        let window = Window::new(self, event_loop, specs)?;
 
-        Ok((window_id, window))
+        Ok(window)
     }
 
     fn handle_window_create_event(
@@ -259,12 +277,12 @@ impl AppContext {
         callback: OpenWindowCallback,
     ) {
         log::trace!("Creating window. \n Spec: {:#?}", &specs);
-        if let Ok((id, mut window)) = self.create_window(&specs, event_loop) {
+        if let Ok(mut window) = self.create_window(&specs, event_loop) {
             let mut context = WindowContext::new(self, &mut window);
 
             callback(&mut context);
 
-            let _ = self.windows.insert(id, window);
+            let _ = self.windows.insert(window.id(), window);
         } else {
             log::error!("Error creating window")
         }

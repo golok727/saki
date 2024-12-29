@@ -17,7 +17,6 @@ use crate::{
 };
 
 use skie_draw::{
-    gpu::GpuContext,
     math::{Corners, Rect, Size},
     paint::{
         atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, StrokeStyle,
@@ -90,9 +89,8 @@ pub struct Window {
 
 impl Window {
     pub(crate) fn new(
+        app: &AppContext,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        gpu: Arc<GpuContext>,
-        texture_system: AtlasManager,
         specs: &WindowSpecification,
     ) -> Result<Self, CreateWindowError> {
         let width = specs.width;
@@ -105,9 +103,10 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
+        let texture_system = app.texture_system.clone();
         // TODO: handle error
         let mut painter = Painter::new(
-            gpu,
+            app.gpu.clone(),
             texture_system.clone(),
             Arc::clone(&handle),
             &(WgpuRendererSpecs { width, height }),
