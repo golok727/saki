@@ -4,12 +4,10 @@ use skie_draw::{
     gpu::{
         error::GpuSurfaceCreateError,
         surface::{GpuSurface, GpuSurfaceSpecification},
-        GpuContext,
     },
-    math::Rect,
-    paint::{atlas::AtlasManager, Primitive, Rgba},
     renderer::Renderable,
-    Scene, Size, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
+    AtlasManager, GpuContext, Primitive, Rect, Rgba, Scene, Size, Vec2, WgpuRenderer,
+    WgpuRendererSpecs, Zero,
 };
 
 //  Winit window painter

@@ -1,14 +1,11 @@
-use ahash::HashSet;
+use crate::{
+    paint::atlas::{AtlasTextureId, AtlasTextureInfoMap},
+    paint::{DrawVert, Mesh, PrimitiveKind},
+    traits::IsZero,
+    DrawList, Primitive, TextureId,
+};
 
-use crate::paint::atlas::AtlasTextureId;
-use crate::paint::atlas::AtlasTextureInfoMap;
-use crate::paint::DrawList;
-use crate::paint::DrawVert;
-use crate::paint::Mesh;
-use crate::paint::Primitive;
-use crate::paint::PrimitiveKind;
-use crate::paint::TextureId;
-use crate::traits::IsZero;
+use ahash::HashSet;
 
 #[derive(Debug, Default, Clone)]
 pub struct Scene {

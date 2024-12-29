@@ -35,6 +35,51 @@ pub struct Texture2DSpecs {
     pub format: TextureFormat,
 }
 
+pub type TextureAddressMode = wgpu::AddressMode;
+pub type TextureFilterMode = wgpu::FilterMode;
+
+#[derive(Debug, Clone, Default)]
+pub struct TextureOptions {
+    pub address_mode_u: TextureAddressMode,
+    pub address_mode_v: TextureAddressMode,
+    pub address_mode_w: TextureAddressMode,
+    pub mag_filter: TextureFilterMode,
+    pub min_filter: TextureFilterMode,
+    pub mipmap_filter: TextureFilterMode,
+}
+
+impl TextureOptions {
+    pub fn mag_filter(mut self, mode: TextureFilterMode) -> Self {
+        self.mag_filter = mode;
+        self
+    }
+
+    pub fn min_filter(mut self, mode: TextureFilterMode) -> Self {
+        self.min_filter = mode;
+        self
+    }
+
+    pub fn mip_map_filter(mut self, mode: TextureFilterMode) -> Self {
+        self.min_filter = mode;
+        self
+    }
+
+    pub fn address_mode_u(mut self, mode: TextureAddressMode) -> Self {
+        self.address_mode_u = mode;
+        self
+    }
+
+    pub fn address_mode_v(mut self, mode: TextureAddressMode) -> Self {
+        self.address_mode_v = mode;
+        self
+    }
+
+    pub fn address_mode_w(mut self, mode: TextureAddressMode) -> Self {
+        self.address_mode_w = mode;
+        self
+    }
+}
+
 pub struct Texture2D {}
 
 impl std::fmt::Display for TextureId {

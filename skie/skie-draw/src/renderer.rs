@@ -4,7 +4,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 use crate::gpu::CommandEncoder;
 use crate::math::{Rect, Size};
 use crate::paint::atlas::AtlasManager;
-use crate::paint::WgpuTextureView;
+use crate::paint::{TextureOptions, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
     math::Mat3,
@@ -194,7 +194,7 @@ impl WgpuRenderer {
             },
         };
 
-        renderer.set_texture_from_atlas(&TextureId::WHITE_TEXTURE);
+        renderer.set_texture_from_atlas(&TextureId::WHITE_TEXTURE, &TextureOptions::default());
 
         renderer
     }
@@ -226,17 +226,18 @@ impl WgpuRenderer {
         gpu: &GpuContext,
         layout: &wgpu::BindGroupLayout,
         view: &WgpuTextureView,
+        options: &TextureOptions,
     ) -> wgpu::BindGroup {
         // TODO allow configuration
         let sampler = gpu.device.create_sampler(
             &(wgpu::SamplerDescriptor {
                 label: Some("skie_draw texture sampler"),
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
+                address_mode_u: options.address_mode_u,
+                address_mode_v: options.address_mode_v,
+                address_mode_w: options.address_mode_w,
+                mag_filter: options.mag_filter,
+                min_filter: options.min_filter,
+                mipmap_filter: options.mipmap_filter,
                 lod_max_clamp: Default::default(),
                 lod_min_clamp: Default::default(),
                 compare: None,
@@ -265,7 +266,7 @@ impl WgpuRenderer {
         bindgroup
     }
 
-    pub fn set_texture_from_atlas(&mut self, texture_id: &TextureId) {
+    pub fn set_texture_from_atlas(&mut self, texture_id: &TextureId, options: &TextureOptions) {
         let contains_texture = self
             .texture_system
             .with_texture::<Option<(TextureId, wgpu::BindGroup)>>(texture_id, |texture| {
@@ -279,6 +280,7 @@ impl WgpuRenderer {
                             &self.gpu,
                             &self.texture_bindgroup_layout,
                             texture.view(),
+                            options,
                         ),
                     ))
                 }

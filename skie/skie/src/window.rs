@@ -17,13 +17,12 @@ use crate::{
 };
 
 use skie_draw::{
-    math::{Corners, Rect, Size},
-    paint::{
-        atlas::AtlasManager, circle, path::Path2D, quad, AsPrimitive, Color, StrokeStyle,
-        TextureId, TextureKind,
-    },
+    circle,
+    paint::{atlas::AtlasManager, AsPrimitive, TextureKind},
+    quad,
     traits::Half,
-    vec2, Scene, WgpuRendererSpecs,
+    vec2, Color, Corners, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode, TextureId,
+    TextureOptions, WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -141,10 +140,16 @@ impl Window {
             )
         });
 
-        painter.renderer.set_texture_from_atlas(&checker_texture_id);
+        let opts = TextureOptions::default()
+            .min_filter(TextureFilterMode::Linear)
+            .mag_filter(TextureFilterMode::Linear);
+
         painter
             .renderer
-            .set_texture_from_atlas(&yellow_thing_texture_id);
+            .set_texture_from_atlas(&checker_texture_id, &opts);
+        painter
+            .renderer
+            .set_texture_from_atlas(&yellow_thing_texture_id, &opts);
 
         let scroller = {
             let size = handle.inner_size();
@@ -482,7 +487,12 @@ impl<'a> WindowContext<'a> {
                     )
                 });
 
-                cx.window.painter.renderer.set_texture_from_atlas(&id);
+                cx.window.painter.renderer.set_texture_from_atlas(
+                    &id,
+                    &TextureOptions::default()
+                        .min_filter(TextureFilterMode::Linear)
+                        .mag_filter(TextureFilterMode::Linear),
+                );
                 cx.window.objects.push(Object::Image {
                     bbox: rect,
                     natural_width: width as f32,
