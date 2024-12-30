@@ -18,7 +18,7 @@ use crate::{
 
 use skie_draw::{
     circle,
-    paint::{atlas::AtlasManager, AsPrimitive, TextureKind},
+    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
     vec2, Color, Corners, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode, TextureId,
@@ -71,7 +71,6 @@ enum Object {
 #[derive(Debug)]
 pub struct Window {
     pub(crate) painter: Painter,
-    pub(crate) handle: Arc<WinitWindow>,
 
     objects: Vec<Object>,
     clear_color: Color,
@@ -80,10 +79,12 @@ pub struct Window {
     checker_texture_id: TextureId,
 
     #[allow(unused)]
-    pub(crate) texture_system: AtlasManager,
+    pub(crate) texture_system: Arc<SkieAtlas>,
     next_texture_id: usize,
 
     scroller: Scroller,
+
+    pub(crate) handle: Arc<WinitWindow>,
 }
 
 impl Window {
@@ -103,6 +104,7 @@ impl Window {
         let handle = Arc::new(winit_window);
 
         let texture_system = app.texture_system.clone();
+
         // TODO: handle error
         let mut painter = Painter::new(
             app.gpu.clone(),
@@ -112,12 +114,12 @@ impl Window {
         )
         .unwrap();
 
-        let checker_texture_id = TextureId::User(1001);
-        let yellow_thing_texture_id = TextureId::User(1002);
+        let checker_texture_key = AtlasKey::from(SkieImage::new(1));
+        let yellow_thing_texture_key = AtlasKey::from(SkieImage::new(2));
 
         let checker_data = create_checker_texture(250, 250, 25);
 
-        texture_system.get_or_insert(&checker_texture_id, || {
+        texture_system.get_or_insert(&checker_texture_key, || {
             (
                 TextureKind::Color,
                 Size {
@@ -129,7 +131,7 @@ impl Window {
         });
 
         let thing_data = load_thing();
-        texture_system.get_or_insert(&yellow_thing_texture_id, || {
+        texture_system.get_or_insert(&yellow_thing_texture_key, || {
             (
                 TextureKind::Color,
                 Size {
@@ -146,10 +148,11 @@ impl Window {
 
         painter
             .renderer
-            .set_texture_from_atlas(&checker_texture_id, &opts);
+            .set_texture_from_atlas(&texture_system, &checker_texture_key, &opts);
+
         painter
             .renderer
-            .set_texture_from_atlas(&yellow_thing_texture_id, &opts);
+            .set_texture_from_atlas(&texture_system, &yellow_thing_texture_key, &opts);
 
         let scroller = {
             let size = handle.inner_size();
@@ -169,8 +172,8 @@ impl Window {
             handle,
             painter,
             texture_system,
-            yellow_thing_texture_id,
-            checker_texture_id,
+            yellow_thing_texture_id: yellow_thing_texture_key.into(),
+            checker_texture_id: checker_texture_key.into(),
             objects: Vec::new(),
             clear_color: Color::WHITE,
             scroller,
@@ -368,10 +371,10 @@ impl Window {
         self.painter.finish(self.clear_color.into());
     }
 
-    fn get_next_tex_id(&mut self) -> TextureId {
+    fn get_next_tex_id(&mut self) -> usize {
         let id = self.next_texture_id;
         self.next_texture_id += 1;
-        TextureId::User(id)
+        id
     }
 
     pub(crate) fn refresh(&self) {
@@ -475,8 +478,8 @@ impl<'a> WindowContext<'a> {
             let height = img.height();
 
             cx.with(|cx| {
-                let id = cx.window.get_next_tex_id();
-                cx.window.texture_system.get_or_insert(&id, || {
+                let key = AtlasKey::from(SkieImage::new(cx.window.get_next_tex_id()));
+                cx.window.texture_system.get_or_insert(&key, || {
                     (
                         TextureKind::Color,
                         Size {
@@ -488,16 +491,18 @@ impl<'a> WindowContext<'a> {
                 });
 
                 cx.window.painter.renderer.set_texture_from_atlas(
-                    &id,
+                    &cx.window.texture_system,
+                    &key,
                     &TextureOptions::default()
                         .min_filter(TextureFilterMode::Linear)
                         .mag_filter(TextureFilterMode::Linear),
                 );
+
                 cx.window.objects.push(Object::Image {
                     bbox: rect,
                     natural_width: width as f32,
                     natural_height: height as f32,
-                    texture: id,
+                    texture: key.into(),
                 });
                 // FIXME: maybe mark window as dirty instead and allow the app to handle this ?
                 cx.window.refresh();

@@ -5,8 +5,9 @@ use skie_draw::{
         error::GpuSurfaceCreateError,
         surface::{GpuSurface, GpuSurfaceSpecification},
     },
+    paint::{AtlasKey, SkieAtlas},
     renderer::Renderable,
-    AtlasManager, GpuContext, Primitive, Rect, Rgba, Scene, Size, Vec2, WgpuRenderer,
+    GpuContext, Primitive, Rect, Rgba, Scene, Size, TextureId, Vec2, WgpuRenderer,
     WgpuRendererSpecs, Zero,
 };
 
@@ -17,14 +18,15 @@ pub struct Painter {
     pub(crate) surface: GpuSurface,
     pub(crate) scene: Scene,
     pub renderables: Vec<Renderable>, // todo mmsa
-    pub screen: Size<u32>,
-    pub clip_rects: Vec<Rect<u32>>,
+    clip_rects: Vec<Rect<u32>>,
+    screen: Size<u32>,
+    pub(crate) texture_system: Arc<SkieAtlas>,
 }
 
 impl Painter {
     pub fn new(
         gpu: Arc<GpuContext>,
-        texture_system: AtlasManager,
+        texture_system: Arc<SkieAtlas>,
         window: Arc<winit::window::Window>,
         specs: &WgpuRendererSpecs,
     ) -> Result<Self, GpuSurfaceCreateError> {
@@ -32,13 +34,14 @@ impl Painter {
         let height = specs.height;
 
         let surface = gpu.create_surface(window, &(GpuSurfaceSpecification { width, height }))?;
-        let renderer = WgpuRenderer::new(gpu, texture_system, specs);
+        let renderer = WgpuRenderer::new(gpu, &texture_system, specs);
 
         Ok(Self {
             renderer,
             surface,
             scene: Scene::default(),
             renderables: Default::default(),
+            texture_system,
             screen: Size {
                 width: specs.width,
                 height: specs.height,
@@ -77,11 +80,21 @@ impl Painter {
     }
 
     fn build_renderables<'scene>(
-        texture_system: &AtlasManager,
+        texture_system: &SkieAtlas,
         scene: &'scene Scene,
         clip_rect: Rect<u32>,
     ) -> impl Iterator<Item = Renderable> + 'scene {
-        let info_map = texture_system.get_texture_infos(scene.get_required_textures());
+        let atlas_textures = scene
+            .get_required_textures()
+            .filter_map(|tex| -> Option<AtlasKey> {
+                if let TextureId::AtlasKey(key) = tex {
+                    Some(key)
+                } else {
+                    None
+                }
+            });
+
+        let info_map = texture_system.get_texture_infos(atlas_textures);
 
         scene.batches(info_map.clone()).map(move |mesh| Renderable {
             clip_rect: clip_rect.clone(),
@@ -91,17 +104,14 @@ impl Painter {
 
     pub fn paint_scene(&mut self, scene: &Scene) {
         let renderables =
-            Self::build_renderables(self.renderer.texture_system(), scene, self.get_clip_rect());
+            Self::build_renderables(&self.texture_system, scene, self.get_clip_rect());
 
         self.renderables.extend(renderables);
     }
 
     pub fn paint(&mut self) {
-        let renderables = Self::build_renderables(
-            self.renderer.texture_system(),
-            &self.scene,
-            self.get_clip_rect(),
-        );
+        let renderables =
+            Self::build_renderables(&self.texture_system, &self.scene, self.get_clip_rect());
 
         self.renderables.extend(renderables);
         self.scene.clear();
@@ -117,8 +127,8 @@ impl Painter {
     }
 
     pub fn with_clip_rect(&mut self, clip: &Rect<u32>, f: impl FnOnce(&mut Self)) {
+        // FIXME: overflow;
         let cur_rect = self.get_clip_rect();
-
         self.clip_rects.push(cur_rect.intersect(clip));
         f(self);
         self.clip_rects.pop();

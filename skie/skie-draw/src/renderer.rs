@@ -3,7 +3,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::gpu::CommandEncoder;
 use crate::math::{Rect, Size};
-use crate::paint::atlas::AtlasManager;
+use crate::paint::atlas::{AtlasKeyImpl, AtlasManager};
 use crate::paint::{TextureOptions, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
@@ -127,8 +127,6 @@ pub struct WgpuRenderer {
 
     size: Size<u32>,
 
-    texture_system: AtlasManager,
-
     global_uniforms: GlobalUniformsBuffer,
 
     textures: ahash::AHashMap<TextureId, RendererTexture>,
@@ -139,11 +137,14 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-    pub fn new(
+    pub fn new<Key>(
         gpu: Arc<GpuContext>,
-        texture_system: AtlasManager,
+        atlas: &AtlasManager<Key>,
         specs: &WgpuRendererSpecs,
-    ) -> Self {
+    ) -> Self
+    where
+        Key: AtlasKeyImpl,
+    {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let global_uniforms =
@@ -183,7 +184,6 @@ impl WgpuRenderer {
 
         let mut renderer = Self {
             gpu,
-            texture_system,
             global_uniforms,
             textures: Default::default(),
             scene_pipe,
@@ -194,8 +194,7 @@ impl WgpuRenderer {
             },
         };
 
-        renderer.set_texture_from_atlas(&TextureId::WHITE_TEXTURE, &TextureOptions::default());
-
+        renderer.set_texture_from_atlas(atlas, &Key::WHITE_TEXTURE_KEY, &TextureOptions::default());
         renderer
     }
 
@@ -205,10 +204,6 @@ impl WgpuRenderer {
 
     pub fn gpu(&self) -> &GpuContext {
         &self.gpu
-    }
-
-    pub fn texture_system(&self) -> &AtlasManager {
-        &self.texture_system
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -266,10 +261,32 @@ impl WgpuRenderer {
         bindgroup
     }
 
-    pub fn set_texture_from_atlas(&mut self, texture_id: &TextureId, options: &TextureOptions) {
-        let contains_texture = self
-            .texture_system
-            .with_texture::<Option<(TextureId, wgpu::BindGroup)>>(texture_id, |texture| {
+    pub fn set_texture<Key>(
+        &mut self,
+        texture_id: TextureId,
+        view: &WgpuTextureView,
+        options: &TextureOptions,
+    ) {
+        let bindgroup = Self::create_texture_bind_group(
+            &self.gpu,
+            &self.texture_bindgroup_layout,
+            view,
+            options,
+        );
+        self.textures
+            .insert(texture_id, RendererTexture { bindgroup });
+    }
+
+    pub fn set_texture_from_atlas<Key>(
+        &mut self,
+        atlas: &AtlasManager<Key>,
+        texture_id: &Key,
+        options: &TextureOptions,
+    ) where
+        Key: AtlasKeyImpl,
+    {
+        let texture_in_atlas =
+            atlas.with_texture::<Option<(TextureId, wgpu::BindGroup)>>(texture_id, |texture| {
                 let atlas_tex_id = TextureId::Atlas(texture.id());
                 if self.textures.contains_key(&atlas_tex_id) {
                     None
@@ -286,22 +303,22 @@ impl WgpuRenderer {
                 }
             });
 
-        if contains_texture.is_none() {
+        if texture_in_atlas.is_none() {
             log::error!(
-                "ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {}",
+                "ATLAS_TEXTURE_NOT_FOUND: (set_atlas_texture) {:#?}",
                 texture_id
             );
             return;
         }
 
-        let need_to_add = contains_texture.unwrap();
+        let need_to_add = texture_in_atlas.unwrap();
 
         if let Some((atlas_tex_id, bindgroup)) = need_to_add {
             self.textures
                 .insert(atlas_tex_id, RendererTexture { bindgroup });
         } else {
             log::trace!(
-                "set_atlas_texture: BindGroup exists for {}. skipping",
+                "set_atlas_texture: BindGroup exists for {:#?}. skipping",
                 texture_id
             )
         }

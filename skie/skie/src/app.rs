@@ -1,6 +1,7 @@
 pub mod async_context;
 pub mod events;
 pub use async_context::AsyncAppContext;
+use skie_draw::paint::SkieAtlas;
 use skie_draw::TextSystem;
 mod handle;
 
@@ -9,7 +10,6 @@ use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 use events::AppEvents;
 use handle::AppHandle;
 use skie_draw::gpu::GpuContext;
-use skie_draw::paint::atlas::AtlasManager;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::future::Future;
@@ -105,7 +105,7 @@ pub struct AppContext {
 
     pub(crate) text_system: Arc<TextSystem>,
 
-    pub(crate) texture_system: AtlasManager,
+    pub(crate) texture_system: Arc<SkieAtlas>,
 
     pub(crate) windows: ahash::AHashMap<WindowId, Window>,
 
@@ -127,7 +127,7 @@ impl AppContext {
 
         let gpu = Arc::new(pollster::block_on(GpuContext::new()).unwrap());
 
-        let texture_system = AtlasManager::new(gpu.clone());
+        let texture_system = Arc::new(SkieAtlas::new(gpu.clone()));
 
         let text_system = TextSystem::default();
 

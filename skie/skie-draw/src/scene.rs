@@ -1,6 +1,8 @@
 use crate::{
-    paint::atlas::{AtlasTextureId, AtlasTextureInfoMap},
-    paint::{DrawVert, Mesh, PrimitiveKind},
+    paint::{
+        atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap},
+        AtlasKey, DrawVert, Mesh, PrimitiveKind,
+    },
     traits::IsZero,
     DrawList, Primitive, TextureId,
 };
@@ -42,7 +44,7 @@ impl Scene {
             .into_iter()
     }
 
-    pub fn batches(&self, tex_info: AtlasTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {
+    pub fn batches(&self, tex_info: SceneTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {
         SceneBatchIterator::new(self, tex_info)
     }
 }
@@ -53,42 +55,45 @@ struct GroupEntry {
     texture_id: TextureId,
 }
 
+pub type SceneTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
+
 // A simple batcher for now in future we will expand this.
 struct SceneBatchIterator<'a> {
     scene: &'a Scene,
-    groups: Vec<(AtlasTextureId, Vec<GroupEntry>)>,
-    tex_info: AtlasTextureInfoMap,
+    groups: Vec<(TextureId, Vec<GroupEntry>)>,
+    tex_info: SceneTextureInfoMap,
     cur_group: usize,
 }
 
 impl<'a> SceneBatchIterator<'a> {
-    pub fn new(scene: &'a Scene, tex_info: AtlasTextureInfoMap) -> Self {
-        let mut tex_to_item_idx: ahash::AHashMap<AtlasTextureId, Vec<GroupEntry>> =
-            Default::default();
+    pub fn new(scene: &'a Scene, tex_info: SceneTextureInfoMap) -> Self {
+        let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
         for (i, prim) in scene.items.iter().enumerate() {
             let tex = prim.texture;
-            let info = tex_info.get(&tex);
-            let atlas_tex_id = info.map(|i| i.atlas_texture);
 
-            if let Some(atlas_tex_id) = atlas_tex_id {
+            let render_texture = match tex {
+                TextureId::AtlasKey(key) => {
+                    let info = tex_info.get(&key);
+                    info.map(|info| TextureId::Atlas(info.tile.texture))
+                }
+                other => Some(other),
+            };
+
+            if let Some(render_texture) = render_texture {
                 tex_to_item_idx
-                    .entry(atlas_tex_id)
+                    .entry(render_texture)
                     .or_default()
                     .push(GroupEntry {
                         index: i,
                         texture_id: tex,
                     });
-            } else {
-                log::error!("Can't find {} in atlas", tex);
-                continue;
             }
         }
 
-        let mut groups: Vec<(AtlasTextureId, Vec<GroupEntry>)> =
-            tex_to_item_idx.into_iter().collect();
+        let mut groups: Vec<(TextureId, Vec<GroupEntry>)> = tex_to_item_idx.into_iter().collect();
 
-        // FIXME: Is this correct ?
+        // FIXME: Not right
         groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
 
         Self {
@@ -106,7 +111,7 @@ impl<'a> SceneBatchIterator<'a> {
 
         let group = &self.groups[self.cur_group];
 
-        let atlas_tex_id = group.0;
+        let render_texture = group.0;
 
         let mut drawlist = DrawList::default();
 
@@ -117,10 +122,15 @@ impl<'a> SceneBatchIterator<'a> {
                 continue;
             }
 
-            let tile_tex_id = entry.texture_id;
-            let is_default_texture = tile_tex_id == TextureId::WHITE_TEXTURE;
+            let tex_id = entry.texture_id;
+            let mut is_default_texture = false;
 
-            let info = self.tex_info.get(&tile_tex_id);
+            let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {
+                is_default_texture = matches!(key, &AtlasKey::WHITE_TEXTURE_KEY);
+                self.tex_info.get(key)
+            } else {
+                None
+            };
 
             let uv_middleware = move |mut vertex: DrawVert| {
                 // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
@@ -186,7 +196,7 @@ impl<'a> SceneBatchIterator<'a> {
         self.cur_group += 1;
 
         let mut mesh = drawlist.build();
-        mesh.texture = TextureId::Atlas(atlas_tex_id);
+        mesh.texture = render_texture;
         Some(mesh)
     }
 }
