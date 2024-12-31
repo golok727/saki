@@ -18,7 +18,10 @@ use crate::{
 
 use skie_draw::{
     circle,
-    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
+    paint::{
+        atlas::{AtlasTexture, AtlasTextureId},
+        AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind,
+    },
     quad,
     traits::Half,
     vec2, Color, Corners, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode, TextureId,
@@ -68,7 +71,6 @@ enum Object {
     },
 }
 
-#[derive(Debug)]
 pub struct Window {
     pub(crate) painter: Painter,
 
@@ -78,8 +80,8 @@ pub struct Window {
     yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
 
-    #[allow(unused)]
     pub(crate) texture_system: Arc<SkieAtlas>,
+
     next_texture_id: usize,
 
     scroller: Scroller,
@@ -214,7 +216,7 @@ impl Window {
                 .with_pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
                 .with_size(700.0, 700.0)
                 .primitive()
-                .textured(self.yellow_thing_texture_id),
+                .textured(&self.yellow_thing_texture_id),
         );
 
         scene.add(
@@ -222,7 +224,7 @@ impl Window {
                 .with_pos(100.0, height - 400.0)
                 .with_size(300.0, 300.0)
                 .primitive()
-                .textured(self.checker_texture_id)
+                .textured(&self.checker_texture_id)
                 .with_fill_color(Color::from_rgb(0xFF0000)),
         );
 
@@ -231,7 +233,7 @@ impl Window {
                 .with_pos(100.0, 200.0)
                 .with_size(250.0, 250.0)
                 .primitive()
-                .textured(self.checker_texture_id)
+                .textured(&self.checker_texture_id)
                 .with_fill_color(Color::from_rgb(0xFFFF00)),
         );
 
@@ -240,7 +242,7 @@ impl Window {
                 .with_pos(width - 300.0, height - 300.0)
                 .with_size(200.0, 200.0)
                 .primitive()
-                .textured(self.yellow_thing_texture_id)
+                .textured(&self.yellow_thing_texture_id)
                 .with_stroke_width(10),
         );
 
@@ -265,7 +267,7 @@ impl Window {
                 .with_pos(400.0, 500.0)
                 .with_radius(200.0)
                 .primitive()
-                .textured(self.checker_texture_id)
+                .textured(&self.checker_texture_id)
                 .with_fill_color(Color::TORCH_RED),
         );
 
@@ -300,7 +302,7 @@ impl Window {
                             .with_size(width, height)
                             .with_corners(Corners::with_all(width.half() * 0.2))
                             .primitive()
-                            .textured(*texture),
+                            .textured(texture),
                     );
                 }
             }

@@ -1,3 +1,4 @@
+pub mod arc_string;
 pub mod gpu;
 pub mod math;
 pub mod paint;

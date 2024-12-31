@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 
 use crate::Rect;
 
-use super::{Font, FontProvider};
+use super::{Font, FontId, FontProvider, GlyphId};
 
 #[derive(Debug, Default)]
 pub struct FontDueProvider(RwLock<FontDueProviderState>);
@@ -20,16 +20,20 @@ impl FontProvider for FontDueProvider {
         self.0.write().add_fonts(fonts)
     }
 
-    fn font_id(&self, _font: &Font) -> Option<super::FontId> {
-        todo!()
-    }
-
     fn list_fonts_names(&self) -> Vec<String> {
         vec![]
     }
 
-    fn font_metrics(&self, _font_id: super::FontId) -> super::FontMetrics {
+    fn font_id(&self, font: &Font) -> Option<FontId> {
         todo!()
+    }
+
+    fn font_metrics(&self, _font_id: FontId) -> super::FontMetrics {
+        todo!()
+    }
+
+    fn glyph_for_char(&self, font_id: FontId, ch: char) -> Option<GlyphId> {
+        Some(GlyphId(0))
     }
 
     fn rasterize_char(&self, _character: char, _font: &Font) -> Result<(Rect<i32>, Vec<u8>)> {

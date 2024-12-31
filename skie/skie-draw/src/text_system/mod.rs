@@ -7,12 +7,34 @@ use std::{
     sync::Arc,
 };
 
-use crate::Rect;
+use crate::{arc_string::ArcString, Rect};
 mod font_due;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AtlasGlyph {
+    pub(crate) font_id: FontId,
+    pub(crate) glyph_id: GlyphId,
+    /// font-size in pixels
+    pub(crate) font_size: f32,
+    pub(crate) scale_factor: f32,
+}
+
+impl Eq for AtlasGlyph {}
+
+impl Hash for AtlasGlyph {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.font_id.0.hash(state);
+        self.glyph_id.0.hash(state);
+        self.font_size.to_bits().hash(state);
+        self.scale_factor.to_bits().hash(state);
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(C)]
-pub struct FontId(pub usize);
+pub struct GlyphId(pub(crate) usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FontId(pub(crate) usize);
 
 pub(crate) trait FontProvider: Send + Sync + Debug {
     fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()>;
@@ -22,6 +44,8 @@ pub(crate) trait FontProvider: Send + Sync + Debug {
     fn list_fonts_names(&self) -> Vec<String>;
 
     fn font_metrics(&self, font_id: FontId) -> FontMetrics;
+
+    fn glyph_for_char(&self, font_id: FontId, ch: char) -> Option<GlyphId>;
 
     fn rasterize_char(&self, _character: char, _font: &Font) -> Result<(Rect<i32>, Vec<u8>)>;
 }
@@ -54,9 +78,9 @@ pub struct FontMetrics {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Font {
-    family: String,
-    weight: FontWeight,
-    style: FontStyle,
+    pub family: ArcString,
+    pub weight: FontWeight,
+    pub style: FontStyle,
 }
 
 impl Font {

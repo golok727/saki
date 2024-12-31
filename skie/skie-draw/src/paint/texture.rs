@@ -5,7 +5,7 @@ use super::{
     AtlasKey, SkieImage,
 };
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TextureId {
     /// Internal things created by skie
     Internal(usize),

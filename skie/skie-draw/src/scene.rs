@@ -39,7 +39,7 @@ impl Scene {
     pub fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
         self.items
             .iter()
-            .map(|f| f.texture)
+            .map(|f| f.texture.clone())
             .collect::<HashSet<_>>()
             .into_iter()
     }
@@ -70,14 +70,14 @@ impl<'a> SceneBatchIterator<'a> {
         let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
         for (i, prim) in scene.items.iter().enumerate() {
-            let tex = prim.texture;
+            let tex = prim.texture.clone();
 
-            let render_texture = match tex {
+            let render_texture = match &tex {
                 TextureId::AtlasKey(key) => {
-                    let info = tex_info.get(&key);
+                    let info = tex_info.get(key);
                     info.map(|info| TextureId::Atlas(info.tile.texture))
                 }
-                other => Some(other),
+                other => Some(other.clone()),
             };
 
             if let Some(render_texture) = render_texture {
@@ -111,7 +111,7 @@ impl<'a> SceneBatchIterator<'a> {
 
         let group = &self.groups[self.cur_group];
 
-        let render_texture = group.0;
+        let render_texture = group.0.clone();
 
         let mut drawlist = DrawList::default();
 
@@ -122,7 +122,7 @@ impl<'a> SceneBatchIterator<'a> {
                 continue;
             }
 
-            let tex_id = entry.texture_id;
+            let tex_id = entry.texture_id.clone();
             let mut is_default_texture = false;
 
             let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {

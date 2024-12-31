@@ -307,8 +307,8 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct AtlasTextureId {
-    kind: TextureKind,
-    slot: usize,
+    pub kind: TextureKind,
+    pub slot: usize,
 }
 
 impl std::fmt::Display for AtlasTextureId {

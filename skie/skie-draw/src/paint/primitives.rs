@@ -152,8 +152,8 @@ impl Primitive {
         !self.fill.color.is_transparent() || !stroke_color.is_transparent()
     }
 
-    pub fn textured(mut self, tex: TextureId) -> Self {
-        self.texture = tex;
+    pub fn textured(mut self, tex: &TextureId) -> Self {
+        self.texture = tex.clone();
         if self.fill.color.is_transparent() {
             self.fill.color = Color::WHITE;
         }

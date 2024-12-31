@@ -424,8 +424,8 @@ impl WgpuRenderer {
                 scissor.size.height.min(self.size.height),
             );
 
-            let texture = renderable.mesh.texture;
-            if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(&texture) {
+            let texture = &renderable.mesh.texture;
+            if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(texture) {
                 let vb_slice = vb_slices.next().expect("No next vb_slice");
                 let ib_slice = ib_slices.next().expect("No next ib_slice");
 
