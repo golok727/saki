@@ -2,6 +2,7 @@ pub mod error;
 // FIXME: for now make it pub(crate)
 pub mod painter;
 use painter::Painter;
+use parking_lot::RwLock;
 
 use core::f32;
 use std::{future::Future, io::Read, sync::Arc};
@@ -22,7 +23,7 @@ use skie_draw::{
     quad,
     traits::Half,
     vec2, Color, Corners, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode, TextureId,
-    TextureOptions, WgpuRendererSpecs,
+    TextureOptions, Vec2, WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -68,8 +69,25 @@ enum Object {
     },
 }
 
+#[derive(Default)]
+pub(crate) struct State {
+    // TODO: active
+    mouse_pos: Option<Vec2<f32>>,
+}
+
+impl State {
+    pub fn set_mouse_pos(&mut self, pos: Vec2<f32>) {
+        self.mouse_pos = Some(pos)
+    }
+
+    pub fn mouse_pos(&self) -> Option<&Vec2<f32>> {
+        self.mouse_pos.as_ref()
+    }
+}
+
 pub struct Window {
     pub(crate) painter: Painter,
+    pub(crate) state: RwLock<State>,
 
     objects: Vec<Object>,
     clear_color: Color,
@@ -78,7 +96,6 @@ pub struct Window {
     checker_texture_id: TextureId,
 
     pub(crate) texture_system: Arc<SkieAtlas>,
-
     next_texture_id: usize,
 
     scroller: Scroller,
@@ -170,6 +187,7 @@ impl Window {
         Ok(Self {
             handle,
             painter,
+            state: RwLock::new(State::default()),
             texture_system,
             yellow_thing_texture_id: yellow_thing_texture_key.into(),
             checker_texture_id: checker_texture_key.into(),
@@ -353,15 +371,25 @@ impl Window {
         );
 
         self.painter.paint_scene(&scene);
-        self.scroller.render(&mut self.painter);
+        {
+            let state = self.state.read();
+            self.scroller.render(&mut self.painter, state.mouse_pos());
+        }
     }
 
     pub(crate) fn handle_scroll_wheel(&mut self, _dx: f32, dy: f32) {
-        let something = (10.0 * 10.0 * 10.0) * 0.05 * dy;
-
-        self.scroller.scroll_x += something;
-        // FIXME: notify app to redraw
-        self.winit_handle().request_redraw();
+        {
+            let state = self.state.read();
+            if let Some(pos) = state.mouse_pos() {
+                let contains = self.scroller.dims.contains(pos);
+                if contains {
+                    let something = (10.0 * 10.0 * 10.0) * 0.05 * dy;
+                    self.scroller.scroll_x += something;
+                    // FIXME: notify app to redraw
+                    self.winit_handle().request_redraw();
+                }
+            }
+        }
     }
 
     pub(crate) fn paint(&mut self) {
@@ -571,16 +599,28 @@ impl Scroller {
         }
     }
 
-    fn render(&self, painter: &mut Painter) {
+    fn render(&self, painter: &mut Painter, mouse_pos: Option<&Vec2<f32>>) {
         let container = &self.dims;
+
+        let hovered = mouse_pos
+            .map(|pos| container.contains(pos))
+            .unwrap_or_default();
+
         let stroke_width = 20;
+
+        let stroke_color = if hovered {
+            Color::RED
+        } else {
+            Color::DARK_GRAY
+        };
 
         painter.add_primitive(
             quad()
                 .rect(container.clone())
+                .corners(Corners::with_all(10.0))
                 .primitive()
                 .fill_color(Color::WHITE)
-                .stroke_color(Color::DARK_GRAY)
+                .stroke_color(stroke_color)
                 .stroke_width(stroke_width),
         );
 

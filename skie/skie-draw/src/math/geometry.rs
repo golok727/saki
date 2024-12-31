@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::traits::IsZero;
+use crate::{traits::IsZero, Zero};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Corners<T>
@@ -66,6 +66,15 @@ where
             .max(self.top_right.clone())
             .max(self.bottom_right.clone())
             .max(self.bottom_left.clone())
+    }
+}
+
+impl<T> Zero for Corners<T>
+where
+    T: Zero + Clone + Debug + Default,
+{
+    fn zero() -> Self {
+        Self::with_all(T::zero())
     }
 }
 

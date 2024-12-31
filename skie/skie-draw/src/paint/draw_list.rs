@@ -6,6 +6,7 @@ use super::{Color, LineCap, LineJoin, Rgba, StrokeStyle, TextureId};
 
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
+use crate::IsZero;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
@@ -247,7 +248,7 @@ impl<'a> DrawList<'a> {
 
     /// Strokes the current path
     pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
-        if stroke_style.color.is_transparent() {
+        if stroke_style.color.is_transparent() || stroke_style.line_width.is_zero() {
             return;
         }
         // FIXME: : (
@@ -261,6 +262,9 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn stroke_with_path(&mut self, path: &Path2D, stroke_style: &StrokeStyle) {
+        if stroke_style.color.is_transparent() || stroke_style.line_width.is_zero() {
+            return;
+        }
         self.add_polyline(&path.points, stroke_style)
     }
 

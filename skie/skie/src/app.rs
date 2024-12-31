@@ -2,7 +2,7 @@ pub mod async_context;
 pub mod events;
 pub use async_context::AsyncAppContext;
 use skie_draw::paint::SkieAtlas;
-use skie_draw::TextSystem;
+use skie_draw::{TextSystem, Vec2};
 mod handle;
 
 use crate::window::error::CreateWindowError;
@@ -370,6 +370,13 @@ impl AppContext {
             WindowEvent::RedrawRequested => {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
                 window.paint();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let window = self.windows.get(&window_id).expect("expected a window");
+                let mut lock = window.state.write();
+                lock.set_mouse_pos(Vec2::new(position.x as f32, position.y as f32));
+                // FIXME:
+                window.refresh();
             }
             WindowEvent::MouseWheel {
                 delta: MouseScrollDelta::LineDelta(dx, dy),
