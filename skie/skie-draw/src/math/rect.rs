@@ -38,6 +38,7 @@ impl<T> Rect<T> {
         Self { origin, size }
     }
 }
+
 impl<T: Clone> Rect<T> {
     #[inline(always)]
     pub fn x(&self) -> T {
@@ -194,18 +195,10 @@ where
         }
     }
 
-    pub fn pad(&mut self, pad_x: T, pad_y: T) -> Self {
+    pub fn pad(&mut self, padding: Size<T>) -> Self {
         Self {
-            origin: self.origin.clone().map(|mut origin| {
-                origin.x = origin.x.clone() - pad_x.clone();
-                origin.y = origin.y.clone() - pad_y.clone();
-                origin
-            }),
-            size: self.size.clone().map(|mut size| {
-                size.width = size.width.clone() + pad_x.clone();
-                size.height = size.height.clone() + pad_y.clone();
-                size
-            }),
+            origin: self.origin.clone() - Vec2::new(padding.width.clone(), padding.height.clone()),
+            size: self.size.clone() + padding,
         }
     }
 }

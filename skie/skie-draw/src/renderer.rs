@@ -18,7 +18,7 @@ static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) 
 
 #[derive(Debug)]
 pub struct Renderable {
-    pub clip_rect: Rect<u32>,
+    pub clip_rect: Rect<f32>,
     pub mesh: Mesh,
 }
 
@@ -416,13 +416,9 @@ impl WgpuRenderer {
         log::info!("Rendering {} renderables", renderables.len());
 
         for renderable in renderables {
-            let scissor = &renderable.clip_rect;
-            render_pass.set_scissor_rect(
-                scissor.origin.x,
-                scissor.origin.y,
-                scissor.size.width.min(self.size.width),
-                scissor.size.height.min(self.size.height),
-            );
+            let scissor = ScissorRect::new(&renderable.clip_rect, &self.size);
+
+            render_pass.set_scissor_rect(scissor.x, scissor.y, scissor.width, scissor.height);
 
             let texture = &renderable.mesh.texture;
             if let Some(RendererTexture { bindgroup, .. }) = self.textures.get(texture) {
@@ -561,6 +557,32 @@ impl ScenePipe {
             pipeline,
             vertex_buffer,
             index_buffer,
+        }
+    }
+}
+
+struct ScissorRect {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+impl ScissorRect {
+    fn new(clip_rect: &Rect<f32>, screen_size: &Size<u32>) -> Self {
+        let clip_min = clip_rect.min().round().map_cloned(|v| v as u32);
+        let clip_max = clip_rect.max().round().map_cloned(|v| v as u32);
+
+        let clip_min_x = clip_min.x.clamp(0, screen_size.width);
+        let clip_min_y = clip_min.y.clamp(0, screen_size.height);
+        let clip_max_x = clip_max.x.clamp(clip_min_x, screen_size.width);
+        let clip_max_y = clip_max.y.clamp(clip_min_y, screen_size.height);
+
+        Self {
+            x: clip_min_x,
+            y: clip_min_y,
+            width: clip_max_x - clip_min_x,
+            height: clip_max_y - clip_min_y,
         }
     }
 }

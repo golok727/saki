@@ -1,4 +1,9 @@
-use crate::{math::Corners, traits::Zero};
+use crate::{
+    arc_string::ArcString,
+    math::Corners,
+    text_system::{Font, FontStyle, FontWeight},
+    traits::Zero,
+};
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
@@ -10,6 +15,7 @@ pub enum PrimitiveKind {
     Quad(Quad),
     Path(Path2D),
     Circle(Circle),
+    Text(Text),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +32,7 @@ impl Default for FillStyle {
 }
 
 impl FillStyle {
-    pub fn with_color(mut self, color: Color) -> Self {
+    pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
@@ -74,58 +80,58 @@ impl StrokeStyle {
         self
     }
 
-    pub fn with_color(mut self, color: Color) -> Self {
+    pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
 
-    pub fn with_line_width(mut self, line_width: u32) -> Self {
+    pub fn line_width(mut self, line_width: u32) -> Self {
         self.line_width = line_width;
         self
     }
 
-    pub fn with_line_join(mut self, line_join: LineJoin) -> Self {
+    pub fn line_join(mut self, line_join: LineJoin) -> Self {
         self.line_join = line_join;
         self
     }
 
-    pub fn with_line_cap(mut self, line_cap: LineCap) -> Self {
+    pub fn line_cap(mut self, line_cap: LineCap) -> Self {
         self.line_cap = line_cap;
         self
     }
 
-    pub fn with_default_join(mut self) -> Self {
+    pub fn default_join(mut self) -> Self {
         self.line_join = LineJoin::Miter;
         self
     }
 
-    pub fn with_miter_join(mut self) -> Self {
+    pub fn miter_join(mut self) -> Self {
         self.line_join = LineJoin::Miter;
         self
     }
 
-    pub fn with_bevel_join(mut self) -> Self {
+    pub fn bevel_join(mut self) -> Self {
         self.line_join = LineJoin::Bevel;
         self
     }
 
-    pub fn with_round_join(mut self) -> Self {
+    pub fn round_join(mut self) -> Self {
         self.line_join = LineJoin::Round;
         self
     }
 
-    pub fn with_round_cap(mut self) -> Self {
+    pub fn round_cap(mut self) -> Self {
         self.line_cap = LineCap::Round;
         self
     }
 
     /// aka with_butt_join lol
-    pub fn with_default_cap(mut self) -> Self {
+    pub fn default_cap(mut self) -> Self {
         self.line_cap = LineCap::Butt;
         self
     }
 
-    pub fn with_square_cap(mut self) -> Self {
+    pub fn square_cap(mut self) -> Self {
         self.line_cap = LineCap::Square;
         self
     }
@@ -175,7 +181,7 @@ impl Primitive {
         self
     }
 
-    pub fn with_fill_color(mut self, color: Color) -> Self {
+    pub fn fill_color(mut self, color: Color) -> Self {
         self.fill.color = color;
         self
     }
@@ -185,25 +191,25 @@ impl Primitive {
         self
     }
 
-    pub fn with_stroke_color(mut self, color: Color) -> Self {
+    pub fn stroke_color(mut self, color: Color) -> Self {
         let stroke = self.stroke.get_or_insert(Default::default());
         stroke.color = color;
         self
     }
 
-    pub fn with_stroke_width(mut self, width: u32) -> Self {
+    pub fn stroke_width(mut self, width: u32) -> Self {
         let stroke = self.stroke.get_or_insert(Default::default());
         stroke.line_width = width;
         self
     }
 
-    pub fn with_line_join(mut self, join: LineJoin) -> Self {
+    pub fn line_join(mut self, join: LineJoin) -> Self {
         let stroke = self.stroke.get_or_insert(Default::default());
         stroke.line_join = join;
         self
     }
 
-    pub fn with_line_cap(mut self, cap: LineCap) -> Self {
+    pub fn line_cap(mut self, cap: LineCap) -> Self {
         let stroke = self.stroke.get_or_insert(Default::default());
         stroke.line_cap = cap;
         self
@@ -217,12 +223,12 @@ pub struct Circle {
 }
 
 impl Circle {
-    pub fn with_radius(mut self, radius: f32) -> Self {
+    pub fn radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
 
-    pub fn with_pos(mut self, cx: f32, cy: f32) -> Self {
+    pub fn pos(mut self, cx: f32, cy: f32) -> Self {
         self.center.x = cx;
         self.center.y = cy;
         self
@@ -236,24 +242,24 @@ pub struct Quad {
 }
 
 impl Quad {
-    pub fn with_size(mut self, width: f32, height: f32) -> Self {
+    pub fn size(mut self, width: f32, height: f32) -> Self {
         self.bounds.size.width = width;
         self.bounds.size.height = height;
         self
     }
 
-    pub fn with_pos(mut self, x: f32, y: f32) -> Self {
+    pub fn pos(mut self, x: f32, y: f32) -> Self {
         self.bounds.origin.x = x;
         self.bounds.origin.y = y;
         self
     }
 
-    pub fn with_rect(mut self, rect: Rect<f32>) -> Self {
+    pub fn rect(mut self, rect: Rect<f32>) -> Self {
         self.bounds = rect;
         self
     }
 
-    pub fn with_corners(mut self, corners: Corners<f32>) -> Self {
+    pub fn corners(mut self, corners: Corners<f32>) -> Self {
         self.corners = corners;
         self
     }
@@ -278,6 +284,11 @@ pub fn circle() -> Circle {
     Circle::default()
 }
 
+#[inline]
+pub fn text(text: impl Into<ArcString>) -> Text {
+    Text::new(text)
+}
+
 impl From<Quad> for PrimitiveKind {
     #[inline]
     fn from(quad: Quad) -> Self {
@@ -299,6 +310,13 @@ impl From<Path2D> for PrimitiveKind {
     }
 }
 
+impl From<Text> for PrimitiveKind {
+    #[inline]
+    fn from(text: Text) -> Self {
+        PrimitiveKind::Text(text)
+    }
+}
+
 impl<T> From<T> for Primitive
 where
     T: Into<PrimitiveKind>,
@@ -310,6 +328,102 @@ where
             fill: FillStyle::default(),
             stroke: None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum TextBaseline {
+    #[default]
+    Alphabetic,
+    Top,
+    Hanging,
+    Middle,
+    Bottom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum TextAlign {
+    #[default]
+    Left,
+    Right,
+    Center,
+}
+
+#[derive(Debug, Clone)]
+pub struct Text {
+    pub(crate) text: ArcString,
+    pub(crate) font: Font,
+    pub(crate) pos: Vec2<f32>,
+    pub(crate) align: TextAlign,
+    pub(crate) word_spacing: f32,
+    pub(crate) baseline: TextBaseline,
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Self {
+            pos: Vec2::zero(),
+            text: ArcString::new_static(""),
+            font: Font {
+                family: ArcString::new_static("SegoueUI"),
+                weight: FontWeight::default(),
+                style: FontStyle::default(),
+            },
+            align: Default::default(),
+            baseline: Default::default(),
+            word_spacing: f32::zero(),
+        }
+    }
+}
+
+impl Text {
+    pub fn new(text: impl Into<ArcString>) -> Self {
+        Self::default().text(text.into())
+    }
+
+    pub fn align(mut self, align: TextAlign) -> Self {
+        self.align = align;
+        self
+    }
+
+    pub fn baseline(mut self, baseline: TextBaseline) -> Self {
+        self.baseline = baseline;
+        self
+    }
+
+    pub fn pos(mut self, pos: Vec2<f32>) -> Self {
+        self.pos = pos;
+        self
+    }
+
+    pub fn text(mut self, text: ArcString) -> Self {
+        self.text = text;
+        self
+    }
+
+    pub fn font(mut self, font: Font) -> Self {
+        self.font = font;
+        self
+    }
+
+    pub fn font_family(mut self, font_family: impl Into<ArcString>) -> Self {
+        self.font.family = font_family.into();
+        self
+    }
+
+    pub fn font_weight(mut self, font_weight: FontWeight) -> Self {
+        self.font.weight = font_weight;
+        self
+    }
+
+    pub fn font_style(mut self, font_style: FontStyle) -> Self {
+        self.font.style = font_style;
+        self
+    }
+
+    pub fn word_spacing(mut self, spacing_in_px: f32) -> Self {
+        self.word_spacing = spacing_in_px;
+        self
     }
 }
 

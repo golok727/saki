@@ -102,12 +102,52 @@ where
     }
 }
 
+impl<T> Size<T> {
+    pub fn map<U>(&self, f: impl Fn(&T) -> U) -> Size<U> {
+        Size {
+            width: f(&self.width),
+            height: f(&self.height),
+        }
+    }
+}
+
 impl<T> Size<T>
 where
     T: Clone,
 {
-    pub fn map<U>(self, f: impl FnOnce(Self) -> U) -> U {
-        f(self)
+    pub fn map_cloned<U>(&self, f: impl Fn(T) -> U) -> Size<U> {
+        Size {
+            width: f(self.width.clone()),
+            height: f(self.height.clone()),
+        }
+    }
+}
+
+impl<T> Add<Size<T>> for Size<T>
+where
+    T: Clone + Add<T, Output = T>,
+{
+    type Output = Size<T>;
+
+    fn add(self, rhs: Size<T>) -> Self::Output {
+        Self {
+            width: self.width.clone() + rhs.width.clone(),
+            height: self.height.clone() + rhs.height.clone(),
+        }
+    }
+}
+
+impl<T> Add<Vec2<T>> for Size<T>
+where
+    T: Clone + Add<T, Output = T>,
+{
+    type Output = Size<T>;
+
+    fn add(self, rhs: Vec2<T>) -> Self::Output {
+        Self {
+            width: self.width.clone() + rhs.x.clone(),
+            height: self.height.clone() + rhs.y.clone(),
+        }
     }
 }
 

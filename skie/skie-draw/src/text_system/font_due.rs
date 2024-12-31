@@ -49,11 +49,12 @@ impl FontDueProviderState {
         };
 
         for font in fonts {
-            let _font = match font {
+            let font = match font {
                 Cow::Borrowed(bytes) => fontdue::Font::from_bytes(bytes, settings),
                 Cow::Owned(bytes) => fontdue::Font::from_bytes(bytes, settings),
             }
             .map_err(|err| anyhow!(err))?; //FIXME: should we continue ?
+            if let Some(name) = font.name() {}
         }
 
         Ok(())

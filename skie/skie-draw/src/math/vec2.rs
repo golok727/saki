@@ -185,6 +185,26 @@ pub trait OneVec<T> {
 macro_rules! impl_vec2_float {
     ($float:ty) => {
         impl Vec2<$float> {
+            pub fn ceil(&self) -> Self {
+                Self {
+                    x: self.x.ceil(),
+                    y: self.y.ceil(),
+                }
+            }
+
+            pub fn floor(&self) -> Self {
+                Self {
+                    x: self.x.floor(),
+                    y: self.y.floor(),
+                }
+            }
+
+            pub fn round(&self) -> Self {
+                Self {
+                    x: self.x.round(),
+                    y: self.y.round(),
+                }
+            }
             pub fn magnitude_sq(&self) -> $float {
                 self.x * self.x + self.y * self.y
             }
@@ -221,12 +241,24 @@ macro_rules! impl_vec2_float {
 impl_vec2_float!(f32);
 impl_vec2_float!(f64);
 
+impl<T> Vec2<T> {
+    pub fn map<U>(&self, f: impl Fn(&T) -> U) -> Vec2<U> {
+        Vec2 {
+            x: f(&self.x),
+            y: f(&self.y),
+        }
+    }
+}
+
 impl<T> Vec2<T>
 where
     T: Clone,
 {
-    pub fn map<U>(self, f: impl FnOnce(Self) -> U) -> U {
-        f(self)
+    pub fn map_cloned<U>(&self, f: impl Fn(T) -> U) -> Vec2<U> {
+        Vec2 {
+            x: f(self.x.clone()),
+            y: f(self.y.clone()),
+        }
     }
 }
 

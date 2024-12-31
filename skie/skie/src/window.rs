@@ -18,10 +18,7 @@ use crate::{
 
 use skie_draw::{
     circle,
-    paint::{
-        atlas::{AtlasTexture, AtlasTextureId},
-        AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind,
-    },
+    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
     vec2, Color, Corners, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode, TextureId,
@@ -213,62 +210,62 @@ impl Window {
 
         scene.add(
             quad()
-                .with_pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
-                .with_size(700.0, 700.0)
+                .pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
+                .size(700.0, 700.0)
                 .primitive()
                 .textured(&self.yellow_thing_texture_id),
         );
 
         scene.add(
             quad()
-                .with_pos(100.0, height - 400.0)
-                .with_size(300.0, 300.0)
+                .pos(100.0, height - 400.0)
+                .size(300.0, 300.0)
                 .primitive()
                 .textured(&self.checker_texture_id)
-                .with_fill_color(Color::from_rgb(0xFF0000)),
+                .fill_color(Color::from_rgb(0xFF0000)),
         );
 
         scene.add(
             quad()
-                .with_pos(100.0, 200.0)
-                .with_size(250.0, 250.0)
+                .pos(100.0, 200.0)
+                .size(250.0, 250.0)
                 .primitive()
                 .textured(&self.checker_texture_id)
-                .with_fill_color(Color::from_rgb(0xFFFF00)),
+                .fill_color(Color::from_rgb(0xFFFF00)),
         );
 
         scene.add(
             quad()
-                .with_pos(width - 300.0, height - 300.0)
-                .with_size(200.0, 200.0)
+                .pos(width - 300.0, height - 300.0)
+                .size(200.0, 200.0)
                 .primitive()
                 .textured(&self.yellow_thing_texture_id)
-                .with_stroke_width(10),
+                .stroke_width(10),
         );
 
         scene.add(
             quad()
-                .with_pos(100.0, 500.0)
-                .with_size(300.0, 100.0)
+                .pos(100.0, 500.0)
+                .size(300.0, 100.0)
                 .primitive()
-                .with_fill_color(Color::from_rgb(0x55a09e)),
+                .fill_color(Color::from_rgb(0x55a09e)),
         );
 
         scene.add(
             circle()
-                .with_pos(400.0, 500.0)
-                .with_radius(300.0)
+                .pos(400.0, 500.0)
+                .radius(300.0)
                 .primitive()
-                .with_fill_color(Color::KHAKI),
+                .fill_color(Color::KHAKI),
         );
 
         scene.add(
             circle()
-                .with_pos(400.0, 500.0)
-                .with_radius(200.0)
+                .pos(400.0, 500.0)
+                .radius(200.0)
                 .primitive()
                 .textured(&self.checker_texture_id)
-                .with_fill_color(Color::TORCH_RED),
+                .fill_color(Color::TORCH_RED),
         );
 
         let bar_height: f32 = 50.0;
@@ -276,10 +273,10 @@ impl Window {
 
         scene.add(
             quad()
-                .with_pos(0.0, height - bar_height - margin_bottom)
-                .with_size(width, bar_height)
+                .pos(0.0, height - bar_height - margin_bottom)
+                .size(width, bar_height)
                 .primitive()
-                .with_fill_color(Color::from_rgb(0x0A0A11)),
+                .fill_color(Color::from_rgb(0x0A0A11)),
         );
 
         for object in &self.objects {
@@ -298,9 +295,9 @@ impl Window {
 
                     scene.add(
                         quad()
-                            .with_pos(x, y)
-                            .with_size(width, height)
-                            .with_corners(Corners::with_all(width.half() * 0.2))
+                            .pos(x, y)
+                            .size(width, height)
+                            .corners(Corners::with_all(width.half() * 0.2))
                             .primitive()
                             .textured(texture),
                     );
@@ -310,23 +307,23 @@ impl Window {
 
         scene.add(
             quad()
-                .with_pos(800.0, 200.0)
-                .with_size(200.0, 500.0)
-                .with_corners(Corners::with_all(100.0).with_top_left(50.0))
+                .pos(800.0, 200.0)
+                .size(200.0, 500.0)
+                .corners(Corners::with_all(100.0).with_top_left(50.0))
                 .primitive()
-                .with_fill_color(Color::LIGHT_GREEN)
-                .with_stroke_width(20)
-                .with_stroke_color(Color::TORCH_RED),
+                .fill_color(Color::LIGHT_GREEN)
+                .stroke_width(20)
+                .stroke_color(Color::TORCH_RED),
         );
 
         scene.add(
             quad()
-                .with_pos(width - 200.0, 50.0)
-                .with_size(100.0, 50.0)
-                .with_corners(Corners::with_all(10.0))
+                .pos(width - 200.0, 50.0)
+                .size(100.0, 50.0)
+                .corners(Corners::with_all(10.0))
                 .primitive()
-                .with_fill_color(Color::TORCH_RED)
-                .with_stroke_width(5),
+                .fill_color(Color::TORCH_RED)
+                .stroke_width(5),
         );
 
         let mut path = Path2D::default();
@@ -337,7 +334,7 @@ impl Window {
 
         scene.add(
             path.primitive()
-                .stroke(StrokeStyle::default().with_round_join().with_line_width(50)),
+                .stroke(StrokeStyle::default().round_join().line_width(50)),
         );
 
         let mut path = Path2D::default();
@@ -348,10 +345,10 @@ impl Window {
         scene.add(
             path.primitive().stroke(
                 StrokeStyle::default()
-                    .with_color(Color::WHITE)
-                    .with_round_cap()
-                    .with_bevel_join()
-                    .with_line_width(30),
+                    .color(Color::WHITE)
+                    .round_cap()
+                    .bevel_join()
+                    .line_width(30),
             ),
         );
 
@@ -580,27 +577,21 @@ impl Scroller {
 
         painter.add_primitive(
             quad()
-                .with_rect(container.clone())
+                .rect(container.clone())
                 .primitive()
-                .with_fill_color(Color::WHITE)
-                .with_stroke_color(Color::DARK_GRAY)
-                .with_stroke_width(stroke_width),
+                .fill_color(Color::WHITE)
+                .stroke_color(Color::DARK_GRAY)
+                .stroke_width(stroke_width),
         );
 
         painter.paint();
         // paint children clipped to this rect
-        let mut clip = Rect::new(
-            container.x() as u32,
-            container.y() as u32,
-            container.width() as u32,
-            container.height() as u32,
-        );
-
-        let hsw = &stroke_width.half();
+        let mut clip = container.clone();
+        let hsw = stroke_width.half() as f32;
         clip.origin.x += hsw;
         clip.origin.y += hsw;
-        clip.size.width -= stroke_width;
-        clip.size.height -= stroke_width;
+        clip.size.width -= stroke_width as f32;
+        clip.size.height -= stroke_width as f32;
 
         let mut cursor = container.origin + 10.0;
         let margin = 20.0;
@@ -624,12 +615,12 @@ impl Scroller {
                 for i in 0..10 {
                     painter.add_primitive(
                         quad()
-                            .with_rect(Rect::new_from_origin_size(
+                            .rect(Rect::new_from_origin_size(
                                 cursor + vec2(-self.scroll_x, 0.0),
                                 size,
                             ))
                             .primitive()
-                            .with_fill_color(colors[i % colors.len()]),
+                            .fill_color(colors[i % colors.len()]),
                     );
                     cursor.x += margin + size.width;
                 }

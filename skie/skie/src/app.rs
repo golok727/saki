@@ -115,11 +115,11 @@ pub struct AppContext {
 #[cfg(target_os = "windows")]
 static DEFAULT_FONT: &[u8] = include_bytes!("C:\\Windows\\Fonts\\segoeui.ttf");
 
-// #[cfg(target_os = "macos")]
-// static DEFAULT_FONT: &[u8] = include_bytes!("/System/Library/Fonts/Supplemental/Arial.ttf");
-//
-// #[cfg(target_os = "linux")]
-// static DEFAULT_FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+#[cfg(target_os = "macos")]
+static DEFAULT_FONT: &[u8] = include_bytes!("/System/Library/Fonts/Supplemental/Arial.ttf");
+
+#[cfg(target_os = "linux")]
+static DEFAULT_FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
 
 impl AppContext {
     fn new(handle: &mut AppHandle) -> AppContextRef {
@@ -131,10 +131,7 @@ impl AppContext {
 
         let text_system = TextSystem::default();
 
-        #[cfg(target_os = "windows")]
-        {
-            let _ = text_system.add_fonts(vec![std::borrow::Cow::Borrowed(DEFAULT_FONT)]);
-        }
+        let _ = text_system.add_fonts(vec![std::borrow::Cow::Borrowed(DEFAULT_FONT)]);
 
         let cx = Rc::new_cyclic(|this| {
             RefCell::new(Self {

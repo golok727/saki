@@ -69,6 +69,7 @@ impl Default for TextSystem {
     }
 }
 
+#[inline(always)]
 fn get_font_provider() -> impl FontProvider {
     FontDueProvider::default()
 }

@@ -18,7 +18,7 @@ pub struct Painter {
     pub(crate) surface: GpuSurface,
     pub(crate) scene: Scene,
     pub renderables: Vec<Renderable>, // todo mmsa
-    clip_rects: Vec<Rect<u32>>,
+    clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
     pub(crate) texture_system: Arc<SkieAtlas>,
 }
@@ -50,11 +50,14 @@ impl Painter {
         })
     }
 
-    pub fn get_clip_rect(&self) -> Rect<u32> {
+    pub fn get_clip_rect(&self) -> Rect<f32> {
         self.clip_rects
             .last()
             .cloned()
-            .unwrap_or(Rect::new_from_origin_size(Vec2::zero(), self.screen))
+            .unwrap_or(Rect::new_from_origin_size(
+                Vec2::zero(),
+                self.screen.map_cloned(|v| v as f32),
+            ))
     }
 
     pub fn begin_frame(&mut self) {
@@ -75,14 +78,14 @@ impl Painter {
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
-    pub fn add_primitive(&mut self, prim: impl Into<Primitive>) {
+    pub fn add_primitive(&mut self, prim: Primitive) {
         self.scene.add(prim)
     }
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,
         scene: &'scene Scene,
-        clip_rect: Rect<u32>,
+        clip_rect: Rect<f32>,
     ) -> impl Iterator<Item = Renderable> + 'scene {
         let atlas_textures = scene
             .get_required_textures()
@@ -117,7 +120,7 @@ impl Painter {
         self.scene.clear();
     }
 
-    pub fn paint_with_clip_rect(&mut self, clip: &Rect<u32>, f: impl FnOnce(&mut Self)) {
+    pub fn paint_with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
         let cur_rect = self.get_clip_rect();
 
         self.clip_rects.push(cur_rect.intersect(clip));
@@ -126,8 +129,7 @@ impl Painter {
         self.clip_rects.pop();
     }
 
-    pub fn with_clip_rect(&mut self, clip: &Rect<u32>, f: impl FnOnce(&mut Self)) {
-        // FIXME: overflow;
+    pub fn with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
         let cur_rect = self.get_clip_rect();
         self.clip_rects.push(cur_rect.intersect(clip));
         f(self);

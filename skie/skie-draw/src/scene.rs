@@ -23,8 +23,8 @@ impl Scene {
         todo!()
     }
 
-    pub fn add(&mut self, prim: impl Into<Primitive>) {
-        self.items.push(prim.into())
+    pub fn add(&mut self, prim: Primitive) {
+        self.items.push(prim)
     }
 
     pub fn extend(&mut self, other: &Self) {
@@ -190,6 +190,8 @@ impl<'a> SceneBatchIterator<'a> {
                         drawlist.stroke_with_path(path, &stroke_style);
                     }
                 }
+
+                PrimitiveKind::Text(_) => todo!("text is not implemented yet"),
             }
         }
 
