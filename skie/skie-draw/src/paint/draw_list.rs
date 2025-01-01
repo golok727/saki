@@ -8,8 +8,6 @@ use super::{Color, Mesh, Polyline, StrokeStyle, Vertex};
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
 
-pub type DrawListMiddleware<'a> = Box<dyn Fn(Vertex) -> Vertex + 'a>;
-
 #[derive(Default, Debug)]
 pub struct DrawList {
     pub(crate) mesh: Mesh,
@@ -22,11 +20,19 @@ impl DrawList {
         self.path.clear();
     }
 
+    pub fn capture(&mut self, f: impl FnOnce(&mut Self)) -> DrawListCapture<'_> {
+        let start = self.mesh.vertices.len();
+        f(self);
+        let end = self.mesh.vertices.len();
+
+        DrawListCapture {
+            list: self,
+            range: start..end,
+        }
+    }
+
     #[inline]
-    pub fn capture_range<F>(&mut self, f: F) -> std::ops::Range<usize>
-    where
-        F: FnOnce(&mut Self),
-    {
+    pub fn capture_range(&mut self, f: impl FnOnce(&mut Self)) -> Range<usize> {
         let start = self.mesh.vertices.len();
         f(self);
         let end = self.mesh.vertices.len();
@@ -229,125 +235,18 @@ impl DrawList {
             .add_triangle_fan(color, connect_to, origin, start, end, clockwise);
     }
 
-    pub fn build(mut self) -> Mesh {
+    pub fn build(&mut self) -> Mesh {
         std::mem::take(&mut self.mesh)
     }
 }
 
-impl From<DrawList> for Mesh {
-    #[inline]
-    fn from(value: DrawList) -> Self {
-        value.build()
-    }
+pub struct DrawListCapture<'a> {
+    list: &'a mut DrawList,
+    range: Range<usize>,
 }
 
-/*
-    -------------- edge_1 ---------| | |
-    -------------- center ---------| | |
-    -------------- edge_2 ---------| | |
-                                   | | |
-*/
-
-#[derive(Debug, Clone)]
-pub struct PolySegment {
-    pub edge1: LineSegment,
-    pub center: LineSegment,
-    pub edge2: LineSegment,
-}
-
-impl PolySegment {
-    pub fn new(center: LineSegment, line_width: f32) -> Self {
-        let normal = center.normal();
-        let edge_1 = center.clone() + normal * line_width;
-        let edge_2 = center.clone() - (normal * line_width);
-
-        Self {
-            center,
-            edge1: edge_1,
-            edge2: edge_2,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct LineSegment {
-    pub a: Vec2<f32>,
-    pub b: Vec2<f32>,
-}
-
-impl LineSegment {
-    pub fn new(a: Vec2<f32>, b: Vec2<f32>) -> Self {
-        Self { a, b }
-    }
-}
-
-impl std::ops::Add<Vec2<f32>> for LineSegment {
-    type Output = Self;
-    fn add(self, other: Vec2<f32>) -> Self::Output {
-        Self {
-            a: self.a + other,
-            b: self.b + other,
-        }
-    }
-}
-
-impl std::ops::Mul<f32> for LineSegment {
-    type Output = Self;
-    fn mul(self, scalar: f32) -> Self::Output {
-        Self {
-            a: self.a * scalar,
-            b: self.b + scalar,
-        }
-    }
-}
-
-impl std::ops::Sub<Vec2<f32>> for LineSegment {
-    type Output = Self;
-    fn sub(self, other: Vec2<f32>) -> Self::Output {
-        Self {
-            a: self.a - other,
-            b: self.b - other,
-        }
-    }
-}
-
-impl LineSegment {
-    pub fn direction(&self) -> Vec2<f32> {
-        self.a.direction(self.b)
-    }
-
-    pub fn direction_unnormalized(&self) -> Vec2<f32> {
-        self.a - self.b
-    }
-
-    pub fn normal(&self) -> Vec2<f32> {
-        Vec2::new(-(self.b.y - self.a.y), self.b.x - self.a.x).direction(Vec2::new(0.0, 0.0))
-    }
-
-    // https://www.desmos.com/calculator/ujamclid3g
-    pub fn intersection(
-        &self,
-        other: &LineSegment,
-        allow_infinite_lines: bool,
-    ) -> Option<Vec2<f32>> {
-        let dir_self = self.b - self.a;
-        let dir_other = other.b - other.a;
-
-        let origin_dist = other.a - self.a;
-        let numerator = origin_dist.cross(&dir_self);
-        let denominator = dir_self.cross(&dir_other);
-
-        // parallel
-        if denominator.abs() < 0.0001 {
-            return None;
-        }
-        let u = numerator / denominator;
-        let t = origin_dist.cross(&dir_other) / denominator;
-
-        if !allow_infinite_lines && (!(0.0..=1.0).contains(&t) || !(0.0..=1.0).contains(&u)) {
-            return None;
-        }
-
-        Some(self.a + dir_self * t)
+impl<'a> DrawListCapture<'a> {
+    pub fn map(self, f: impl Fn(&mut Vertex)) {
+        self.list.map_range(self.range, f)
     }
 }

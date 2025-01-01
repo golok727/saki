@@ -133,7 +133,7 @@ impl<'a> SceneBatchIterator<'a> {
                 None
             };
 
-            let range = drawlist.capture_range(|drawlist| match &prim.kind {
+            let build = |drawlist: &mut DrawList| match &prim.kind {
                 PrimitiveKind::Circle(circle) => {
                     let fill_color = prim.fill.color;
 
@@ -176,19 +176,20 @@ impl<'a> SceneBatchIterator<'a> {
                 }
 
                 PrimitiveKind::Text(_) => todo!("text is not implemented yet"),
-            });
+            };
 
             if let Some(info) = info {
-                // Convert to atlas space
-                drawlist.map_range(range, |vertex| {
-                    let (u, v) = if is_default_texture {
-                        (0.0, 0.0)
+                // Convert to atlas space if the texture belongs to the atlas
+                drawlist.capture(build).map(|vertex| {
+                    if is_default_texture {
+                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
                     } else {
-                        let [u, v] = vertex.uv;
-                        (u, v)
-                    };
-                    vertex.uv = info.uv_to_atlas_space(u, v).into();
+                        vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
+                    }
                 });
+            } else {
+                // Non atlas texture
+                build(&mut drawlist)
             }
         }
 

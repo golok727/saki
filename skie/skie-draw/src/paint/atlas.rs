@@ -508,90 +508,96 @@ impl<T: std::fmt::Debug> std::ops::IndexMut<usize> for AtlasTextureList<T> {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     #[test]
-//     fn should_convert_to_atlas_space() {
-//         let atlas_info = AtlasTextureInfo {
-//             id: TextureId::User(1),
-//             bounds: Rect::new(512, 512, 512, 512),
-//             atlas_texture_size: Size {
-//                 width: 1024,
-//                 height: 1024,
-//             },
-//             atlas_texture: AtlasTextureId {
-//                 kind: TextureKind::Color,
-//                 slot: 0,
-//             },
-//         };
-//
-//         // Test a normalized coordinate at the center of the texture
-//         let tl = atlas_info.uv_to_atlas_space(0.0, 0.0);
-//         let tr = atlas_info.uv_to_atlas_space(1.0, 0.0);
-//         let bl = atlas_info.uv_to_atlas_space(0.0, 1.0);
-//         let br = atlas_info.uv_to_atlas_space(1.0, 1.0);
-//
-//         assert_eq!(tl, (0.5, 0.5).into());
-//         assert_eq!(tr, (1.0, 0.5).into());
-//         assert_eq!(bl, (0.5, 1.0).into());
-//         assert_eq!(br, (1.0, 1.0).into());
-//     }
-//
-//     #[test]
-//     fn should_convert_to_atlas_space_with_small_texture() {
-//         let atlas_info = AtlasTextureInfo {
-//             id: TextureId::User(5),
-//             bounds: Rect::new(0, 0, 128, 128),
-//             atlas_texture_size: Size {
-//                 width: 1024,
-//                 height: 1024,
-//             },
-//             atlas_texture: AtlasTextureId {
-//                 kind: TextureKind::Color,
-//                 slot: 0,
-//             },
-//         };
-//
-//         // Test normalized coordinates at the center of the texture
-//         let center = atlas_info.uv_to_atlas_space(0.5, 0.5);
-//
-//         assert_eq!(center, Vec2::new(0.0625, 0.0625)); // (128 / 1024)
-//
-//         // Test corner cases
-//         let top_left = atlas_info.uv_to_atlas_space(0.0, 0.0);
-//         let top_right = atlas_info.uv_to_atlas_space(1.0, 0.0);
-//         let bottom_left = atlas_info.uv_to_atlas_space(0.0, 1.0);
-//         let bottom_right = atlas_info.uv_to_atlas_space(1.0, 1.0);
-//
-//         assert_eq!(top_left, Vec2::new(0.0, 0.0));
-//         assert_eq!(top_right, Vec2::new(0.125, 0.0)); // (128 / 1024)
-//         assert_eq!(bottom_left, Vec2::new(0.0, 0.125)); // (128 / 1024)
-//         assert_eq!(bottom_right, Vec2::new(0.125, 0.125)); // (128 / 1024)
-//     }
-//
-//     #[test]
-//     fn should_convert_to_atlas_space_1x1_texture() {
-//         let atlas_info = AtlasTextureInfo {
-//             id: TextureId::User(7),
-//             bounds: Rect::new(800, 800, 1, 1),
-//             atlas_texture_size: Size {
-//                 width: 1024,
-//                 height: 1024,
-//             },
-//             atlas_texture: AtlasTextureId {
-//                 kind: TextureKind::Color,
-//                 slot: 0,
-//             },
-//         };
-//
-//         let tl = atlas_info.uv_to_atlas_space(0.0, 0.0);
-//         let br = atlas_info.uv_to_atlas_space(1.0, 1.0);
-//
-//         assert_eq!(tl, Vec2::new(800.0 / 1024.0, 800.0 / 1024.0)); // Atlas X position (800) mapped into the atlas space (1024).
-//         assert_eq!(
-//             br,
-//             Vec2::new((800.0 + 1.0) / 1024.0, (800.0 + 1.0) / 1024.0)
-//         ); // Atlas X position (800) mapped into the atlas space (1024).
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn should_convert_to_atlas_space() {
+        let atlas_info = AtlasTextureInfo {
+            tile: AtlasTile {
+                id: AtlasTileId(0),
+                texture: AtlasTextureId {
+                    kind: TextureKind::Color,
+                    slot: 0,
+                },
+                bounds: Rect::new(512, 512, 512, 512),
+            },
+            atlas_texture_size: Size {
+                width: 1024,
+                height: 1024,
+            },
+        };
+
+        // Test a normalized coordinate at the center of the texture
+        let tl = atlas_info.uv_to_atlas_space(0.0, 0.0);
+        let tr = atlas_info.uv_to_atlas_space(1.0, 0.0);
+        let bl = atlas_info.uv_to_atlas_space(0.0, 1.0);
+        let br = atlas_info.uv_to_atlas_space(1.0, 1.0);
+
+        assert_eq!(tl, (0.5, 0.5).into());
+        assert_eq!(tr, (1.0, 0.5).into());
+        assert_eq!(bl, (0.5, 1.0).into());
+        assert_eq!(br, (1.0, 1.0).into());
+    }
+
+    #[test]
+    fn should_convert_to_atlas_space_with_small_texture() {
+        let atlas_info = AtlasTextureInfo {
+            tile: AtlasTile {
+                id: AtlasTileId(0),
+                texture: AtlasTextureId {
+                    kind: TextureKind::Color,
+                    slot: 0,
+                },
+                bounds: Rect::new(0, 0, 128, 128),
+            },
+            atlas_texture_size: Size {
+                width: 1024,
+                height: 1024,
+            },
+        };
+
+        // Test normalized coordinates at the center of the texture
+        let center = atlas_info.uv_to_atlas_space(0.5, 0.5);
+
+        assert_eq!(center, Vec2::new(0.0625, 0.0625)); // (128 / 1024)
+
+        // Test corner cases
+        let top_left = atlas_info.uv_to_atlas_space(0.0, 0.0);
+        let top_right = atlas_info.uv_to_atlas_space(1.0, 0.0);
+        let bottom_left = atlas_info.uv_to_atlas_space(0.0, 1.0);
+        let bottom_right = atlas_info.uv_to_atlas_space(1.0, 1.0);
+
+        assert_eq!(top_left, Vec2::new(0.0, 0.0));
+        assert_eq!(top_right, Vec2::new(0.125, 0.0)); // (128 / 1024)
+        assert_eq!(bottom_left, Vec2::new(0.0, 0.125)); // (128 / 1024)
+        assert_eq!(bottom_right, Vec2::new(0.125, 0.125)); // (128 / 1024)
+    }
+
+    #[test]
+    fn should_convert_to_atlas_space_1x1_texture() {
+        let atlas_info = AtlasTextureInfo {
+            tile: AtlasTile {
+                id: AtlasTileId(0),
+                texture: AtlasTextureId {
+                    kind: TextureKind::Color,
+                    slot: 0,
+                },
+                bounds: Rect::new(800, 800, 1, 1),
+            },
+            atlas_texture_size: Size {
+                width: 1024,
+                height: 1024,
+            },
+        };
+
+        let tl = atlas_info.uv_to_atlas_space(0.0, 0.0);
+        let br = atlas_info.uv_to_atlas_space(1.0, 1.0);
+
+        assert_eq!(tl, Vec2::new(800.0 / 1024.0, 800.0 / 1024.0)); // Atlas X position (800) mapped into the atlas space (1024).
+        assert_eq!(
+            br,
+            Vec2::new((800.0 + 1.0) / 1024.0, (800.0 + 1.0) / 1024.0)
+        ); // Atlas X position (800) mapped into the atlas space (1024).
+    }
+}
