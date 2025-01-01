@@ -2,35 +2,16 @@ use core::f32;
 use std::fmt::Debug;
 
 use super::path::Path2D;
-use super::{Color, LineCap, LineJoin, Mesh, Rgba, StrokeStyle, TextureId};
+use super::{Color, LineCap, LineJoin, Mesh, StrokeStyle, Vertex};
 
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct DrawVert {
-    pub position: [f32; 2],
-    pub uv: [f32; 2],
-    pub color: Rgba,
-}
-
-impl DrawVert {
-    pub fn new(pos: Vec2<f32>, color: impl Into<Rgba>, uv: (f32, f32)) -> Self {
-        Self {
-            position: pos.into(),
-            uv: uv.into(),
-            color: color.into(),
-        }
-    }
-}
-
-pub type DrawListMiddleware<'a> = Box<dyn Fn(DrawVert) -> DrawVert + 'a>;
+pub type DrawListMiddleware<'a> = Box<dyn Fn(Vertex) -> Vertex + 'a>;
 
 #[derive(Default)]
 pub struct DrawList<'a> {
-    pub(crate) vertices: Vec<DrawVert>,
-    pub(crate) indices: Vec<u32>,
+    pub(crate) mesh: Mesh,
     pub(crate) path: Path2D,
 
     middleware: Option<DrawListMiddleware<'a>>,
@@ -39,7 +20,7 @@ pub struct DrawList<'a> {
 impl<'a> DrawList<'a> {
     pub fn with_middleware<F>(middleware: F) -> Self
     where
-        F: Fn(DrawVert) -> DrawVert + 'a,
+        F: Fn(Vertex) -> Vertex + 'a,
     {
         Self {
             middleware: Some(Box::new(middleware)),
@@ -49,7 +30,7 @@ impl<'a> DrawList<'a> {
 
     pub fn set_middleware<F>(&mut self, middleware: F)
     where
-        F: Fn(DrawVert) -> DrawVert + 'a,
+        F: Fn(Vertex) -> Vertex + 'a,
     {
         self.middleware = Some(Box::new(middleware));
     }
@@ -59,13 +40,12 @@ impl<'a> DrawList<'a> {
     }
 
     pub fn clear(&mut self) {
-        self.vertices.clear();
-        self.indices.clear();
+        self.mesh.clear();
         self.path.clear();
     }
 
     #[inline(always)]
-    pub fn apply_mw(&self, vertex: DrawVert) -> DrawVert {
+    pub fn apply_mw(&self, vertex: Vertex) -> Vertex {
         let mut vertex = vertex;
         if let Some(middleware) = &self.middleware {
             vertex = middleware(vertex);
@@ -106,15 +86,17 @@ impl<'a> DrawList<'a> {
             // AA fill
             let idx_count = (points_count - 2) * 3 + points_count * 6;
             let vtx_count = points_count * 2;
-            self.reserve_prim(vtx_count, idx_count);
+            self.mesh.reserve_prim(vtx_count, idx_count);
 
-            let cur_vertex_idx = self.vertices.len() as u32;
+            let cur_vertex_idx = self.mesh.vertex_count();
             let vtx_inner_idx = cur_vertex_idx;
             let vtx_outer_idx = vtx_inner_idx + 1;
             for i in 2..points_count {
-                self.indices.push(vtx_inner_idx);
-                self.indices.push(vtx_inner_idx + ((i - 1) << 1) as u32);
-                self.indices.push(vtx_inner_idx + (i << 1) as u32)
+                self.mesh.add_triangle(
+                    vtx_inner_idx,
+                    vtx_inner_idx + ((i - 1) << 1) as u32,
+                    vtx_inner_idx + (i << 1) as u32,
+                );
             }
 
             let mut i0 = points_count - 1;
@@ -128,14 +110,18 @@ impl<'a> DrawList<'a> {
                 self.add_vertex(pos_inner, color, get_uv(&pos_inner));
                 self.add_vertex(pos_outer, color, get_uv(&pos_outer));
 
-                self.indices.push(vtx_inner_idx + (i1 << 1) as u32);
-                self.indices.push(vtx_inner_idx + (i0 << 1) as u32);
+                self.mesh.add_triangle(
+                    vtx_inner_idx + (i1 << 1) as u32,
+                    vtx_inner_idx + (i0 << 1) as u32,
+                    vtx_outer_idx + (i0 << 1) as u32,
+                );
 
-                self.indices.push(vtx_outer_idx + (i0 << 1) as u32);
-                self.indices.push(vtx_outer_idx + (i0 << 1) as u32);
-                self.indices.push(vtx_outer_idx + (i1 << 1) as u32);
+                self.mesh.add_triangle(
+                    vtx_outer_idx + (i0 << 1) as u32,
+                    vtx_outer_idx + (i1 << 1) as u32,
+                    vtx_inner_idx + (i1 << 1) as u32,
+                );
 
-                self.indices.push(vtx_inner_idx + (i1 << 1) as u32);
                 i0 = i1;
             }
         } else {
@@ -143,19 +129,21 @@ impl<'a> DrawList<'a> {
             let index_count = (points_count - 2) * 3;
             let vtx_count = points_count;
 
-            self.reserve_prim(vtx_count, index_count);
-            let base_idx = self.vertices.len() as u32;
+            self.mesh.reserve_prim(vtx_count, index_count);
+            let base_idx = self.mesh.vertex_count();
 
             for point in &self.path.points {
                 let uv = get_uv(point);
-                self.vertices
-                    .push(self.apply_mw(DrawVert::new(*point, color, uv)));
+                self.mesh
+                    .add_vertex(self.apply_mw(Vertex::new(*point, color, uv)));
             }
 
             for i in 2..points_count {
-                self.indices.push(base_idx);
-                self.indices.push(base_idx + i as u32 - 1);
-                self.indices.push(base_idx + i as u32);
+                self.mesh.add_triangle(
+                    base_idx,                //
+                    base_idx + i as u32 - 1, //
+                    base_idx + i as u32,     //
+                );
             }
         }
     }
@@ -207,13 +195,13 @@ impl<'a> DrawList<'a> {
     pub fn capture<F, M>(&mut self, f: F, map: M)
     where
         F: FnOnce(&mut Self),
-        M: Fn(&mut DrawVert),
+        M: Fn(&mut Vertex),
     {
-        let start = self.vertices.len();
+        let start = self.mesh.vertices.len();
         f(self);
-        let end = self.vertices.len();
+        let end = self.mesh.vertices.len();
 
-        for vertex in &mut self.vertices[start..end] {
+        for vertex in &mut self.mesh.vertices[start..end] {
             map(vertex)
         }
     }
@@ -347,21 +335,19 @@ impl<'a> DrawList<'a> {
                 )
             }
 
-            let cur_vertex_idx = self.vertices.len() as u32;
+            let cur_vertex_idx = self.mesh.vertex_count();
             // emit vertices
-            self.reserve_prim(4, 6);
+            self.mesh.reserve_prim(4, 6);
             self.add_vertex(start_1, stroke_style.color, WHITE_UV);
             self.add_vertex(start_2, stroke_style.color, WHITE_UV);
             self.add_vertex(end_1, stroke_style.color, WHITE_UV);
             self.add_vertex(end_2, stroke_style.color, WHITE_UV);
-            self.indices.extend_from_slice(&[
-                cur_vertex_idx,
-                cur_vertex_idx + 1,
-                cur_vertex_idx + 2,
-                cur_vertex_idx + 2,
-                cur_vertex_idx + 1,
-                cur_vertex_idx + 3,
-            ]);
+
+            self.mesh
+                .add_triangle(cur_vertex_idx, cur_vertex_idx + 1, cur_vertex_idx + 2);
+
+            self.mesh
+                .add_triangle(cur_vertex_idx + 2, cur_vertex_idx + 1, cur_vertex_idx + 3);
 
             start_1 = next_start_1;
             start_2 = next_start_2;
@@ -462,18 +448,19 @@ impl<'a> DrawList<'a> {
 
             if joint_style == LineJoin::Bevel {
                 // simply connect the intersection points
-                self.reserve_prim(3, 3);
+                self.mesh.reserve_prim(3, 3);
 
-                let cur_vertex_idx = self.vertices.len() as u32;
+                let cur_vertex_idx = self.mesh.vertex_count();
 
                 self.add_vertex(outer1.b, style.color, WHITE_UV);
                 self.add_vertex(outer2.a, style.color, WHITE_UV);
                 self.add_vertex(inner_sec, style.color, WHITE_UV);
-                self.indices.extend_from_slice(&[
-                    cur_vertex_idx,
-                    cur_vertex_idx + 1,
-                    cur_vertex_idx + 2,
-                ]);
+
+                self.mesh.add_triangle(
+                    cur_vertex_idx,     //
+                    cur_vertex_idx + 1, //
+                    cur_vertex_idx + 2, //
+                );
             } else if joint_style == LineJoin::Round {
                 self.add_triangle_fan(
                     style.color,
@@ -516,9 +503,9 @@ impl<'a> DrawList<'a> {
         let num_triangles = (angle / ROUND_MIN_ANGLE).abs().floor().max(1.0) as usize;
         let seg_angle = angle / num_triangles as f32;
 
-        self.reserve_prim(2 + num_triangles, num_triangles * 3);
+        self.mesh.reserve_prim(2 + num_triangles, num_triangles * 3);
 
-        let conn_vertex_index = self.vertices.len() as u32;
+        let conn_vertex_index = self.mesh.vertex_count();
         let start_vertex_index = conn_vertex_index + 1;
 
         self.add_vertex(connect_to, color, WHITE_UV);
@@ -532,31 +519,28 @@ impl<'a> DrawList<'a> {
             let s = rotation.sin();
             let end_point = Vec2::new(c * from.x - s * from.y, s * from.x + c * from.y) + origin;
 
-            let cur_vertex_idx = self.vertices.len() as u32;
-            self.indices
-                .extend_from_slice(&[conn_vertex_index, prev_vertex_index, cur_vertex_idx]);
+            let cur_vertex_idx = self.mesh.vertex_count();
+            self.mesh
+                .add_triangle(conn_vertex_index, prev_vertex_index, cur_vertex_idx);
+
             self.add_vertex(end_point, color, WHITE_UV);
             prev_vertex_index = cur_vertex_idx;
         }
 
         // add the end point
-        self.indices.extend_from_slice(&[
+        self.mesh.add_triangle(
             conn_vertex_index,
             prev_vertex_index,
-            self.vertices.len() as u32,
-        ]);
-        self.add_vertex(end, color, WHITE_UV);
-    }
+            self.mesh.vertex_count(),
+        );
 
-    pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {
-        self.vertices.reserve(vertex_count);
-        self.indices.reserve(index_count);
+        self.add_vertex(end, color, WHITE_UV);
     }
 
     #[inline(always)]
     pub fn add_vertex(&mut self, pos: Vec2<f32>, color: Color, uv: (f32, f32)) {
-        self.vertices.push({
-            let vertex = DrawVert::new(pos, color, uv);
+        self.mesh.add_vertex({
+            let vertex = Vertex::new(pos, color, uv);
             let mut vertex = vertex;
             if let Some(middleware) = &self.middleware {
                 vertex = middleware(vertex);
@@ -570,33 +554,23 @@ impl<'a> DrawList<'a> {
             return;
         }
 
-        let v_index_offset = self.vertices.len() as u32;
-        self.reserve_prim(4, 6);
+        let v_index_offset = self.mesh.vertex_count();
+        self.mesh.reserve_prim(4, 6);
 
         self.add_vertex(rect.top_left(), color, (0.0, 0.0)); // Top-left
         self.add_vertex(rect.top_right(), color, (1.0, 0.0)); // Top-right
         self.add_vertex(rect.bottom_left(), color, (0.0, 1.0)); // Bottom-left
         self.add_vertex(rect.bottom_right(), color, (1.0, 1.0)); // Bottom-right
 
-        self.indices.extend_from_slice(&[
-            v_index_offset,
-            v_index_offset + 1,
-            v_index_offset + 2,
-            v_index_offset + 2,
-            v_index_offset + 1,
-            v_index_offset + 3,
-        ]);
+        self.mesh
+            .add_triangle(v_index_offset, v_index_offset + 1, v_index_offset + 2);
+
+        self.mesh
+            .add_triangle(v_index_offset + 2, v_index_offset + 1, v_index_offset + 3);
     }
 
     pub fn build(mut self) -> Mesh {
-        let vertices = std::mem::take(&mut self.vertices);
-        let indices = std::mem::take(&mut self.indices);
-
-        Mesh {
-            vertices,
-            indices,
-            texture: TextureId::WHITE_TEXTURE,
-        }
+        std::mem::take(&mut self.mesh)
     }
 }
 
@@ -610,8 +584,7 @@ impl From<DrawList<'_>> for Mesh {
 impl std::fmt::Display for DrawList<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DrawList")
-            .field("vertices", &self.vertices)
-            .field("indices", &self.indices)
+            .field("mesh", &self.mesh)
             .field("has_middleware", &format!("{}", self.middleware.is_some()))
             .finish()
     }

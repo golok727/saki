@@ -8,12 +8,12 @@ use crate::paint::{TextureOptions, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
     math::Mat3,
-    paint::{DrawVert, Mesh, TextureId},
+    paint::{Mesh, TextureId, Vertex},
 };
 
 use wgpu::util::DeviceExt;
 
-static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<DrawVert>() * 1024) as u64;
+static INITIAL_VERTEX_BUFFER_SIZE: u64 = (std::mem::size_of::<Vertex>() * 1024) as u64;
 static INITIAL_INDEX_BUFFER_SIZE: u64 = (std::mem::size_of::<u32>() * 1024 * 3) as u64;
 
 #[derive(Debug)]
@@ -340,7 +340,7 @@ impl WgpuRenderer {
             vb.slices.clear();
 
             let required_vertex_buffer_size =
-                (std::mem::size_of::<DrawVert>() * vertex_count) as wgpu::BufferAddress;
+                (std::mem::size_of::<Vertex>() * vertex_count) as wgpu::BufferAddress;
 
             if vb.capacity < required_vertex_buffer_size {
                 vb.capacity = (vb.capacity * 2).max(required_vertex_buffer_size);
@@ -360,7 +360,7 @@ impl WgpuRenderer {
             let mut vertex_offset = 0;
 
             for renderable in renderables {
-                let size = renderable.mesh.vertices.len() * std::mem::size_of::<DrawVert>();
+                let size = renderable.mesh.vertices.len() * std::mem::size_of::<Vertex>();
                 let slice = vertex_offset..size + vertex_offset;
                 staging_vertex[slice.clone()]
                     .copy_from_slice(bytemuck::cast_slice(&renderable.mesh.vertices));
@@ -486,7 +486,7 @@ impl ScenePipe {
         );
 
         let vbo_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<DrawVert>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
 
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4],

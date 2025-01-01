@@ -1,23 +1,50 @@
 use crate::Vec2;
 
-use super::{Color, DrawVert, TextureId, WHITE_UV};
+use super::{Rgba, TextureId};
 
-#[derive(Debug)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct Vertex {
+    pub position: [f32; 2],
+    pub uv: [f32; 2],
+    pub color: Rgba,
+}
+
+impl Vertex {
+    pub fn new(pos: Vec2<f32>, color: impl Into<Rgba>, uv: (f32, f32)) -> Self {
+        Self {
+            position: pos.into(),
+            uv: uv.into(),
+            color: color.into(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
 pub struct Mesh {
-    pub vertices: Vec<DrawVert>,
+    pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     pub texture: TextureId,
 }
 
 impl Mesh {
-    #[inline(always)]
-    pub fn colored_vertex(&mut self, pos: Vec2<f32>, color: Color) {
-        self.vertices.push(DrawVert::new(pos, color, WHITE_UV));
+    pub fn clear(&mut self) {
+        self.indices.clear();
+        self.vertices = Default::default();
     }
 
     #[inline(always)]
-    pub fn add_vertex(&mut self, vertex: DrawVert) {
+    pub fn add_vertex(&mut self, vertex: Vertex) {
         self.vertices.push(vertex)
+    }
+
+    pub fn append(&mut self, other: &Self) {
+        debug_assert!(other.is_valid());
+
+        let index_offset = self.vertices.len() as u32;
+        self.indices
+            .extend(other.indices.iter().map(|index| index + index_offset));
+        self.vertices.extend(other.vertices.iter());
     }
 
     pub fn is_valid(&self) -> bool {
@@ -33,14 +60,9 @@ impl Mesh {
     }
 
     #[inline(always)]
-    pub fn reserve_primitive(&mut self, vertex_count: usize, index_count: usize) {
+    pub fn reserve_prim(&mut self, vertex_count: usize, index_count: usize) {
         self.vertices.reserve(vertex_count);
         self.indices.reserve(index_count);
-    }
-
-    #[inline(always)]
-    pub fn reserve_triangles(&mut self, n: usize) {
-        self.indices.reserve(3 * n);
     }
 
     #[inline(always)]

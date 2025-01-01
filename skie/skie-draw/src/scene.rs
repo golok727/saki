@@ -1,7 +1,7 @@
 use crate::{
     paint::{
         atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap},
-        AtlasKey, DrawVert, Mesh, PrimitiveKind,
+        AtlasKey, Mesh, PrimitiveKind, Vertex,
     },
     traits::IsZero,
     DrawList, Primitive, TextureId,
@@ -132,7 +132,7 @@ impl<'a> SceneBatchIterator<'a> {
                 None
             };
 
-            let uv_middleware = move |mut vertex: DrawVert| {
+            let uv_middleware = move |mut vertex: Vertex| {
                 // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
                 if let Some(info) = info {
                     if is_default_texture {
