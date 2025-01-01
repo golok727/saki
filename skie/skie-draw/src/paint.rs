@@ -2,6 +2,7 @@ pub mod atlas;
 pub mod color;
 pub mod draw_list;
 pub mod image;
+pub mod mesh;
 pub mod path;
 pub mod primitives;
 pub mod texture;
@@ -9,6 +10,7 @@ pub mod texture;
 pub use color::*;
 pub use draw_list::*;
 pub use image::*;
+pub use mesh::*;
 pub use primitives::*;
 pub use texture::*;
 

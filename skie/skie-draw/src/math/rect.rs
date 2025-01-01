@@ -215,6 +215,30 @@ where
     }
 }
 
+impl Rect<f32> {
+    pub const EVERYTHING: Self = Self {
+        origin: Vec2 {
+            x: -f32::INFINITY,
+            y: -f32::INFINITY,
+        },
+        size: Size {
+            width: f32::INFINITY,
+            height: f32::INFINITY,
+        },
+    };
+
+    pub const NOTHING: Self = Self {
+        origin: Vec2 {
+            x: f32::INFINITY,
+            y: f32::INFINITY,
+        },
+        size: Size {
+            width: -f32::INFINITY,
+            height: -f32::INFINITY,
+        },
+    };
+}
+
 impl<T> Rect<T>
 where
     T: Clone + Add<T, Output = T>,
