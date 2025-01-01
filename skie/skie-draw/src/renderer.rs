@@ -263,7 +263,7 @@ impl WgpuRenderer {
 
     pub fn set_texture<Key>(
         &mut self,
-        texture_id: TextureId,
+        texture_id: &TextureId,
         view: &WgpuTextureView,
         options: &TextureOptions,
     ) {
@@ -274,7 +274,7 @@ impl WgpuRenderer {
             options,
         );
         self.textures
-            .insert(texture_id, RendererTexture { bindgroup });
+            .insert(texture_id.clone(), RendererTexture { bindgroup });
     }
 
     pub fn set_texture_from_atlas<Key>(
@@ -285,8 +285,9 @@ impl WgpuRenderer {
     ) where
         Key: AtlasKeyImpl,
     {
-        let texture_in_atlas =
-            atlas.with_texture::<Option<(TextureId, wgpu::BindGroup)>>(texture_id, |texture| {
+        let texture_in_atlas = atlas.get_texture_for_key::<Option<(TextureId, wgpu::BindGroup)>>(
+            texture_id,
+            |texture| {
                 let atlas_tex_id = TextureId::Atlas(texture.id());
                 if self.textures.contains_key(&atlas_tex_id) {
                     None
@@ -301,7 +302,8 @@ impl WgpuRenderer {
                         ),
                     ))
                 }
-            });
+            },
+        );
 
         if texture_in_atlas.is_none() {
             log::error!(

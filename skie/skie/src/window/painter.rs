@@ -15,12 +15,13 @@ use skie_draw::{
 #[derive(Debug)]
 pub struct Painter {
     pub(crate) renderer: WgpuRenderer,
-    pub(crate) surface: GpuSurface,
     pub(crate) scene: Scene,
-    pub renderables: Vec<Renderable>, // todo mmsa
+    pub(crate) texture_system: Arc<SkieAtlas>,
+    pub(crate) surface: GpuSurface,
+    renderables: Vec<Renderable>,
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
-    pub(crate) texture_system: Arc<SkieAtlas>,
+    // todo msaa
 }
 
 impl Painter {

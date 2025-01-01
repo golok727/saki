@@ -68,9 +68,23 @@ impl<Key: AtlasKeyImpl> AtlasManager<Key> {
         sys
     }
 
-    pub fn with_texture<R>(&self, id: &Key, f: impl FnOnce(&AtlasTexture) -> R) -> Option<R> {
+    pub fn get_texture_for_tile<R>(
+        &self,
+        tile: &AtlasTile,
+        f: impl FnOnce(&AtlasTexture) -> R,
+    ) -> Option<R> {
         let lock = self.0.lock();
-        lock.with_texture(id, f)
+        lock.with_texture(tile, f)
+    }
+
+    pub fn get_texture_for_key<R>(
+        &self,
+        key: &Key,
+        f: impl FnOnce(&AtlasTexture) -> R,
+    ) -> Option<R> {
+        let lock = self.0.lock();
+        let tile = lock.key_to_tile.get(key)?;
+        lock.with_texture(tile, f)
     }
 
     pub fn get_texture_info(&self, id: &Key) -> Option<AtlasTextureInfo> {
@@ -143,10 +157,8 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
         }
     }
 
-    fn with_texture<R>(&self, id: &Key, f: impl FnOnce(&AtlasTexture) -> R) -> Option<R> {
-        let tile = self.key_to_tile.get(id)?.clone();
+    fn with_texture<R>(&self, tile: &AtlasTile, f: impl FnOnce(&AtlasTexture) -> R) -> Option<R> {
         let storage = self.get_storage_read(&tile.texture.kind);
-
         let texture = storage[tile.texture.slot].as_ref()?;
         Some(f(texture))
     }
