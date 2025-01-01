@@ -1,7 +1,7 @@
 use crate::{
     paint::{
         atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap},
-        AtlasKey, Mesh, PrimitiveKind, Vertex,
+        AtlasKey, Mesh, PrimitiveKind,
     },
     traits::IsZero,
     DrawList, Primitive, TextureId,
@@ -109,6 +109,7 @@ impl<'a> SceneBatchIterator<'a> {
             return None;
         }
 
+        // FIXME: no need to build mesh here
         let group = &self.groups[self.cur_group];
 
         let render_texture = group.0.clone();
@@ -132,24 +133,7 @@ impl<'a> SceneBatchIterator<'a> {
                 None
             };
 
-            let uv_middleware = move |mut vertex: Vertex| {
-                // should be Some unless the WHITE_TEX_ID is not inserted by the renderer for some reason
-                if let Some(info) = info {
-                    if is_default_texture {
-                        // should we cache this?
-                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
-                    } else {
-                        let [u, v] = vertex.uv;
-                        vertex.uv = info.uv_to_atlas_space(u, v).into();
-                    }
-                }
-
-                vertex
-            };
-
-            drawlist.set_middleware(uv_middleware);
-
-            match &prim.kind {
+            let range = drawlist.capture_range(|drawlist| match &prim.kind {
                 PrimitiveKind::Circle(circle) => {
                     let fill_color = prim.fill.color;
 
@@ -192,6 +176,19 @@ impl<'a> SceneBatchIterator<'a> {
                 }
 
                 PrimitiveKind::Text(_) => todo!("text is not implemented yet"),
+            });
+
+            if let Some(info) = info {
+                // Convert to atlas space
+                drawlist.map_range(range, |vertex| {
+                    let (u, v) = if is_default_texture {
+                        (0.0, 0.0)
+                    } else {
+                        let [u, v] = vertex.uv;
+                        (u, v)
+                    };
+                    vertex.uv = info.uv_to_atlas_space(u, v).into();
+                });
             }
         }
 
