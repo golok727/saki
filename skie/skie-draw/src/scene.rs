@@ -174,8 +174,6 @@ impl<'a> SceneBatchIterator<'a> {
                         drawlist.stroke_with_path(path, &stroke_style);
                     }
                 }
-
-                PrimitiveKind::Text(_) => todo!("text is not implemented yet"),
             };
 
             if let Some(info) = info {

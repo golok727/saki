@@ -15,7 +15,6 @@ pub enum PrimitiveKind {
     Quad(Quad),
     Path(Path2D),
     Circle(Circle),
-    Text(Text),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -284,11 +283,6 @@ pub fn circle() -> Circle {
     Circle::default()
 }
 
-#[inline]
-pub fn text(text: impl Into<ArcString>) -> Text {
-    Text::new(text)
-}
-
 impl From<Quad> for PrimitiveKind {
     #[inline]
     fn from(quad: Quad) -> Self {
@@ -310,13 +304,6 @@ impl From<Path2D> for PrimitiveKind {
     }
 }
 
-impl From<Text> for PrimitiveKind {
-    #[inline]
-    fn from(text: Text) -> Self {
-        PrimitiveKind::Text(text)
-    }
-}
-
 impl<T> From<T> for Primitive
 where
     T: Into<PrimitiveKind>,
@@ -328,102 +315,6 @@ where
             fill: FillStyle::default(),
             stroke: None,
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum TextBaseline {
-    #[default]
-    Alphabetic,
-    Top,
-    Hanging,
-    Middle,
-    Bottom,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum TextAlign {
-    #[default]
-    Left,
-    Right,
-    Center,
-}
-
-#[derive(Debug, Clone)]
-pub struct Text {
-    pub(crate) text: ArcString,
-    pub(crate) font: Font,
-    pub(crate) pos: Vec2<f32>,
-    pub(crate) align: TextAlign,
-    pub(crate) word_spacing: f32,
-    pub(crate) baseline: TextBaseline,
-}
-
-impl Default for Text {
-    fn default() -> Self {
-        Self {
-            pos: Vec2::zero(),
-            text: ArcString::new_static(""),
-            font: Font {
-                family: ArcString::new_static("SegoueUI"),
-                weight: FontWeight::default(),
-                style: FontStyle::default(),
-            },
-            align: Default::default(),
-            baseline: Default::default(),
-            word_spacing: f32::zero(),
-        }
-    }
-}
-
-impl Text {
-    pub fn new(text: impl Into<ArcString>) -> Self {
-        Self::default().text(text.into())
-    }
-
-    pub fn align(mut self, align: TextAlign) -> Self {
-        self.align = align;
-        self
-    }
-
-    pub fn baseline(mut self, baseline: TextBaseline) -> Self {
-        self.baseline = baseline;
-        self
-    }
-
-    pub fn pos(mut self, pos: Vec2<f32>) -> Self {
-        self.pos = pos;
-        self
-    }
-
-    pub fn text(mut self, text: ArcString) -> Self {
-        self.text = text;
-        self
-    }
-
-    pub fn font(mut self, font: Font) -> Self {
-        self.font = font;
-        self
-    }
-
-    pub fn font_family(mut self, font_family: impl Into<ArcString>) -> Self {
-        self.font.family = font_family.into();
-        self
-    }
-
-    pub fn font_weight(mut self, font_weight: FontWeight) -> Self {
-        self.font.weight = font_weight;
-        self
-    }
-
-    pub fn font_style(mut self, font_style: FontStyle) -> Self {
-        self.font.style = font_style;
-        self
-    }
-
-    pub fn word_spacing(mut self, spacing_in_px: f32) -> Self {
-        self.word_spacing = spacing_in_px;
-        self
     }
 }
 
@@ -439,14 +330,3 @@ where
         self.into()
     }
 }
-
-// macro_rules! impl_into_primitive {
-//     ($t: ty, $kind: tt) => {
-//         impl From<$t> for PrimitiveKind {
-//             fn from(val: $t) -> Self {
-//                 PrimitiveKind::$kind(val)
-//             }
-//         }
-//     };
-// }
-//

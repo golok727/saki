@@ -2133,6 +2133,7 @@ name = "skie"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "anyhow",
  "async-task",
  "derive_more",
  "flume",

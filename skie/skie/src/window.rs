@@ -1,7 +1,5 @@
 pub mod error;
 // FIXME: for now make it pub(crate)
-pub mod painter;
-use painter::Painter;
 use parking_lot::RwLock;
 
 use core::f32;
@@ -22,8 +20,8 @@ use skie_draw::{
     paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
-    vec2, Color, Corners, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode, TextureId,
-    TextureOptions, Vec2, WgpuRendererSpecs,
+    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text, TextureFilterMode,
+    TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -124,8 +122,9 @@ impl Window {
         // TODO: handle error
         let mut painter = Painter::new(
             app.gpu.clone(),
-            texture_system.clone(),
             Arc::clone(&handle),
+            texture_system.clone(),
+            app.text_system.clone(),
             &(WgpuRendererSpecs { width, height }),
         )
         .unwrap();
@@ -614,7 +613,7 @@ impl Scroller {
             Color::DARK_GRAY
         };
 
-        painter.add_primitive(
+        painter.draw_primitive(
             quad()
                 .rect(container.clone())
                 .corners(Corners::with_all(10.0))
@@ -623,6 +622,8 @@ impl Scroller {
                 .stroke_color(stroke_color)
                 .stroke_width(stroke_width),
         );
+
+        painter.draw_text(&Text::new("Radha"));
 
         painter.paint();
         // paint children clipped to this rect
@@ -653,7 +654,7 @@ impl Scroller {
         painter.paint_with_clip_rect(&clip, |painter| {
             for _ in 0..10 {
                 for i in 0..10 {
-                    painter.add_primitive(
+                    painter.draw_primitive(
                         quad()
                             .rect(Rect::new_from_origin_size(
                                 cursor + vec2(-self.scroll_x, 0.0),

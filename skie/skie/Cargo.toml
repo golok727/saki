@@ -17,3 +17,4 @@ parking.workspace = true
 flume.workspace = true
 image.workspace = true
 ahash.workspace = true
+anyhow.workspace = true

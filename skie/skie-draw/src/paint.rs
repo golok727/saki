@@ -6,7 +6,12 @@ pub mod mesh;
 pub mod path;
 pub mod polyline;
 pub mod primitives;
+pub mod text;
 pub mod texture;
+
+use atlas::{AtlasKeyImpl, AtlasManager};
+
+use crate::{math::Vec2, text_system::AtlasGlyph};
 
 pub use color::*;
 pub use draw_list::*;
@@ -14,15 +19,12 @@ pub use image::*;
 pub use mesh::*;
 pub use polyline::*;
 pub use primitives::*;
+pub use text::*;
 pub use texture::*;
-
-use crate::{math::Vec2, text_system::AtlasGlyph};
-use atlas::{AtlasKeyImpl, AtlasManager};
 
 pub const DEFAULT_UV_COORD: Vec2<f32> = Vec2 { x: 0.0, y: 0.0 };
 
 pub type SkieAtlas = AtlasManager<AtlasKey>;
-
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum AtlasKey {
     Image(SkieImage),

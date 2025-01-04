@@ -2,6 +2,7 @@ pub mod arc_string;
 pub mod gpu;
 pub mod math;
 pub mod paint;
+pub mod painter;
 pub mod renderer;
 pub mod scene;
 pub mod text_system;
@@ -15,10 +16,11 @@ pub use paint::{
     atlas::{AtlasKeyImpl, AtlasManager, AtlasTextureInfo, AtlasTextureInfoMap},
     circle,
     path::Path2D,
-    quad, text, AtlasKey, Circle, FillStyle, LineCap, LineJoin, Primitive, Quad, SkieAtlas,
-    StrokeStyle, Text, TextAlign, TextBaseline,
+    quad, AtlasKey, Circle, FillStyle, LineCap, LineJoin, Primitive, Quad, SkieAtlas, StrokeStyle,
+    Text, TextAlign, TextBaseline,
 };
 pub use paint::{TextureAddressMode, TextureFilterMode, TextureFormat, TextureId, TextureOptions};
+pub use painter::Painter;
 
 pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
 

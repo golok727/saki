@@ -3,6 +3,7 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     hash::{Hash, Hasher},
+    ops::Deref,
     sync::Arc,
 };
 
@@ -12,6 +13,23 @@ pub struct ArcString(ArcCow<'static, str>);
 impl ArcString {
     pub const fn new_static(str: &'static str) -> Self {
         Self(ArcCow::Borrowed(str))
+    }
+}
+
+impl From<&'static str> for ArcString {
+    fn from(value: &'static str) -> Self {
+        Self::new_static(value)
+    }
+}
+
+impl Deref for ArcString {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        match self.0 {
+            ArcCow::Owned(ref string) => string,
+            ArcCow::Borrowed(string) => string,
+        }
     }
 }
 

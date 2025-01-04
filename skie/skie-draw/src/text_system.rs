@@ -36,7 +36,7 @@ pub struct GlyphId(pub(crate) usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FontId(pub(crate) usize);
 
-pub(crate) trait FontProvider: Send + Sync + Debug {
+pub trait FontProvider: Send + Sync + Debug {
     fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()>;
 
     fn font_id(&self, font: &Font) -> Option<FontId>;
@@ -56,6 +56,22 @@ pub struct TextSystem {
 }
 
 impl TextSystem {
+    /// Creates a text system with the given provider
+    /// use TextSystem::default() to use the default provider
+    pub fn create(provider: impl FontProvider + 'static) -> Self {
+        Self {
+            provider: Arc::new(provider),
+        }
+    }
+
+    pub fn font_id(&self, font: &Font) -> Option<FontId> {
+        self.provider.font_id(font)
+    }
+
+    pub fn rasterize_char(&self, character: char, font: &Font) -> Result<(Rect<i32>, Vec<u8>)> {
+        self.provider.rasterize_char(character, font)
+    }
+
     pub fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()> {
         self.provider.add_fonts(fonts)
     }
@@ -64,14 +80,9 @@ impl TextSystem {
 impl Default for TextSystem {
     fn default() -> Self {
         Self {
-            provider: Arc::new(get_font_provider()),
+            provider: Arc::new(FontDueProvider::default()),
         }
     }
-}
-
-#[inline(always)]
-fn get_font_provider() -> impl FontProvider {
-    FontDueProvider::default()
 }
 
 #[derive(Clone, Debug)]
@@ -85,6 +96,14 @@ pub struct Font {
 }
 
 impl Font {
+    pub fn new(family: impl Into<ArcString>) -> Self {
+        Self {
+            family: family.into(),
+            weight: FontWeight::default(),
+            style: FontStyle::default(),
+        }
+    }
+
     pub fn bold(mut self) -> Self {
         self.weight = FontWeight::BOLD;
         self

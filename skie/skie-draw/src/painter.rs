@@ -1,22 +1,23 @@
 use std::sync::Arc;
 
-use skie_draw::{
+use crate::{
     gpu::{
         error::GpuSurfaceCreateError,
         surface::{GpuSurface, GpuSurfaceSpecification},
     },
-    paint::{AtlasKey, SkieAtlas},
+    paint::{AtlasKey, SkieAtlas, TextureKind},
     renderer::Renderable,
-    GpuContext, Primitive, Rect, Rgba, Scene, Size, TextureId, Vec2, WgpuRenderer,
-    WgpuRendererSpecs, Zero,
+    AtlasGlyph, Font, FontId, GlyphId, GpuContext, Primitive, Rect, Rgba, Scene, Size, Text,
+    TextSystem, TextureId, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
 };
 
 //  Winit window painter
 #[derive(Debug)]
 pub struct Painter {
-    pub(crate) renderer: WgpuRenderer,
+    pub renderer: WgpuRenderer,
     pub(crate) scene: Scene,
     pub(crate) texture_system: Arc<SkieAtlas>,
+    pub(crate) text_system: Arc<TextSystem>,
     pub(crate) surface: GpuSurface,
     renderables: Vec<Renderable>,
     clip_rects: Vec<Rect<f32>>,
@@ -27,14 +28,16 @@ pub struct Painter {
 impl Painter {
     pub fn new(
         gpu: Arc<GpuContext>,
+        surface_target: impl Into<wgpu::SurfaceTarget<'static>>,
         texture_system: Arc<SkieAtlas>,
-        window: Arc<winit::window::Window>,
+        text_system: Arc<TextSystem>,
         specs: &WgpuRendererSpecs,
     ) -> Result<Self, GpuSurfaceCreateError> {
         let width = specs.width;
         let height = specs.height;
 
-        let surface = gpu.create_surface(window, &(GpuSurfaceSpecification { width, height }))?;
+        let surface =
+            gpu.create_surface(surface_target, &(GpuSurfaceSpecification { width, height }))?;
         let renderer = WgpuRenderer::new(gpu, &texture_system, specs);
 
         Ok(Self {
@@ -43,6 +46,7 @@ impl Painter {
             scene: Scene::default(),
             renderables: Default::default(),
             texture_system,
+            text_system,
             screen: Size {
                 width: specs.width,
                 height: specs.height,
@@ -79,8 +83,31 @@ impl Painter {
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
-    pub fn add_primitive(&mut self, prim: Primitive) {
+    pub fn draw_primitive(&mut self, prim: Primitive) {
         self.scene.add(prim)
+    }
+
+    pub fn draw_text(&mut self, _text: &Text) {
+        // if text.text.is_empty() {
+        //     return;
+        // }
+        //
+        // let mut thing = text.text.chars();
+        // let c = thing.next().unwrap();
+
+        // self.texture_system.get_or_insert(
+        //     &AtlasGlyph {
+        //         font_id: FontId(0),
+        //         glyph_id: GlyphId(0),
+        //         font_size: text.size,
+        //         scale_factor: 1.0,
+        //     }
+        //     .into(),
+        //     || {
+        //         let (rect, data) = self.text_system.rasterize_char(c, &text.font).unwrap();
+        //         (TextureKind::Color, rect.size, &data)
+        //     },
+        // );
     }
 
     fn build_renderables<'scene>(
@@ -113,6 +140,7 @@ impl Painter {
         self.renderables.extend(renderables);
     }
 
+    // commit renderables
     pub fn paint(&mut self) {
         let renderables =
             Self::build_renderables(&self.texture_system, &self.scene, self.get_clip_rect());

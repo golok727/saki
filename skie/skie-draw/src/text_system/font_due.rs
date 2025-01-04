@@ -54,7 +54,8 @@ impl FontDueProviderState {
                 Cow::Owned(bytes) => fontdue::Font::from_bytes(bytes, settings),
             }
             .map_err(|err| anyhow!(err))?; //FIXME: should we continue ?
-            if let Some(name) = font.name() {}
+                                           //
+            dbg!(font.name());
         }
 
         Ok(())
