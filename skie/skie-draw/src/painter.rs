@@ -7,7 +7,7 @@ use crate::{
     },
     paint::{AtlasKey, SkieAtlas, TextureKind},
     renderer::Renderable,
-    AtlasGlyph, Font, FontId, GlyphId, GpuContext, Primitive, Rect, Rgba, Scene, Size, Text,
+    Font, FontId, GlyphId, GlyphRenderSpecs, GpuContext, Primitive, Rect, Rgba, Scene, Size, Text,
     TextSystem, TextureId, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
 };
 

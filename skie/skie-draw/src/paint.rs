@@ -11,7 +11,7 @@ pub mod texture;
 
 use atlas::{AtlasKeyImpl, AtlasManager};
 
-use crate::{math::Vec2, text_system::AtlasGlyph};
+use crate::{math::Vec2, text_system::GlyphRenderSpecs};
 
 pub use color::*;
 pub use draw_list::*;
@@ -28,11 +28,11 @@ pub type SkieAtlas = AtlasManager<AtlasKey>;
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum AtlasKey {
     Image(SkieImage),
-    Glyf(AtlasGlyph),
+    Glyf(GlyphRenderSpecs),
 }
 
-impl From<AtlasGlyph> for AtlasKey {
-    fn from(atlas_glyf: AtlasGlyph) -> Self {
+impl From<GlyphRenderSpecs> for AtlasKey {
+    fn from(atlas_glyf: GlyphRenderSpecs) -> Self {
         Self::Glyf(atlas_glyf)
     }
 }

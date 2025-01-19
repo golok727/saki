@@ -25,6 +25,6 @@ pub use painter::Painter;
 pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
 
 pub use scene::Scene;
-pub use text_system::{AtlasGlyph, Font, FontId, FontStyle, FontWeight, GlyphId, TextSystem};
+pub use text_system::{Font, FontId, FontStyle, FontWeight, GlyphId, GlyphRenderSpecs, TextSystem};
 
 pub use traits::{Half, IsZero, Zero};

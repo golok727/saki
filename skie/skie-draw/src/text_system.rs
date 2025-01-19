@@ -1,5 +1,5 @@
 use anyhow::Result;
-use font_due::FontDueProvider;
+use cosmic_text::CosmicTextProvider;
 use std::{
     borrow::Cow,
     fmt::Debug,
@@ -8,10 +8,11 @@ use std::{
 };
 
 use crate::{arc_string::ArcString, Rect};
-mod font_due;
+
+mod cosmic_text;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AtlasGlyph {
+pub struct GlyphRenderSpecs {
     pub(crate) font_id: FontId,
     pub(crate) glyph_id: GlyphId,
     /// font-size in pixels
@@ -19,9 +20,9 @@ pub struct AtlasGlyph {
     pub(crate) scale_factor: f32,
 }
 
-impl Eq for AtlasGlyph {}
+impl Eq for GlyphRenderSpecs {}
 
-impl Hash for AtlasGlyph {
+impl Hash for GlyphRenderSpecs {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.font_id.0.hash(state);
         self.glyph_id.0.hash(state);
@@ -39,15 +40,11 @@ pub struct FontId(pub(crate) usize);
 pub trait FontProvider: Send + Sync + Debug {
     fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()>;
 
-    fn font_id(&self, font: &Font) -> Option<FontId>;
+    fn font_id(&self, font: &Font) -> Result<FontId>;
 
-    fn list_fonts_names(&self) -> Vec<String>;
+    fn glyph_id_for_char(&self, font_id: FontId, character: char) -> Option<GlyphId>;
 
-    fn font_metrics(&self, font_id: FontId) -> FontMetrics;
-
-    fn glyph_for_char(&self, font_id: FontId, ch: char) -> Option<GlyphId>;
-
-    fn rasterize_char(&self, _character: char, _font: &Font) -> Result<(Rect<i32>, Vec<u8>)>;
+    fn rasterize(&self, specs: &GlyphRenderSpecs) -> Result<(Rect<i32>, Vec<u8>)>;
 }
 
 #[derive(Debug)]
@@ -64,12 +61,12 @@ impl TextSystem {
         }
     }
 
-    pub fn font_id(&self, font: &Font) -> Option<FontId> {
+    pub fn font_id(&self, font: &Font) -> Result<FontId> {
         self.provider.font_id(font)
     }
 
-    pub fn rasterize_char(&self, character: char, font: &Font) -> Result<(Rect<i32>, Vec<u8>)> {
-        self.provider.rasterize_char(character, font)
+    pub fn rasterize(&self, specs: &GlyphRenderSpecs) -> Result<(Rect<i32>, Vec<u8>)> {
+        self.provider.rasterize(specs)
     }
 
     pub fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()> {
@@ -80,7 +77,7 @@ impl TextSystem {
 impl Default for TextSystem {
     fn default() -> Self {
         Self {
-            provider: Arc::new(FontDueProvider::default()),
+            provider: Arc::new(CosmicTextProvider::default()),
         }
     }
 }
@@ -120,6 +117,7 @@ pub enum FontStyle {
     #[default]
     Normal,
     Italic,
+    Oblique,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
