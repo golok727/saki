@@ -65,7 +65,20 @@ fn load_images_from_args(cx: &mut WindowContext) {
                 .map(|data| data.is_file())
                 .unwrap_or(false)
         }) {
-            cx.load_image_from_file(rect, file);
+            cx.spawn(|cx| async move {
+                let idx = cx.load_image_from_file(rect, file).await;
+                if let Ok(idx) = idx {
+                    if idx == 0 {
+                        cx.with(|cx| {
+                            let obj = cx.get_object_mut(idx).unwrap().as_image_mut().unwrap();
+                            obj.bbox.origin.x = obj.bbox.origin.x - px(100);
+                            obj.bbox.origin.y = obj.bbox.origin.x + px(100);
+                            cx.window.refresh();
+                        });
+                    }
+                }
+            })
+            .detach();
         } else {
             log::error!("Unable to load file {}", file_clone);
         }

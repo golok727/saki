@@ -49,6 +49,13 @@ impl std::ops::Add<Pixels> for Pixels {
     }
 }
 
+impl std::ops::Sub<Pixels> for Pixels {
+    type Output = Pixels;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
+}
+
 impl std::ops::Mul<f32> for Pixels {
     type Output = Pixels;
     fn mul(self, rhs: f32) -> Self::Output {

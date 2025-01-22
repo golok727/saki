@@ -5,18 +5,19 @@ use crate::{
         error::GpuSurfaceCreateError,
         surface::{GpuSurface, GpuSurfaceSpecification},
     },
-    paint::{AtlasKey, SkieAtlas, TextureKind},
+    paint::{AtlasKey, SkieAtlas},
     renderer::Renderable,
-    Font, FontId, GlyphId, GlyphRenderSpecs, GpuContext, Primitive, Rect, Rgba, Scene, Size, Text,
-    TextSystem, TextureId, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
+    GpuContext, Primitive, Rect, Rgba, Scene, Size, Text, TextSystem, TextureId, Vec2,
+    WgpuRenderer, WgpuRendererSpecs, Zero,
 };
+use anyhow::Result;
 
 //  Winit window painter
 #[derive(Debug)]
 pub struct Painter {
     pub renderer: WgpuRenderer,
     pub(crate) scene: Scene,
-    pub(crate) texture_system: Arc<SkieAtlas>,
+    pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
     pub(crate) surface: GpuSurface,
     renderables: Vec<Renderable>,
@@ -29,7 +30,7 @@ impl Painter {
     pub fn new(
         gpu: Arc<GpuContext>,
         surface_target: impl Into<wgpu::SurfaceTarget<'static>>,
-        texture_system: Arc<SkieAtlas>,
+        texture_atlas: Arc<SkieAtlas>,
         text_system: Arc<TextSystem>,
         specs: &WgpuRendererSpecs,
     ) -> Result<Self, GpuSurfaceCreateError> {
@@ -38,14 +39,14 @@ impl Painter {
 
         let surface =
             gpu.create_surface(surface_target, &(GpuSurfaceSpecification { width, height }))?;
-        let renderer = WgpuRenderer::new(gpu, &texture_system, specs);
+        let renderer = WgpuRenderer::new(gpu, &texture_atlas, specs);
 
         Ok(Self {
             renderer,
             surface,
             scene: Scene::default(),
             renderables: Default::default(),
-            texture_system,
+            texture_atlas,
             text_system,
             screen: Size {
                 width: specs.width,
@@ -87,28 +88,7 @@ impl Painter {
         self.scene.add(prim)
     }
 
-    pub fn draw_text(&mut self, _text: &Text) {
-        // if text.text.is_empty() {
-        //     return;
-        // }
-        //
-        // let mut thing = text.text.chars();
-        // let c = thing.next().unwrap();
-
-        // self.texture_system.get_or_insert(
-        //     &AtlasGlyph {
-        //         font_id: FontId(0),
-        //         glyph_id: GlyphId(0),
-        //         font_size: text.size,
-        //         scale_factor: 1.0,
-        //     }
-        //     .into(),
-        //     || {
-        //         let (rect, data) = self.text_system.rasterize_char(c, &text.font).unwrap();
-        //         (TextureKind::Color, rect.size, &data)
-        //     },
-        // );
-    }
+    pub fn draw_text(&mut self, _text: &Text) {}
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,
@@ -134,8 +114,7 @@ impl Painter {
     }
 
     pub fn paint_scene(&mut self, scene: &Scene) {
-        let renderables =
-            Self::build_renderables(&self.texture_system, scene, self.get_clip_rect());
+        let renderables = Self::build_renderables(&self.texture_atlas, scene, self.get_clip_rect());
 
         self.renderables.extend(renderables);
     }
@@ -143,7 +122,7 @@ impl Painter {
     // commit renderables
     pub fn paint(&mut self) {
         let renderables =
-            Self::build_renderables(&self.texture_system, &self.scene, self.get_clip_rect());
+            Self::build_renderables(&self.texture_atlas, &self.scene, self.get_clip_rect());
 
         self.renderables.extend(renderables);
         self.scene.clear();
