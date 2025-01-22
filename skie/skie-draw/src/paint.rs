@@ -9,7 +9,7 @@ pub mod primitives;
 pub mod text;
 pub mod texture;
 
-use atlas::{AtlasKeyImpl, AtlasManager};
+use atlas::{AtlasKeyImpl, TextureAtlas};
 
 use crate::{math::Vec2, text_system::AtlasGlyph};
 
@@ -24,7 +24,7 @@ pub use texture::*;
 
 pub const DEFAULT_UV_COORD: Vec2<f32> = Vec2 { x: 0.0, y: 0.0 };
 
-pub type SkieAtlas = AtlasManager<AtlasKey>;
+pub type SkieAtlas = TextureAtlas<AtlasKey>;
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum AtlasKey {
     Image(SkieImage),

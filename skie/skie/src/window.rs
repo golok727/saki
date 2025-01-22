@@ -1,26 +1,25 @@
 pub mod error;
-// FIXME: for now make it pub(crate)
 use parking_lot::RwLock;
 
 use core::f32;
-use std::{future::Future, io::Read, sync::Arc};
-
-use error::CreateWindowError;
-use image::ImageBuffer;
-pub(crate) use winit::window::Window as WinitWindow;
+use std::{borrow::Cow, future::Future, io::Read, path::Path, sync::Arc};
 
 use crate::{
     app::{AppContext, AsyncAppContext},
     jobs::Job,
     Pixels,
 };
+use anyhow::{anyhow, Result};
+use error::CreateWindowError;
+use image::{ImageBuffer, RgbaImage};
+pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     circle,
     paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
-    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text, TextureFilterMode,
+    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode,
     TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
 };
 
@@ -56,15 +55,41 @@ impl WindowSpecification {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ImageObject {
+    pub bbox: Rect<Pixels>,
+    natural_width: f32,
+    natural_height: f32,
+    texture: TextureId,
+}
+impl ImageObject {
+    pub fn natural_height(&self) -> f32 {
+        self.natural_height
+    }
+
+    pub fn natural_width(&self) -> f32 {
+        self.natural_width
+    }
+}
+
 // for playing around remove it later
 #[derive(Debug, Clone)]
-enum Object {
-    Image {
-        bbox: Rect<Pixels>,
-        natural_width: f32,
-        natural_height: f32,
-        texture: TextureId,
-    },
+pub enum Object {
+    Image(ImageObject),
+}
+
+impl Object {
+    pub fn as_image(&self) -> Option<&ImageObject> {
+        match self {
+            Object::Image(img) => Some(img),
+        }
+    }
+
+    pub fn as_image_mut(&mut self) -> Option<&mut ImageObject> {
+        match self {
+            Object::Image(ref mut img) => Some(img),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -93,7 +118,7 @@ pub struct Window {
     yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
 
-    pub(crate) texture_system: Arc<SkieAtlas>,
+    pub(crate) texture_atlas: Arc<SkieAtlas>,
     next_texture_id: usize,
 
     scroller: Scroller,
@@ -106,7 +131,7 @@ impl Window {
         app: &AppContext,
         event_loop: &winit::event_loop::ActiveEventLoop,
         specs: &WindowSpecification,
-    ) -> Result<Self, CreateWindowError> {
+    ) -> Result<Self> {
         let width = specs.width;
         let height = specs.height;
 
@@ -117,43 +142,41 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
-        let texture_system = app.texture_system.clone();
+        let texture_atlas = app.texture_atlas.clone();
 
-        // TODO: handle error
         let mut painter = Painter::new(
             app.gpu.clone(),
             Arc::clone(&handle),
-            texture_system.clone(),
+            texture_atlas.clone(),
             app.text_system.clone(),
             &(WgpuRendererSpecs { width, height }),
-        )
-        .unwrap();
+        )?;
 
         let checker_texture_key = AtlasKey::from(SkieImage::new(1));
         let yellow_thing_texture_key = AtlasKey::from(SkieImage::new(2));
 
-        let checker_data = create_checker_texture(250, 250, 25);
+        let checker_data = Cow::Owned(create_checker_texture(250, 250, 25));
 
-        texture_system.get_or_insert(&checker_texture_key, || {
+        texture_atlas.get_or_insert(&checker_texture_key, || {
             (
                 TextureKind::Color,
                 Size {
                     width: 250,
                     height: 250,
                 },
-                &checker_data,
+                checker_data,
             )
         });
 
         let thing_data = load_thing();
-        texture_system.get_or_insert(&yellow_thing_texture_key, || {
+        texture_atlas.get_or_insert(&yellow_thing_texture_key, || {
             (
                 TextureKind::Color,
                 Size {
                     width: thing_data.width() as _,
                     height: thing_data.height() as _,
                 },
-                &thing_data,
+                Cow::Borrowed(&thing_data),
             )
         });
 
@@ -163,11 +186,11 @@ impl Window {
 
         painter
             .renderer
-            .set_texture_from_atlas(&texture_system, &checker_texture_key, &opts);
+            .set_texture_from_atlas(&texture_atlas, &checker_texture_key, &opts);
 
         painter
             .renderer
-            .set_texture_from_atlas(&texture_system, &yellow_thing_texture_key, &opts);
+            .set_texture_from_atlas(&texture_atlas, &yellow_thing_texture_key, &opts);
 
         let scroller = {
             let size = handle.inner_size();
@@ -187,7 +210,7 @@ impl Window {
             handle,
             painter,
             state: RwLock::new(State::default()),
-            texture_system,
+            texture_atlas,
             yellow_thing_texture_id: yellow_thing_texture_key.into(),
             checker_texture_id: checker_texture_key.into(),
             objects: Vec::new(),
@@ -298,12 +321,12 @@ impl Window {
 
         for object in &self.objects {
             match object {
-                Object::Image {
+                Object::Image(ImageObject {
                     bbox,
                     texture,
                     natural_width,
                     natural_height,
-                } => {
+                }) => {
                     let aspect = natural_width / natural_height;
                     let x: f32 = bbox.origin.x.into();
                     let y: f32 = bbox.origin.y.into();
@@ -403,7 +426,8 @@ impl Window {
         id
     }
 
-    pub(crate) fn refresh(&self) {
+    // TODO: pub(crate)
+    pub fn refresh(&self) {
         self.handle.request_redraw();
     }
 }
@@ -425,8 +449,53 @@ impl AsyncWindowContext {
             lock.windows.insert(window.id(), window);
             Some(res)
         } else {
+            log::info!("Window was released");
             None
         }
+    }
+
+    #[inline]
+    pub fn spawn<Fut, R>(&self, f: impl FnOnce(AsyncWindowContext) -> Fut) -> Job<R>
+    where
+        Fut: Future<Output = R> + 'static,
+        R: 'static,
+    {
+        self.app.jobs.spawn(f(Self {
+            app: self.app.clone(),
+            window_id: self.window_id,
+        }))
+    }
+
+    #[inline]
+    pub fn spawn_blocking<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Job<T>
+    where
+        T: Send + 'static,
+    {
+        self.app.jobs.spawn_blocking(future)
+    }
+
+    // TODO: replace with assets
+    pub async fn load_image_from_file(
+        &self,
+        bounds: Rect<Pixels>,
+        file_path: String,
+    ) -> Result<usize> {
+        let img_job: Job<Result<_>> =
+            self.spawn_blocking(load_image_from_file_async(file_path.clone()));
+
+        self.spawn(|cx| async move {
+            let img = img_job.await?;
+            cx.with(|cx| {
+                let idx =
+                    cx.add_image_from_data(&img, Size::new(img.width(), img.height()), bounds);
+
+                // FIXME: mark window as dirty and notify app to redraw instead
+                cx.window.refresh();
+                idx
+            })
+            .ok_or(anyhow!("Window was released"))
+        })
+        .await
     }
 }
 
@@ -454,6 +523,52 @@ impl<'a> WindowContext<'a> {
         }
     }
 
+    pub fn get_object(&self, index: usize) -> Option<&Object> {
+        self.window.objects.get(index)
+    }
+
+    pub fn get_object_mut(&mut self, index: usize) -> Option<&mut Object> {
+        self.window.objects.get_mut(index)
+    }
+
+    fn add_image_from_data(
+        &mut self,
+        image: &[u8],
+        natutal_size: Size<u32>,
+        bounds: Rect<Pixels>,
+    ) -> usize {
+        let width = natutal_size.width;
+        let height = natutal_size.height;
+        let key = AtlasKey::from(SkieImage::new(self.window.get_next_tex_id()));
+        self.window.texture_atlas.get_or_insert(&key, || {
+            (
+                TextureKind::Color,
+                Size {
+                    width: width as _,
+                    height: height as _,
+                },
+                Cow::Borrowed(image),
+            )
+        });
+
+        self.window.painter.renderer.set_texture_from_atlas(
+            &self.window.texture_atlas,
+            &key,
+            &TextureOptions::default()
+                .min_filter(TextureFilterMode::Linear)
+                .mag_filter(TextureFilterMode::Linear),
+        );
+
+        let idx = self.window.objects.len();
+        self.window.objects.push(Object::Image(ImageObject {
+            bbox: bounds,
+            natural_width: width as f32,
+            natural_height: height as f32,
+            texture: key.into(),
+        }));
+        idx
+    }
+
     pub fn spawn<Fut, R>(&self, f: impl FnOnce(AsyncWindowContext) -> Fut) -> Job<R>
     where
         Fut: Future<Output = R> + 'static,
@@ -461,80 +576,6 @@ impl<'a> WindowContext<'a> {
     {
         let cx = self.to_async();
         self.app.jobs.spawn(f(cx))
-    }
-
-    pub fn load_image_from_file(&mut self, rect: Rect<Pixels>, file_path: String) {
-        // TODO: better error
-        let img_job = self.app.jobs.spawn_blocking({
-            let file_path = file_path.clone();
-
-            async move {
-                let file = std::fs::File::open(file_path);
-                if file.is_err() {
-                    log::error!("Error reading image file");
-                    return None;
-                }
-
-                let mut file = file.unwrap();
-                let mut data = Vec::<u8>::new();
-                if file.read_to_end(&mut data).is_err() {
-                    log::error!("Error reading image file");
-                    return None;
-                }
-
-                let loaded_image = image::load_from_memory(&data);
-
-                if loaded_image.is_err() {
-                    log::error!("Error loading image file");
-                    return None;
-                }
-
-                Some(loaded_image.unwrap().to_rgba8())
-            }
-        });
-
-        self.spawn(|cx| async move {
-            let img = img_job.await;
-            if img.is_none() {
-                return;
-            }
-            let img = img.unwrap();
-
-            let width = img.width();
-            let height = img.height();
-
-            cx.with(|cx| {
-                let key = AtlasKey::from(SkieImage::new(cx.window.get_next_tex_id()));
-                cx.window.texture_system.get_or_insert(&key, || {
-                    (
-                        TextureKind::Color,
-                        Size {
-                            width: width as _,
-                            height: height as _,
-                        },
-                        &img,
-                    )
-                });
-
-                cx.window.painter.renderer.set_texture_from_atlas(
-                    &cx.window.texture_system,
-                    &key,
-                    &TextureOptions::default()
-                        .min_filter(TextureFilterMode::Linear)
-                        .mag_filter(TextureFilterMode::Linear),
-                );
-
-                cx.window.objects.push(Object::Image {
-                    bbox: rect,
-                    natural_width: width as f32,
-                    natural_height: height as f32,
-                    texture: key.into(),
-                });
-                // FIXME: maybe mark window as dirty instead and allow the app to handle this ?
-                cx.window.refresh();
-            });
-        })
-        .detach();
     }
 
     pub fn set_timeout(
@@ -623,8 +664,6 @@ impl Scroller {
                 .stroke_width(stroke_width),
         );
 
-        painter.draw_text(&Text::new("Radha"));
-
         painter.paint();
         // paint children clipped to this rect
         let mut clip = container.clone();
@@ -670,4 +709,17 @@ impl Scroller {
             }
         });
     }
+}
+
+async fn load_image_from_file_async<P: AsRef<Path>>(file_path: P) -> Result<RgbaImage> {
+    let mut file = std::fs::File::open(file_path).map_err(|_| anyhow!("Error opening file"))?;
+
+    let mut data = Vec::<u8>::new();
+    file.read_to_end(&mut data)
+        .map_err(|_| anyhow!("Error reading to end of file"))?;
+
+    let loaded_image =
+        image::load_from_memory(&data).map_err(|_| anyhow!("Error parsing image"))?;
+
+    Ok(loaded_image.to_rgba8())
 }

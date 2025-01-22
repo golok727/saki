@@ -3,7 +3,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::gpu::CommandEncoder;
 use crate::math::{Rect, Size};
-use crate::paint::atlas::{AtlasKeyImpl, AtlasManager};
+use crate::paint::atlas::{AtlasKeyImpl, TextureAtlas};
 use crate::paint::{TextureOptions, WgpuTextureView};
 use crate::{
     gpu::GpuContext,
@@ -139,7 +139,7 @@ pub struct WgpuRenderer {
 impl WgpuRenderer {
     pub fn new<Key>(
         gpu: Arc<GpuContext>,
-        atlas: &AtlasManager<Key>,
+        atlas: &TextureAtlas<Key>,
         specs: &WgpuRendererSpecs,
     ) -> Self
     where
@@ -279,7 +279,7 @@ impl WgpuRenderer {
 
     pub fn set_texture_from_atlas<Key>(
         &mut self,
-        atlas: &AtlasManager<Key>,
+        atlas: &TextureAtlas<Key>,
         texture_id: &Key,
         options: &TextureOptions,
     ) where

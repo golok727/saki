@@ -13,7 +13,7 @@ pub use math::{mat3, vec2, Corners, Mat3, Rect, Size, Vec2};
 pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
-    atlas::{AtlasKeyImpl, AtlasManager, AtlasTextureInfo, AtlasTextureInfoMap},
+    atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap, TextureAtlas},
     circle,
     path::Path2D,
     quad, AtlasKey, Circle, FillStyle, LineCap, LineJoin, Primitive, Quad, SkieAtlas, StrokeStyle,

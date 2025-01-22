@@ -5,7 +5,6 @@ use skie_draw::paint::SkieAtlas;
 use skie_draw::{TextSystem, Vec2};
 mod handle;
 
-use crate::window::error::CreateWindowError;
 use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
 use events::AppEvents;
 use handle::AppHandle;
@@ -105,7 +104,7 @@ pub struct AppContext {
 
     pub(crate) text_system: Arc<TextSystem>,
 
-    pub(crate) texture_system: Arc<SkieAtlas>,
+    pub(crate) texture_atlas: Arc<SkieAtlas>,
 
     pub(crate) windows: ahash::AHashMap<WindowId, Window>,
 
@@ -125,7 +124,8 @@ impl AppContext {
     fn new(handle: &mut AppHandle) -> AppContextRef {
         let jobs = Jobs::new(Some(7));
 
-        let gpu = Arc::new(pollster::block_on(GpuContext::new()).unwrap());
+        let gpu =
+            Arc::new(pollster::block_on(GpuContext::new()).expect("Error creating gpu context"));
 
         let texture_system = Arc::new(SkieAtlas::new(gpu.clone()));
 
@@ -146,7 +146,7 @@ impl AppContext {
                 app_events: Default::default(),
                 pending_user_events: Default::default(),
 
-                texture_system,
+                texture_atlas: texture_system,
                 text_system: Arc::new(text_system),
                 windows: ahash::AHashMap::new(),
             })
@@ -248,23 +248,12 @@ impl AppContext {
     where
         F: Fn(&mut WindowContext) + 'static,
     {
-        log::trace!("Queueing window of specs: {:#?}", &specs);
         self.update(|app| {
             app.push_app_event(AppUpdateEvent::CreateWindow {
                 specs,
                 callback: Box::new(f),
             });
         });
-    }
-
-    fn create_window(
-        &mut self,
-        specs: &WindowSpecification,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-    ) -> Result<Window, CreateWindowError> {
-        let window = Window::new(self, event_loop, specs)?;
-
-        Ok(window)
     }
 
     fn handle_window_create_event(
@@ -274,15 +263,14 @@ impl AppContext {
         callback: OpenWindowCallback,
     ) {
         log::trace!("Creating window. \n Spec: {:#?}", &specs);
-        if let Ok(mut window) = self.create_window(&specs, event_loop) {
-            let mut context = WindowContext::new(self, &mut window);
-
-            callback(&mut context);
-
-            let _ = self.windows.insert(window.id(), window);
-        } else {
-            log::error!("Error creating window")
-        }
+        match Window::new(self, event_loop, &specs) {
+            Ok(mut window) => {
+                let mut context = WindowContext::new(self, &mut window);
+                callback(&mut context);
+                self.windows.insert(window.id(), window);
+            }
+            Err(err) => log::error!("Error creating window\n{:#?}", err),
+        };
     }
 
     pub fn quit(&mut self) {
@@ -318,15 +306,7 @@ impl AppContext {
             match event {
                 AppUpdateEvent::CreateWindow { specs, callback } => {
                     self.handle_window_create_event(event_loop, specs, callback);
-                } // AppUpdateEvent::AppContextCallback { callback } => callback(self),
-                  // AppUpdateEvent::WindowContextCallback { .. } => {
-                  //     let window = self.windows.remove(&window_id);
-                  //     if let Some(mut window) = window {
-                  //         let mut cx = WindowContext::new(self, &mut window);
-                  //         callback(&mut cx);
-                  //         self.windows.insert(window.id(), window);
-                  //     }
-                  // }
+                }
             }
         }
     }

@@ -3,13 +3,12 @@ use crate::math::{Rect, Size, Vec2};
 
 use super::{TextureFormat, TextureKind, WgpuTexture, WgpuTextureView};
 use parking_lot::Mutex;
+use std::borrow::Cow;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct AtlasManager<Key: AtlasKeyImpl>(Mutex<AtlasStorage<Key>>);
+pub struct TextureAtlas<Key: AtlasKeyImpl>(Mutex<AtlasStorage<Key>>);
 
-// FIXME TextureFormat issues;
-// FIXME Add padding the atlas texture
 /*
 
 v____   AtlasTextureId
@@ -43,7 +42,7 @@ struct AtlasStorage<Key: AtlasKeyImpl> {
     key_to_tile: ahash::AHashMap<Key, AtlasTile>,
 }
 
-impl<Key: AtlasKeyImpl> AtlasManager<Key> {
+impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
     pub fn new(gpu: Arc<GpuContext>) -> Self {
         // TODO should we initialize the white_texture in here ?
         let sys = Self(Mutex::new(AtlasStorage::<Key> {
@@ -61,7 +60,7 @@ impl<Key: AtlasKeyImpl> AtlasManager<Key> {
                     width: 1,
                     height: 1,
                 },
-                &[255, 255, 255, 255],
+                Cow::Borrowed(&[255, 255, 255, 255]),
             )
         });
 
@@ -102,8 +101,8 @@ impl<Key: AtlasKeyImpl> AtlasManager<Key> {
 
     pub fn get_or_insert<'a>(
         &'a self,
-        key: &Key,
-        insert: impl FnOnce() -> (TextureKind, Size<i32>, &'a [u8]),
+        key: &'a Key,
+        insert: impl FnOnce() -> (TextureKind, Size<i32>, Cow<'a, [u8]>),
     ) -> AtlasTile {
         let mut lock = self.0.lock();
         let tile = lock.key_to_tile.get(key);
@@ -114,7 +113,7 @@ impl<Key: AtlasKeyImpl> AtlasManager<Key> {
         let (kind, size, data) = insert();
 
         let tile = lock.create_texture(size, kind, key.clone());
-        lock.upload_texture(&tile, data);
+        lock.upload_texture(&tile, &data);
         tile
     }
 
