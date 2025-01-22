@@ -1,19 +1,21 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use crate::{
+    arc_string::ArcString,
     gpu::{
         error::GpuSurfaceCreateError,
         surface::{GpuSurface, GpuSurfaceSpecification},
     },
-    paint::{AtlasKey, SkieAtlas},
+    paint::{AsPrimitive, AtlasKey, SkieAtlas, TextureKind},
+    quad,
     renderer::Renderable,
-    GpuContext, Primitive, Rect, Rgba, Scene, Size, Text, TextSystem, TextureId, Vec2,
-    WgpuRenderer, WgpuRendererSpecs, Zero,
+    Color, Font, GlyphRenderSpecs, GpuContext, Primitive, Rect, Rgba, Scene, Size, Text,
+    TextSystem, TextureFilterMode, TextureId, TextureOptions, Vec2, WgpuRenderer,
+    WgpuRendererSpecs, Zero,
 };
 use anyhow::Result;
 
 //  Winit window painter
-#[derive(Debug)]
 pub struct Painter {
     pub renderer: WgpuRenderer,
     pub(crate) scene: Scene,
@@ -88,7 +90,67 @@ impl Painter {
         self.scene.add(prim)
     }
 
-    pub fn draw_text(&mut self, _text: &Text) {}
+    pub fn draw_text(&mut self, text: &Text, fill_color: Color) {
+        let font = Font::new(ArcString::new_static("Segoe UI")).bold();
+        let font_id = self.text_system.font_id(&font).unwrap();
+
+        let mut cursor_x = 0.0;
+
+        for c in text.text.chars() {
+            let glyph_id = self.text_system.glyph_for_char(font_id, c).unwrap();
+
+            let glyph_specs = GlyphRenderSpecs {
+                font_id,
+                glyph_id,
+                font_size: text.size,
+                scale_factor: 1.0,
+            };
+
+            let key = AtlasKey::Glyf(glyph_specs);
+            let (raster_bounds, data) = self.text_system.rasterize(&glyph_specs).unwrap();
+            let tile = self.texture_atlas.get_or_insert(&key, || {
+                dbg!(c, &raster_bounds);
+                (TextureKind::Mask, raster_bounds.size, Cow::Owned(data))
+            });
+
+            self.renderer.set_texture_from_atlas(
+                &self.texture_atlas,
+                &key,
+                &TextureOptions::default()
+                    .min_filter(TextureFilterMode::Nearest)
+                    .mag_filter(TextureFilterMode::Nearest),
+            );
+
+            let size = tile.bounds.size.map(|c| *c as f32);
+
+            let pos = Vec2 {
+                x: text.pos.x.floor() + cursor_x,
+                y: text.pos.y.floor(),
+            } + raster_bounds.origin.map(|v| *v as f32);
+
+            self.scene.add(
+                quad()
+                    .rect(Rect::new_from_origin_size(pos, size))
+                    .primitive()
+                    .textured(&key.into())
+                    .fill_color(fill_color)
+                    .stroke_width(2)
+                    .stroke_color(Color::RED),
+            );
+
+            // debug
+            self.scene.add(
+                quad()
+                    .rect(Rect::new_from_origin_size(pos, size))
+                    .primitive()
+                    .stroke_width(2)
+                    .stroke_color(Color::RED),
+            );
+            cursor_x += size.width;
+        }
+
+        self.paint();
+    }
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,

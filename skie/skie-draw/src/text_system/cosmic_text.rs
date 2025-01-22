@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use ahash::HashMap;
-use anyhow::Context;
 use anyhow::{anyhow, Result};
+use anyhow::{bail, Context};
 use cosmic_text::CacheKey;
 use cosmic_text::CacheKeyFlags;
 use cosmic_text::Font as CosmicTextFont;
@@ -73,14 +73,15 @@ impl FontProvider for CosmicTextProvider {
             .collect::<SmallVec<[_; 4]>>();
 
         let best_match_idx = best_match::find_best_match(&props, font);
+        // FIXME: INDEX OUT OF BOUNDS
         Ok(variants[best_match_idx])
     }
 
-    fn glyph_id_for_char(&self, font_id: FontId, character: char) -> Option<GlyphId> {
+    fn glyph_for_char(&self, font_id: FontId, character: char) -> Option<GlyphId> {
         self.0.write().glyph_id_for_char(font_id, character)
     }
 
-    fn rasterize(&self, specs: &super::GlyphRenderSpecs) -> Result<(crate::Rect<i32>, Vec<u8>)> {
+    fn rasterize(&self, specs: &super::GlyphRenderSpecs) -> Result<(Rect<i32>, Vec<u8>)> {
         self.0.write().rasterize_glyph(specs)
     }
 }
@@ -95,6 +96,10 @@ impl CosmicTextProviderState {
             .filter(|f| f.families.iter().any(|f| f.0 == familiy))
             .map(|f| f.id)
             .collect::<SmallVec<[_; 4]>>();
+
+        if families.is_empty() {
+            bail!("No faces found for family: {familiy}")
+        }
 
         for font_id in families {
             let font = self
@@ -130,7 +135,7 @@ impl CosmicTextProviderState {
 
         let bounds = Rect::new(
             image.placement.left,
-            -image.placement.top,
+            image.placement.top,
             image.placement.width as i32,
             image.placement.height as i32,
         );

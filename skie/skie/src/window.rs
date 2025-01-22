@@ -19,7 +19,7 @@ use skie_draw::{
     paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
-    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode,
+    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text, TextureFilterMode,
     TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
 };
 
@@ -397,6 +397,9 @@ impl Window {
             let state = self.state.read();
             self.scroller.render(&mut self.painter, state.mouse_pos());
         }
+
+        self.painter
+            .draw_text(&Text::new("Radha").size_px(64.0), Color::ORANGE);
     }
 
     pub(crate) fn handle_scroll_wheel(&mut self, _dx: f32, dy: f32) {
@@ -614,7 +617,6 @@ fn create_checker_texture(width: usize, height: usize, tile_size: usize) -> Vec<
             }
         }
     }
-
     texture_data
 }
 

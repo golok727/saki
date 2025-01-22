@@ -144,14 +144,14 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
         kind: &TextureKind,
     ) -> &mut AtlasTextureList<Option<AtlasTexture>> {
         match kind {
-            TextureKind::Grayscale => &mut self.gray_textures,
+            TextureKind::Mask => &mut self.gray_textures,
             TextureKind::Color => &mut self.color_textures,
         }
     }
 
     fn get_storage_read(&self, kind: &TextureKind) -> &AtlasTextureList<Option<AtlasTexture>> {
         match kind {
-            TextureKind::Grayscale => &self.gray_textures,
+            TextureKind::Mask => &self.gray_textures,
             TextureKind::Color => &self.color_textures,
         }
     }

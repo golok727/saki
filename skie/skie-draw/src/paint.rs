@@ -48,7 +48,7 @@ impl AtlasKeyImpl for AtlasKey {
 
     fn kind(&self) -> TextureKind {
         match self {
-            AtlasKey::Glyf(_) => TextureKind::Grayscale,
+            AtlasKey::Glyf(_) => TextureKind::Mask,
             AtlasKey::Image(image) => image.texture_kind,
         }
     }

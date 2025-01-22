@@ -37,17 +37,16 @@ pub struct GlyphId(pub(crate) usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FontId(pub(crate) usize);
 
-pub trait FontProvider: Send + Sync + Debug {
+pub trait FontProvider: Send + Sync {
     fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()>;
 
     fn font_id(&self, font: &Font) -> Result<FontId>;
 
-    fn glyph_id_for_char(&self, font_id: FontId, character: char) -> Option<GlyphId>;
+    fn glyph_for_char(&self, font_id: FontId, character: char) -> Option<GlyphId>;
 
     fn rasterize(&self, specs: &GlyphRenderSpecs) -> Result<(Rect<i32>, Vec<u8>)>;
 }
 
-#[derive(Debug)]
 pub struct TextSystem {
     pub(crate) provider: Arc<dyn FontProvider>,
 }
@@ -63,6 +62,10 @@ impl TextSystem {
 
     pub fn font_id(&self, font: &Font) -> Result<FontId> {
         self.provider.font_id(font)
+    }
+
+    pub fn glyph_for_char(&self, font_id: FontId, character: char) -> Option<GlyphId> {
+        self.provider.glyph_for_char(font_id, character)
     }
 
     pub fn rasterize(&self, specs: &GlyphRenderSpecs) -> Result<(Rect<i32>, Vec<u8>)> {
