@@ -1,4 +1,4 @@
-use cosmic_text::{Family, FontSystem as CosmisTextFontSystem, SwashCache};
+use cosmic_text::{FontSystem as CosmisTextFontSystem, SwashCache};
 use parking_lot::RwLock;
 
 #[derive(Default)]

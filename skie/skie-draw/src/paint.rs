@@ -48,7 +48,13 @@ impl AtlasKeyImpl for AtlasKey {
 
     fn kind(&self) -> TextureKind {
         match self {
-            AtlasKey::Glyf(_) => TextureKind::Mask,
+            AtlasKey::Glyf(glyph) => {
+                if glyph.is_emoji {
+                    TextureKind::Color
+                } else {
+                    TextureKind::Mask
+                }
+            }
             AtlasKey::Image(image) => image.texture_kind,
         }
     }

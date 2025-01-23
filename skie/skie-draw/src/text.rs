@@ -12,7 +12,10 @@ pub use textarea::*;
 use crate::arc_string::ArcString;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct GlyphImage(pub(crate) cosmic_text::CacheKey);
+pub struct GlyphImage {
+    pub(crate) key: cosmic_text::CacheKey,
+    pub(crate) is_emoji: bool,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GlyphId(pub(crate) usize);

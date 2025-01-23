@@ -117,14 +117,16 @@ impl Painter {
                         .get_image(&mut state.font_system, physical_glyph.cache_key);
 
                     if let Some(image) = image {
-                        let glyph_key = AtlasKey::from(GlyphImage(physical_glyph.cache_key));
-
                         let kind = match image.content {
                             cosmic_text::SwashContent::Color => TextureKind::Color,
                             cosmic_text::SwashContent::Mask => TextureKind::Mask,
                             // FIXME
                             cosmic_text::SwashContent::SubpixelMask => TextureKind::Mask,
                         };
+                        let glyph_key = AtlasKey::from(GlyphImage {
+                            key: physical_glyph.cache_key,
+                            is_emoji: kind.is_color(),
+                        });
 
                         let size =
                             Size::new(image.placement.width as i32, image.placement.height as i32);
