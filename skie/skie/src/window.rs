@@ -408,7 +408,7 @@ impl Window {
         );
 
         self.painter.draw_text(
-            &Text::new("💓  Radha Krsna 💓")
+            &Text::new("💓  Radhey Shyam 💓")
                 .pos((500.0, 30.0).into())
                 .size_px(64.0)
                 .font_family("Segoe UI Emoji"),
