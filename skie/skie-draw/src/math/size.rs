@@ -77,7 +77,7 @@ where
     T: IsZero,
 {
     fn is_zero(&self) -> bool {
-        self.width.is_zero() && self.height.is_zero()
+        self.width.is_zero() || self.height.is_zero()
     }
 }
 

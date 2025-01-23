@@ -1,7 +1,6 @@
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{
-    arc_string::ArcString,
     gpu::{
         error::GpuSurfaceCreateError,
         surface::{GpuSurface, GpuSurfaceSpecification},
@@ -9,11 +8,12 @@ use crate::{
     paint::{AsPrimitive, AtlasKey, SkieAtlas, TextureKind},
     quad,
     renderer::Renderable,
-    Color, Font, GlyphRenderSpecs, GpuContext, Primitive, Rect, Rgba, Scene, Size, Text,
-    TextSystem, TextureFilterMode, TextureId, TextureOptions, Vec2, WgpuRenderer,
-    WgpuRendererSpecs, Zero,
+    Color, GlyphImage, GpuContext, IsZero, Primitive, Rect, Rgba, Scene, Size, Text, TextSystem,
+    TextureId, TextureOptions, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
 };
 use anyhow::Result;
+use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
+use wgpu::FilterMode;
 
 //  Winit window painter
 pub struct Painter {
@@ -68,10 +68,6 @@ impl Painter {
             ))
     }
 
-    pub fn begin_frame(&mut self) {
-        self.clear_all();
-    }
-
     pub fn clear_all(&mut self) {
         self.renderables.clear();
         self.scene.clear();
@@ -91,66 +87,86 @@ impl Painter {
     }
 
     pub fn draw_text(&mut self, text: &Text, fill_color: Color) {
-        let font = Font::new(ArcString::new_static("Segoe UI")).bold();
-        let font_id = self.text_system.font_id(&font).unwrap();
-
-        let mut cursor_x = 0.0;
-
-        for c in text.text.chars() {
-            let glyph_id = self.text_system.glyph_for_char(font_id, c).unwrap();
-
-            let glyph_specs = GlyphRenderSpecs {
-                font_id,
-                glyph_id,
-                font_size: text.size,
-                scale_factor: 1.0,
-            };
-
-            let key = AtlasKey::Glyf(glyph_specs);
-            let (raster_bounds, data) = self.text_system.rasterize(&glyph_specs).unwrap();
-            let tile = self.texture_atlas.get_or_insert(&key, || {
-                dbg!(c, &raster_bounds);
-                (TextureKind::Mask, raster_bounds.size, Cow::Owned(data))
-            });
-
-            self.renderer.set_texture_from_atlas(
-                &self.texture_atlas,
-                &key,
-                &TextureOptions::default()
-                    .min_filter(TextureFilterMode::Nearest)
-                    .mag_filter(TextureFilterMode::Nearest),
+        self.text_system.write(|state| {
+            let metrics = Metrics::new(text.size, 1.4);
+            let mut buffer = Buffer::new(&mut state.font_system, metrics);
+            buffer.set_size(
+                &mut state.font_system,
+                Some(self.screen.width as f32),
+                Some(self.screen.height as f32),
             );
 
-            let size = tile.bounds.size.map(|c| *c as f32);
+            let attrs = Attrs::new();
+            attrs.style(text.font.style.into());
+            attrs.weight(text.font.weight.into());
+            attrs.family(cosmic_text::Family::Name(&text.font.family));
 
-            let pos = Vec2 {
-                x: text.pos.x.floor() + cursor_x,
-                y: text.pos.y.floor(),
-            } + raster_bounds.origin.map(|v| *v as f32);
+            buffer.set_text(&mut state.font_system, &text.text, attrs, Shaping::Advanced);
 
-            self.scene.add(
-                quad()
-                    .rect(Rect::new_from_origin_size(pos, size))
-                    .primitive()
-                    .textured(&key.into())
-                    .fill_color(fill_color)
-                    .stroke_width(2)
-                    .stroke_color(Color::RED),
-            );
+            buffer.shape_until_scroll(&mut state.font_system, false);
+            // begin run
+            for run in buffer.layout_runs() {
+                let line_y = run.line_y;
 
-            // debug
-            self.scene.add(
-                quad()
-                    .rect(Rect::new_from_origin_size(pos, size))
-                    .primitive()
-                    .stroke_width(2)
-                    .stroke_color(Color::RED),
-            );
-            cursor_x += size.width;
-        }
+                // begin glyps
+                for glyph in run.glyphs.iter() {
+                    let scale = 1.0;
+                    let physical_glyph = glyph.physical((text.pos.x, text.pos.y), scale);
+                    let image = state
+                        .swash_cache
+                        .get_image(&mut state.font_system, physical_glyph.cache_key);
+
+                    if let Some(image) = image {
+                        let glyph_key = AtlasKey::from(GlyphImage(physical_glyph.cache_key));
+
+                        let kind = match image.content {
+                            cosmic_text::SwashContent::Color => TextureKind::Color,
+                            cosmic_text::SwashContent::Mask => TextureKind::Mask,
+                            // FIXME
+                            cosmic_text::SwashContent::SubpixelMask => TextureKind::Mask,
+                        };
+
+                        let size =
+                            Size::new(image.placement.width as i32, image.placement.height as i32);
+
+                        if size.is_zero() {
+                            continue;
+                        };
+
+                        self.texture_atlas
+                            .get_or_insert(&glyph_key, || (kind, size, Cow::Borrowed(&image.data)));
+
+                        self.renderer.set_texture_from_atlas(
+                            &self.texture_atlas,
+                            &glyph_key,
+                            &TextureOptions::default()
+                                .min_filter(FilterMode::Nearest)
+                                .mag_filter(FilterMode::Nearest),
+                        );
+
+                        let x = physical_glyph.x + image.placement.left;
+                        let y = line_y as i32 + physical_glyph.y - image.placement.top;
+                        self.scene.add(
+                            quad()
+                                .rect(Rect::new_from_origin_size(
+                                    (x as f32, y as f32).into(),
+                                    size.map(|v| *v as f32),
+                                ))
+                                .primitive()
+                                .textured(&TextureId::AtlasKey(glyph_key))
+                                .fill_color(fill_color),
+                        );
+                    }
+                }
+                // end glyphs
+            }
+            // end run
+        });
 
         self.paint();
     }
+
+    pub fn paint_glyph() {}
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,
@@ -212,10 +228,18 @@ impl Painter {
         self.screen = *self.renderer.size();
     }
 
+    pub fn begin_frame(&mut self) {
+        self.clear_all();
+    }
+
+    pub fn begin(&mut self) {
+        unimplemented!()
+    }
+
     /// Renders and presets to the screen
     pub fn finish(&mut self, clear_color: Rgba) {
         let Ok(cur_texture) = self.surface.surface.get_current_texture() else {
-            // TODO: return error ?
+            // TODO: return error
             log::error!("Error getting texture");
             return;
         };
@@ -244,7 +268,7 @@ impl Painter {
                 }),
             );
 
-            self.renderer.set_renderables(&self.renderables);
+            self.renderer.prepare(&self.renderables);
             self.renderer.render(&mut pass, &self.renderables);
         }
 

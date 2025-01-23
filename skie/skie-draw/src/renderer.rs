@@ -353,7 +353,7 @@ impl WgpuRenderer {
         }
     }
 
-    pub fn set_renderables(&mut self, renderables: &[Renderable]) {
+    pub fn prepare(&mut self, renderables: &[Renderable]) {
         let (vertex_count, index_count): (usize, usize) =
             renderables.iter().fold((0, 0), |res, renderable| {
                 (

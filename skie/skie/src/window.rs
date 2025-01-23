@@ -19,8 +19,8 @@ use skie_draw::{
     paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
-    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text, TextureFilterMode,
-    TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
+    vec2, Color, Corners, FontWeight, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text,
+    TextureFilterMode, TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
 };
 
 #[derive(Debug, Clone)]
@@ -398,8 +398,22 @@ impl Window {
             self.scroller.render(&mut self.painter, state.mouse_pos());
         }
 
-        self.painter
-            .draw_text(&Text::new("Radha").size_px(64.0), Color::ORANGE);
+        self.painter.draw_text(
+            &Text::new("NORMAL ✨ feat/font-system")
+                .pos((50.0, height - bar_height - margin_bottom + 20.0).into())
+                .size_px(32.0)
+                .font_weight(FontWeight::BOLD)
+                .font_family("Agave Nerd Font"),
+            Color::GRAY,
+        );
+
+        self.painter.draw_text(
+            &Text::new("💓  Radha Krsna 💓")
+                .pos((500.0, 30.0).into())
+                .size_px(64.0)
+                .font_family("Segoe UI Emoji"),
+            Color::ORANGE,
+        );
     }
 
     pub(crate) fn handle_scroll_wheel(&mut self, _dx: f32, dy: f32) {
