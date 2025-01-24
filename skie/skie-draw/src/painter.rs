@@ -132,7 +132,7 @@ impl Painter {
         self.scene.add(style(circle.primitive()));
     }
 
-    pub fn path_path(&mut self, path: Path2D, style: impl FnOnce(Primitive) -> Primitive) {
+    pub fn paint_path(&mut self, path: Path2D, style: impl FnOnce(Primitive) -> Primitive) {
         self.scene.add(style(path.primitive()));
     }
 
