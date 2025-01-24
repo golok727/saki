@@ -249,6 +249,7 @@ impl Painter {
 
         scene
             .batches(info_map.clone(), antialias)
+            .filter(|mesh| !mesh.is_empty())
             .map(move |mesh| Renderable {
                 clip_rect: clip_rect.clone(),
                 mesh,

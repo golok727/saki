@@ -354,6 +354,10 @@ impl WgpuRenderer {
     }
 
     pub fn prepare(&mut self, renderables: &[Renderable]) {
+        if renderables.is_empty() {
+            return;
+        }
+
         let (vertex_count, index_count): (usize, usize) =
             renderables.iter().fold((0, 0), |res, renderable| {
                 (
@@ -435,7 +439,12 @@ impl WgpuRenderer {
     }
 
     pub fn render(&mut self, render_pass: &mut wgpu::RenderPass<'_>, renderables: &[Renderable]) {
+        if renderables.is_empty() {
+            return;
+        }
+
         self.global_uniforms.sync(&self.gpu);
+
         let mut vb_slices = self.vertex_buffer.slices.iter();
         let mut ib_slices = self.index_buffer.slices.iter();
 
