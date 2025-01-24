@@ -16,6 +16,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     circle,
+    gpu::surface::{GpuSurface, GpuSurfaceSpecification},
     paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
@@ -109,19 +110,21 @@ impl State {
 }
 
 pub struct Window {
-    pub(crate) painter: Painter,
-    pub(crate) state: RwLock<State>,
-
     objects: Vec<Object>,
     clear_color: Color,
 
     yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
 
+    scroller: Scroller,
+
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     next_texture_id: usize,
 
-    scroller: Scroller,
+    pub(crate) painter: Painter,
+    pub(crate) state: RwLock<State>,
+
+    surface: GpuSurface,
 
     pub(crate) handle: Arc<WinitWindow>,
 }
@@ -146,10 +149,17 @@ impl Window {
 
         let mut painter = Painter::new(
             app.gpu.clone(),
-            Arc::clone(&handle),
             texture_atlas.clone(),
             app.text_system.clone(),
             &(WgpuRendererSpecs { width, height }),
+        )?;
+
+        let width = specs.width;
+        let height = specs.height;
+
+        let surface = app.gpu.create_surface(
+            Arc::clone(&handle),
+            &(GpuSurfaceSpecification { width, height }),
         )?;
 
         let checker_texture_key = AtlasKey::from(SkieImage::new(1));
@@ -209,6 +219,7 @@ impl Window {
         Ok(Self {
             handle,
             painter,
+            surface,
             state: RwLock::new(State::default()),
             texture_atlas,
             yellow_thing_texture_id: yellow_thing_texture_key.into(),
@@ -233,6 +244,8 @@ impl Window {
     }
 
     pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
+        self.surface
+            .resize(self.painter.renderer.gpu(), width, height);
         self.painter.resize(width, height);
     }
 
@@ -397,7 +410,7 @@ impl Window {
         //     self.scroller.render(&mut self.painter, state.mouse_pos());
         // }
 
-        self.painter.draw_text(
+        self.painter.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
                 .pos((50.0, height - bar_height - margin_bottom).into())
                 .size_px(32.0)
@@ -406,7 +419,7 @@ impl Window {
             Color::GRAY,
         );
 
-        self.painter.draw_text(
+        self.painter.fill_text(
             &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh")
                 .pos((width.half(), 100.0).into())
                 .font_family("Segoe UI Emoji"),
@@ -429,10 +442,21 @@ impl Window {
         }
     }
 
-    pub(crate) fn paint(&mut self) {
+    pub(crate) fn paint(&mut self) -> Result<()> {
         self.painter.clear();
+
+        // remove
         self._add_basic_scene();
-        self.painter.finish(self.clear_color.into());
+
+        let cur_texture = self.surface.surface.get_current_texture()?;
+        let view = cur_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        self.painter.finish(&view, self.clear_color.into());
+
+        cur_texture.present();
+        Ok(())
     }
 
     fn get_next_tex_id(&mut self) -> usize {

@@ -163,7 +163,7 @@ impl<'a> SceneBatchIterator<'a> {
                 }
 
                 PrimitiveKind::Path(path) => {
-                    drawlist.fill_with_path(path, prim.fill.color);
+                    // drawlist.fill_with_path(path, prim.fill.color);
 
                     if let Some(stroke_style) = &prim.stroke {
                         let stroke_style = if path.closed {

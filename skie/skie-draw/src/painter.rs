@@ -1,11 +1,8 @@
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{
-    gpu::{
-        error::GpuSurfaceCreateError,
-        surface::{GpuSurface, GpuSurfaceSpecification},
-    },
-    paint::{AsPrimitive, AtlasKey, SkieAtlas, TextureKind},
+    gpu::error::GpuSurfaceCreateError,
+    paint::{AsPrimitive, AtlasKey, GpuTextureView, SkieAtlas, TextureKind},
     quad,
     renderer::Renderable,
     Color, GlyphImage, GpuContext, IsZero, Primitive, Rect, Rgba, Scene, Size, Text, TextSystem,
@@ -21,7 +18,6 @@ pub struct Painter {
     pub(crate) scene: Scene,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
-    pub(crate) surface: GpuSurface,
     renderables: Vec<Renderable>,
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
@@ -31,21 +27,14 @@ pub struct Painter {
 impl Painter {
     pub fn new(
         gpu: Arc<GpuContext>,
-        surface_target: impl Into<wgpu::SurfaceTarget<'static>>,
         texture_atlas: Arc<SkieAtlas>,
         text_system: Arc<TextSystem>,
         specs: &WgpuRendererSpecs,
     ) -> Result<Self, GpuSurfaceCreateError> {
-        let width = specs.width;
-        let height = specs.height;
-
-        let surface =
-            gpu.create_surface(surface_target, &(GpuSurfaceSpecification { width, height }))?;
         let renderer = WgpuRenderer::new(gpu, &texture_atlas, specs);
 
         Ok(Self {
             renderer,
-            surface,
             scene: Scene::default(),
             renderables: Default::default(),
             texture_atlas,
@@ -86,7 +75,7 @@ impl Painter {
         self.scene.add(prim)
     }
 
-    pub fn draw_text(&mut self, text: &Text, fill_color: Color) {
+    pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
         self.text_system.write(|state| {
             let line_height_em = 1.4;
             let metrics = Metrics::new(text.size, text.size * line_height_em);
@@ -121,7 +110,7 @@ impl Painter {
                         let kind = match image.content {
                             cosmic_text::SwashContent::Color => TextureKind::Color,
                             cosmic_text::SwashContent::Mask => TextureKind::Mask,
-                            // FIXME
+                            // we dont support it
                             cosmic_text::SwashContent::SubpixelMask => TextureKind::Mask,
                         };
                         let glyph_key = AtlasKey::from(GlyphImage {
@@ -196,7 +185,6 @@ impl Painter {
 
     pub fn paint_scene(&mut self, scene: &Scene) {
         let renderables = Self::build_renderables(&self.texture_atlas, scene, self.get_clip_rect());
-
         self.renderables.extend(renderables);
     }
 
@@ -209,12 +197,11 @@ impl Painter {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
-        self.surface.resize(self.renderer.gpu(), width, height);
-        self.screen = *self.renderer.size();
+        self.screen = self.renderer.size();
     }
 
     // commit renderables
-    /// This does not present to the texture use finish to submit to the gpu
+    // builds batched geometry for the current scene and clears the items
     pub fn paint(&mut self) {
         let renderables =
             Self::build_renderables(&self.texture_atlas, &self.scene, self.get_clip_rect());
@@ -233,17 +220,7 @@ impl Painter {
     }
 
     /// Renders and presets to the screen
-    pub fn finish(&mut self, clear_color: Rgba) {
-        let Ok(cur_texture) = self.surface.surface.get_current_texture() else {
-            // TODO: return error
-            log::error!("Error getting texture");
-            return;
-        };
-
-        let view = cur_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
+    pub fn finish(&mut self, output_texture: &GpuTextureView, clear_color: Rgba) {
         let mut encoder = self.renderer.create_command_encoder();
 
         {
@@ -251,7 +228,7 @@ impl Painter {
                 &(wgpu::RenderPassDescriptor {
                     label: Some("RenderTarget Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
+                        view: output_texture,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(clear_color.into()),
@@ -272,7 +249,5 @@ impl Painter {
             .gpu()
             .queue
             .submit(std::iter::once(encoder.finish()));
-
-        cur_texture.present()
     }
 }

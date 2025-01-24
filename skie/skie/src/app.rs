@@ -338,7 +338,9 @@ impl AppContext {
             }
             WindowEvent::RedrawRequested => {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.paint();
+                if let Err(error) = window.paint() {
+                    log::error!("Error rendering {:#?}", error);
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let window = self.windows.get(&window_id).expect("expected a window");

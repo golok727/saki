@@ -1,7 +1,7 @@
 use crate::gpu::GpuContext;
 use crate::math::{Rect, Size, Vec2};
 
-use super::{TextureFormat, TextureKind, WgpuTexture, WgpuTextureView};
+use super::{GpuTexture, GpuTextureView, TextureFormat, TextureKind};
 use parking_lot::Mutex;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -380,11 +380,11 @@ impl AtlasTexture {
         self.size.height
     }
 
-    pub fn raw(&self) -> &WgpuTexture {
+    pub fn raw(&self) -> &GpuTexture {
         &self.raw
     }
 
-    pub fn view(&self) -> &WgpuTextureView {
+    pub fn view(&self) -> &GpuTextureView {
         &self.view
     }
 }

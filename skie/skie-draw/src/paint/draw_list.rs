@@ -84,12 +84,6 @@ impl DrawList {
             .arc(center, radius, start_angle, end_angle, clockwise);
     }
 
-    /// Fills the current path
-    pub fn fill_path(&mut self, color: Color) {
-        // FIXME:  add earcut("Fill Path")
-        self.fill_path_convex(color, false);
-    }
-
     pub(crate) fn fill_path_convex(&mut self, color: Color, calc_uv: bool) {
         // FIXME: move to drawlist;
         const FEATHERING: f32 = 1.0;
@@ -198,9 +192,13 @@ impl DrawList {
         Polyline::add_to_mesh(&mut self.mesh, &path.points, stroke_style);
     }
 
-    pub fn fill_with_path(&mut self, _path: &Path2D, _color: Color) {
-        // TODO: earcut for user facing api
-    }
+    // TODO: earcut
+    //
+    /// pub fn fill_path(&mut self, color: Color) {
+    // }
+
+    // pub fn fill_with_path(&mut self, _path: &Path2D, _color: Color) {
+    // }
 
     pub fn add_prim_quad(&mut self, rect: &Rect<f32>, color: Color) {
         if color.is_transparent() {

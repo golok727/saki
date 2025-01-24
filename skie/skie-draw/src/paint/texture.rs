@@ -163,6 +163,6 @@ impl std::fmt::Display for TextureKind {
     }
 }
 
+// re-export
+pub use wgpu::{Texture as GpuTexture, TextureView as GpuTextureView};
 pub type TextureFormat = wgpu::TextureFormat;
-pub type WgpuTexture = wgpu::Texture;
-pub type WgpuTextureView = wgpu::TextureView;

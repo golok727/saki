@@ -4,7 +4,7 @@ use std::{cell::Cell, num::NonZeroU64, ops::Range};
 use crate::gpu::CommandEncoder;
 use crate::math::{Rect, Size};
 use crate::paint::atlas::{AtlasKeyImpl, TextureAtlas};
-use crate::paint::{TextureKind, TextureOptions, WgpuTextureView};
+use crate::paint::{GpuTextureView, TextureKind, TextureOptions};
 use crate::{
     gpu::GpuContext,
     math::Mat3,
@@ -217,8 +217,8 @@ impl WgpuRenderer {
         renderer
     }
 
-    pub fn size(&self) -> &Size<u32> {
-        &self.size
+    pub fn size(&self) -> Size<u32> {
+        self.size
     }
 
     pub fn gpu(&self) -> &GpuContext {
@@ -239,7 +239,7 @@ impl WgpuRenderer {
     fn create_texture_bind_group(
         gpu: &GpuContext,
         layout: &wgpu::BindGroupLayout,
-        view: &WgpuTextureView,
+        view: &GpuTextureView,
         options: &TextureOptions,
     ) -> wgpu::BindGroup {
         // TODO allow configuration
@@ -283,7 +283,7 @@ impl WgpuRenderer {
     pub fn set_texture<Key>(
         &mut self,
         texture_id: &TextureId,
-        view: &WgpuTextureView,
+        view: &GpuTextureView,
         options: &TextureOptions,
     ) {
         let bindgroup = Self::create_texture_bind_group(
