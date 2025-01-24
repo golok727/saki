@@ -4,8 +4,8 @@ use crate::{
     paint::{AsPrimitive, AtlasKey, GpuTextureView, SkieAtlas, TextureKind},
     quad,
     renderer::Renderable,
-    Color, GlyphImage, GpuContext, IsZero, Primitive, Rect, Rgba, Scene, Size, Text, TextSystem,
-    TextureId, TextureOptions, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
+    Circle, Color, GlyphImage, GpuContext, IsZero, Path2D, Primitive, Quad, Rect, Rgba, Scene,
+    Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
 };
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
 use wgpu::FilterMode;
@@ -119,17 +119,21 @@ impl Painter {
         self.scene.clear();
     }
 
-    pub fn clear_staged(&mut self) {
-        self.renderables.clear();
-    }
-
-    pub fn clear_unstaged(&mut self) {
-        self.scene.clear();
-    }
-
     /// adds a primitive to th current scene does nothing until paint is called!
-    pub fn draw_primitive(&mut self, prim: Primitive) {
+    pub fn paint_primitive(&mut self, prim: Primitive) {
         self.scene.add(prim)
+    }
+
+    pub fn paint_quad(&mut self, quad: Quad, style: impl FnOnce(Primitive) -> Primitive) {
+        self.scene.add(style(quad.primitive()));
+    }
+
+    pub fn paint_circle(&mut self, circle: Circle, style: impl FnOnce(Primitive) -> Primitive) {
+        self.scene.add(style(circle.primitive()));
+    }
+
+    pub fn path_path(&mut self, path: Path2D, style: impl FnOnce(Primitive) -> Primitive) {
+        self.scene.add(style(path.primitive()));
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
@@ -195,6 +199,7 @@ impl Painter {
 
                         let x = physical_glyph.x + image.placement.left;
                         let y = line_y as i32 + physical_glyph.y - image.placement.top;
+
                         self.scene.add(
                             quad()
                                 .rect(Rect::new_from_origin_size(

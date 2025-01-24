@@ -691,7 +691,7 @@ impl Scroller {
             Color::DARK_GRAY
         };
 
-        painter.draw_primitive(
+        painter.paint_primitive(
             quad()
                 .rect(container.clone())
                 .corners(Corners::with_all(10.0))
@@ -730,7 +730,7 @@ impl Scroller {
         painter.paint_with_clip_rect(&clip, |painter| {
             for _ in 0..10 {
                 for i in 0..10 {
-                    painter.draw_primitive(
+                    painter.paint_primitive(
                         quad()
                             .rect(Rect::new_from_origin_size(
                                 cursor + vec2(-self.scroll_x, 0.0),
