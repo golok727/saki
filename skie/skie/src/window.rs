@@ -21,7 +21,7 @@ use skie_draw::{
     quad,
     traits::Half,
     vec2, Color, Corners, FontWeight, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text,
-    TextureFilterMode, TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
+    TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -147,12 +147,11 @@ impl Window {
 
         let texture_atlas = app.texture_atlas.clone();
 
-        let mut painter = Painter::new(
-            app.gpu.clone(),
-            texture_atlas.clone(),
-            app.text_system.clone(),
-            &(WgpuRendererSpecs { width, height }),
-        )?;
+        let mut painter = Painter::create(Size { width, height })
+            .with_text_system(app.text_system.clone())
+            .with_texture_atlas(texture_atlas.clone())
+            .antialias(true)
+            .build(app.gpu.clone());
 
         let width = specs.width;
         let height = specs.height;
