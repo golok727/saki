@@ -240,8 +240,7 @@ impl Window {
         &self.handle
     }
 
-    // FIXME: for now
-    pub fn build_scene(&mut self) {
+    pub fn _add_basic_scene(&mut self) {
         let size = self.winit_handle().inner_size();
         let width = size.width as f32;
         let height = size.height as f32;
@@ -392,15 +391,15 @@ impl Window {
             ),
         );
 
-        self.painter.paint_scene(&scene);
-        {
-            let state = self.state.read();
-            self.scroller.render(&mut self.painter, state.mouse_pos());
-        }
+        // self.painter.paint_scene(&scene);
+        // {
+        //     let state = self.state.read();
+        //     self.scroller.render(&mut self.painter, state.mouse_pos());
+        // }
 
         self.painter.draw_text(
             &Text::new("NORMAL ✨ feat/font-system")
-                .pos((50.0, height - bar_height - margin_bottom + 20.0).into())
+                .pos((50.0, height - bar_height - margin_bottom).into())
                 .size_px(32.0)
                 .font_weight(FontWeight::BOLD)
                 .font_family("Agave Nerd Font"),
@@ -408,11 +407,10 @@ impl Window {
         );
 
         self.painter.draw_text(
-            &Text::new("💓  Radhey Shyam 💓")
-                .pos((500.0, 30.0).into())
-                .size_px(64.0)
+            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh")
+                .pos((width.half(), 100.0).into())
                 .font_family("Segoe UI Emoji"),
-            Color::ORANGE,
+            Color::WHITE,
         );
     }
 
@@ -432,8 +430,8 @@ impl Window {
     }
 
     pub(crate) fn paint(&mut self) {
-        self.painter.begin_frame();
-        self.build_scene();
+        self.painter.clear();
+        self._add_basic_scene();
         self.painter.finish(self.clear_color.into());
     }
 

@@ -68,7 +68,7 @@ impl Painter {
             ))
     }
 
-    pub fn clear_all(&mut self) {
+    pub fn clear(&mut self) {
         self.renderables.clear();
         self.scene.clear();
     }
@@ -88,7 +88,8 @@ impl Painter {
 
     pub fn draw_text(&mut self, text: &Text, fill_color: Color) {
         self.text_system.write(|state| {
-            let metrics = Metrics::new(text.size, 1.4);
+            let line_height_em = 1.4;
+            let metrics = Metrics::new(text.size, text.size * line_height_em);
             let mut buffer = Buffer::new(&mut state.font_system, metrics);
             buffer.set_size(
                 &mut state.font_system,
@@ -199,7 +200,21 @@ impl Painter {
         self.renderables.extend(renderables);
     }
 
+    pub fn with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
+        let cur_rect = self.get_clip_rect();
+        self.clip_rects.push(cur_rect.intersect(clip));
+        f(self);
+        self.clip_rects.pop();
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.renderer.resize(width, height);
+        self.surface.resize(self.renderer.gpu(), width, height);
+        self.screen = *self.renderer.size();
+    }
+
     // commit renderables
+    /// This does not present to the texture use finish to submit to the gpu
     pub fn paint(&mut self) {
         let renderables =
             Self::build_renderables(&self.texture_atlas, &self.scene, self.get_clip_rect());
@@ -215,27 +230,6 @@ impl Painter {
         f(self);
         self.paint();
         self.clip_rects.pop();
-    }
-
-    pub fn with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
-        let cur_rect = self.get_clip_rect();
-        self.clip_rects.push(cur_rect.intersect(clip));
-        f(self);
-        self.clip_rects.pop();
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.renderer.resize(width, height);
-        self.surface.resize(self.renderer.gpu(), width, height);
-        self.screen = *self.renderer.size();
-    }
-
-    pub fn begin_frame(&mut self) {
-        self.clear_all();
-    }
-
-    pub fn begin(&mut self) {
-        unimplemented!()
     }
 
     /// Renders and presets to the screen
