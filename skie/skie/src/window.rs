@@ -404,11 +404,11 @@ impl Window {
             ),
         );
 
-        // self.painter.paint_scene(&scene);
-        // {
-        //     let state = self.state.read();
-        //     self.scroller.render(&mut self.painter, state.mouse_pos());
-        // }
+        self.painter.paint_scene(&scene);
+        {
+            let state = self.state.read();
+            self.scroller.render(&mut self.painter, state.mouse_pos());
+        }
 
         self.painter.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
@@ -420,7 +420,7 @@ impl Window {
         );
 
         self.painter.fill_text(
-            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh")
+            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh\nराधा कृष्ण")
                 .pos((width.half(), 100.0).into())
                 .font_family("Segoe UI Emoji"),
             Color::WHITE,

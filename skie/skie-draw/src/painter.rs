@@ -21,6 +21,7 @@ pub struct Painter {
     renderables: Vec<Renderable>,
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
+    antialias: bool,
     // todo msaa
 }
 
@@ -43,6 +44,7 @@ impl Painter {
                 width: specs.width,
                 height: specs.height,
             },
+            antialias: true,
             clip_rects: Default::default(),
         })
     }
@@ -155,7 +157,14 @@ impl Painter {
             // end run
         });
 
+        let tmp = self.antialias(false);
         self.paint();
+        self.antialias(tmp);
+    }
+    pub fn antialias(&mut self, v: bool) -> bool {
+        let old = self.antialias;
+        self.antialias = v;
+        old
     }
 
     pub fn paint_glyph() {}
@@ -164,6 +173,7 @@ impl Painter {
         texture_system: &SkieAtlas,
         scene: &'scene Scene,
         clip_rect: Rect<f32>,
+        antialias: bool,
     ) -> impl Iterator<Item = Renderable> + 'scene {
         let atlas_textures = scene
             .get_required_textures()
@@ -177,14 +187,22 @@ impl Painter {
 
         let info_map = texture_system.get_texture_infos(atlas_textures);
 
-        scene.batches(info_map.clone()).map(move |mesh| Renderable {
-            clip_rect: clip_rect.clone(),
-            mesh,
-        })
+        scene
+            .batches(info_map.clone(), antialias)
+            .map(move |mesh| Renderable {
+                clip_rect: clip_rect.clone(),
+                mesh,
+            })
     }
 
     pub fn paint_scene(&mut self, scene: &Scene) {
-        let renderables = Self::build_renderables(&self.texture_atlas, scene, self.get_clip_rect());
+        let renderables = Self::build_renderables(
+            &self.texture_atlas,
+            scene,
+            self.get_clip_rect(),
+            self.antialias,
+        );
+
         self.renderables.extend(renderables);
     }
 
@@ -203,8 +221,12 @@ impl Painter {
     // commit renderables
     // builds batched geometry for the current scene and clears the items
     pub fn paint(&mut self) {
-        let renderables =
-            Self::build_renderables(&self.texture_atlas, &self.scene, self.get_clip_rect());
+        let renderables = Self::build_renderables(
+            &self.texture_atlas,
+            &self.scene,
+            self.get_clip_rect(),
+            self.antialias,
+        );
 
         self.renderables.extend(renderables);
         self.scene.clear();
