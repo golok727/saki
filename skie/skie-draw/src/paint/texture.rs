@@ -1,7 +1,7 @@
 use crate::math::Size;
 
 use super::{
-    atlas::{AtlasKeyImpl, AtlasTextureId},
+    atlas::{AtlasKeySource, AtlasTextureId},
     AtlasKey, SkieImage,
 };
 

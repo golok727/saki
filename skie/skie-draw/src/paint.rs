@@ -43,7 +43,7 @@ impl From<SkieImage> for AtlasKey {
     }
 }
 
-impl AtlasKeyImpl for AtlasKey {
+impl AtlasKeySource for AtlasKey {
     const WHITE_TEXTURE_KEY: Self = Self::Image(SkieImage::WHITE_IMAGE);
 
     fn kind(&self) -> TextureKind {

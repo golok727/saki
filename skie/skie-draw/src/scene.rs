@@ -1,5 +1,5 @@
 use crate::{
-    paint::{AtlasKey, AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, PrimitiveKind},
+    paint::{AtlasKey, AtlasKeySource, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, PrimitiveKind},
     DrawList, IsZero, Primitive, TextureId,
 };
 

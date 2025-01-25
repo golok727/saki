@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use std::borrow::Cow;
 
 #[derive(Debug)]
-pub struct TextureAtlas<Key: AtlasKeyImpl>(Mutex<AtlasStorage<Key>>);
+pub struct TextureAtlas<Key: AtlasKeySource>(Mutex<AtlasStorage<Key>>);
 
 /*
 
@@ -25,7 +25,7 @@ _____________________________________
 use std::fmt::Debug;
 use std::hash::Hash;
 
-pub trait AtlasKeyImpl: Hash + Debug + Clone + PartialEq + Eq {
+pub trait AtlasKeySource: Hash + Debug + Clone + PartialEq + Eq {
     const WHITE_TEXTURE_KEY: Self;
 
     fn kind(&self) -> TextureKind;
@@ -34,14 +34,14 @@ pub trait AtlasKeyImpl: Hash + Debug + Clone + PartialEq + Eq {
 pub type AtlasTextureInfoMap<Key> = ahash::AHashMap<Key, AtlasTextureInfo>;
 
 #[derive(Debug)]
-struct AtlasStorage<Key: AtlasKeyImpl> {
+struct AtlasStorage<Key: AtlasKeySource> {
     gpu: GpuContext,
     gray_textures: AtlasTextureList<Option<AtlasTexture>>,
     color_textures: AtlasTextureList<Option<AtlasTexture>>,
     key_to_tile: ahash::AHashMap<Key, AtlasTile>,
 }
 
-impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
+impl<Key: AtlasKeySource> TextureAtlas<Key> {
     pub fn new(gpu: GpuContext) -> Self {
         // TODO should we initialize the white_texture in here ?
         let sys = Self(Mutex::new(AtlasStorage::<Key> {
@@ -137,7 +137,7 @@ impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
     }
 }
 
-impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
+impl<Key: AtlasKeySource> AtlasStorage<Key> {
     fn get_storage_write(
         &mut self,
         kind: &TextureKind,

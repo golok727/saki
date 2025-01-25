@@ -1,8 +1,8 @@
 use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::{
-    gpu::CommandEncoder, paint::Vertex, AtlasKeyImpl, GpuContext, GpuTextureView, Mat3, Mesh, Rect,
-    Size, TextureAtlas, TextureId, TextureKind, TextureOptions,
+    gpu::CommandEncoder, paint::Vertex, AtlasKeySource, GpuContext, GpuTextureView, Mat3, Mesh,
+    Rect, Size, TextureAtlas, TextureId, TextureKind, TextureOptions,
 };
 
 use wgpu::util::DeviceExt;
@@ -138,7 +138,7 @@ pub struct WgpuRenderer {
 impl WgpuRenderer {
     pub fn new<Key>(gpu: GpuContext, atlas: &TextureAtlas<Key>, specs: &WgpuRendererSpecs) -> Self
     where
-        Key: AtlasKeyImpl,
+        Key: AtlasKeySource,
     {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
@@ -297,7 +297,7 @@ impl WgpuRenderer {
         texture_id: &Key,
         options: &TextureOptions,
     ) where
-        Key: AtlasKeyImpl,
+        Key: AtlasKeySource,
     {
         let texture_in_atlas = atlas
             .get_texture_for_key::<Option<(TextureId, TextureKind, wgpu::BindGroup)>>(
