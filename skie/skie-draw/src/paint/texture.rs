@@ -1,9 +1,6 @@
 use crate::math::Size;
 
-use super::{
-    atlas::{AtlasKeyImpl, AtlasTextureId},
-    AtlasKey, SkieImage,
-};
+use super::{atlas::AtlasTextureId, AtlasKey, SkieImage};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TextureId {
@@ -42,7 +39,7 @@ impl Default for TextureId {
 }
 
 impl TextureId {
-    pub const WHITE_TEXTURE: Self = TextureId::AtlasKey(AtlasKey::WHITE_TEXTURE_KEY);
+    pub const WHITE_TEXTURE: Self = TextureId::AtlasKey(AtlasKey::WhiteTexture);
     #[inline(always)]
     pub fn is_white(&self) -> bool {
         self == &Self::WHITE_TEXTURE
@@ -164,5 +161,8 @@ impl std::fmt::Display for TextureKind {
 }
 
 // re-export
-pub use wgpu::{Texture as GpuTexture, TextureView as GpuTextureView, TextureViewDescriptor};
+pub use wgpu::{
+    Texture as GpuTexture, TextureView as GpuTextureView,
+    TextureViewDescriptor as GpuTextureViewDescriptor,
+};
 pub type TextureFormat = wgpu::TextureFormat;

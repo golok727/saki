@@ -1,10 +1,6 @@
 use crate::{
-    paint::{
-        atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap},
-        AtlasKey, Mesh, PrimitiveKind,
-    },
-    traits::IsZero,
-    DrawList, Primitive, TextureId,
+    paint::{AtlasKey, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, PrimitiveKind},
+    DrawList, IsZero, Primitive, TextureId,
 };
 
 use ahash::HashSet;
@@ -131,10 +127,9 @@ impl<'a> SceneBatchIterator<'a> {
             }
 
             let tex_id = entry.texture_id.clone();
-            let mut is_default_texture = false;
+            let is_white_texture = tex_id == TextureId::WHITE_TEXTURE;
 
             let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {
-                is_default_texture = matches!(key, &AtlasKey::WHITE_TEXTURE_KEY);
                 self.tex_info.get(key)
             } else {
                 None
@@ -147,7 +142,7 @@ impl<'a> SceneBatchIterator<'a> {
                     drawlist.path.clear();
                     drawlist.path.circle(circle.center, circle.radius);
 
-                    drawlist.fill_path_convex(fill_color, !is_default_texture);
+                    drawlist.fill_path_convex(fill_color, !is_white_texture);
                     if let Some(stroke_style) = &prim.stroke {
                         drawlist.stroke_path(&stroke_style.join())
                     }
@@ -161,7 +156,7 @@ impl<'a> SceneBatchIterator<'a> {
                     } else {
                         drawlist.path.clear();
                         drawlist.path.round_rect(&quad.bounds, &quad.corners);
-                        drawlist.fill_path_convex(fill_color, !is_default_texture);
+                        drawlist.fill_path_convex(fill_color, !is_white_texture);
 
                         if let Some(stroke_style) = &prim.stroke {
                             drawlist.stroke_path(&stroke_style.join())
@@ -187,7 +182,7 @@ impl<'a> SceneBatchIterator<'a> {
             if let Some(info) = info {
                 // Convert to atlas space if the texture belongs to the atlas
                 drawlist.capture(build).map(|vertex| {
-                    if is_default_texture {
+                    if is_white_texture {
                         vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
                     } else {
                         vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();

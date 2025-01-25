@@ -1,4 +1,5 @@
 pub mod atlas;
+pub mod brush;
 pub mod color;
 pub mod draw_list;
 pub mod image;
@@ -9,14 +10,15 @@ pub mod primitives;
 pub mod text;
 pub mod texture;
 
-use atlas::{AtlasKeyImpl, TextureAtlas};
-
 use crate::{math::Vec2, text::GlyphImage};
 
+pub use atlas::*;
+pub use brush::*;
 pub use color::*;
 pub use draw_list::*;
 pub use image::*;
 pub use mesh::*;
+pub use path::*;
 pub use polyline::*;
 pub use primitives::*;
 pub use text::*;
@@ -29,6 +31,23 @@ pub type SkieAtlas = TextureAtlas<AtlasKey>;
 pub enum AtlasKey {
     Image(SkieImage),
     Glyf(GlyphImage),
+    WhiteTexture,
+}
+
+impl AtlasKeySource for AtlasKey {
+    fn texture_kind(&self) -> TextureKind {
+        match self {
+            AtlasKey::Glyf(glyph) => {
+                if glyph.is_emoji {
+                    TextureKind::Color
+                } else {
+                    TextureKind::Mask
+                }
+            }
+            AtlasKey::Image(image) => image.texture_kind,
+            AtlasKey::WhiteTexture => TextureKind::Color,
+        }
+    }
 }
 
 impl From<GlyphImage> for AtlasKey {
@@ -40,22 +59,5 @@ impl From<GlyphImage> for AtlasKey {
 impl From<SkieImage> for AtlasKey {
     fn from(image: SkieImage) -> Self {
         Self::Image(image)
-    }
-}
-
-impl AtlasKeyImpl for AtlasKey {
-    const WHITE_TEXTURE_KEY: Self = Self::Image(SkieImage::WHITE_IMAGE);
-
-    fn kind(&self) -> TextureKind {
-        match self {
-            AtlasKey::Glyf(glyph) => {
-                if glyph.is_emoji {
-                    TextureKind::Color
-                } else {
-                    TextureKind::Mask
-                }
-            }
-            AtlasKey::Image(image) => image.texture_kind,
-        }
     }
 }

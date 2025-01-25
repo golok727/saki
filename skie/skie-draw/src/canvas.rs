@@ -1,85 +1,27 @@
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{
-    paint::{AsPrimitive, AtlasKey, GpuTextureView, SkieAtlas, TextureKind},
+    circle,
+    paint::{AsPrimitive, AtlasKey, Brush, GpuTextureView, SkieAtlas, TextureKind},
     quad,
     renderer::Renderable,
-    Circle, Color, GlyphImage, GpuContext, IsZero, Path2D, Primitive, Quad, Rect, Rgba, Scene,
-    Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
+    Color, GlyphImage, IsZero, Path2D, Primitive, Rect, Rgba, Scene, Size, Text, TextSystem,
+    TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
 };
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
+use skie_math::Corners;
 use wgpu::FilterMode;
 
-#[derive(Default)]
-pub struct PainterBuilder {
-    pub texture_atlas: Option<Arc<SkieAtlas>>,
-    pub text_system: Option<Arc<TextSystem>>,
-    pub antialias: bool,
-    pub size: Size<u32>,
-}
+mod builder;
+pub use builder::CanvasBuilder;
 
-impl PainterBuilder {
-    pub fn new(size: Size<u32>) -> Self {
-        Self {
-            size,
-            ..Default::default()
-        }
-    }
-
-    pub fn build(self, gpu: GpuContext) -> Painter {
-        let texture_atlas = self
-            .texture_atlas
-            .unwrap_or(Arc::new(SkieAtlas::new(gpu.clone())));
-
-        let text_system = self.text_system.unwrap_or(Arc::new(TextSystem::default()));
-
-        let renderer = WgpuRenderer::new(
-            gpu,
-            &texture_atlas,
-            &WgpuRendererSpecs {
-                width: self.size.width,
-                height: self.size.height,
-            },
-        );
-
-        Painter {
-            renderer,
-
-            texture_atlas,
-            text_system,
-
-            screen: self.size,
-            antialias: self.antialias,
-
-            scene: Default::default(),
-            renderables: Default::default(),
-            clip_rects: Default::default(),
-        }
-    }
-
-    pub fn with_size(mut self, size: Size<u32>) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn with_texture_atlas(mut self, atlas: Arc<SkieAtlas>) -> Self {
-        self.texture_atlas = Some(atlas);
-        self
-    }
-
-    pub fn with_text_system(mut self, text_system: Arc<TextSystem>) -> Self {
-        self.text_system = Some(text_system);
-        self
-    }
-
-    pub fn antialias(mut self, val: bool) -> Self {
-        self.antialias = val;
-        self
-    }
-}
-
-//  Winit window painter
-pub struct Painter {
+/*
+ TODO
+ - [ ] Shared path
+ - [ ] transforms and cliprect saves instead of using with_clip_rect
+ - [ ] use new brush api to paint
+*/
+pub struct Canvas {
     pub renderer: WgpuRenderer,
     pub(crate) scene: Scene,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
@@ -88,12 +30,12 @@ pub struct Painter {
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
     antialias: bool,
-    // todo msaa
+    // TODO msaa
 }
 
-impl Painter {
-    pub fn create(size: Size<u32>) -> PainterBuilder {
-        PainterBuilder::new(size)
+impl Canvas {
+    pub fn create(size: Size<u32>) -> CanvasBuilder {
+        CanvasBuilder::new(size)
     }
 
     pub fn atlas(&self) -> &Arc<SkieAtlas> {
@@ -120,20 +62,90 @@ impl Painter {
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
-    pub fn paint_primitive(&mut self, prim: Primitive) {
-        self.scene.add(prim)
+    pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: &Brush) {
+        self.scene.add(
+            prim.primitive()
+                .fill(brush.fill_style)
+                .stroke(brush.stroke_style),
+        )
     }
 
-    pub fn paint_quad(&mut self, quad: Quad, style: impl FnOnce(Primitive) -> Primitive) {
-        self.scene.add(style(quad.primitive()));
+    pub fn draw_path(&mut self, path: Path2D, brush: &Brush) {
+        // for NOW Only for playing around with the new api
+        self.scene.add(
+            path.primitive()
+                .fill(brush.fill_style)
+                .stroke(brush.stroke_style),
+        )
     }
 
-    pub fn paint_circle(&mut self, circle: Circle, style: impl FnOnce(Primitive) -> Primitive) {
-        self.scene.add(style(circle.primitive()));
+    pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: &Brush) {
+        // for NOW Only for playing around with the new api
+        self.scene.add(
+            quad()
+                .rect(rect.clone())
+                .primitive()
+                .fill(brush.fill_style)
+                .stroke(brush.stroke_style),
+        )
     }
 
-    pub fn paint_path(&mut self, path: Path2D, style: impl FnOnce(Primitive) -> Primitive) {
-        self.scene.add(style(path.primitive()));
+    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: &Brush) {
+        // for NOW Only for playing around with the new api
+        self.scene.add(
+            quad()
+                .rect(rect.clone())
+                .corners(corners.clone())
+                .primitive()
+                .fill(brush.fill_style)
+                .stroke(brush.stroke_style),
+        )
+    }
+
+    pub fn draw_image(&mut self, rect: &Rect<f32>, texture_id: &TextureId) {
+        // for NOW Only for playing around with the new api
+        self.scene
+            .add(quad().rect(rect.clone()).primitive().textured(texture_id))
+    }
+
+    pub fn draw_image_rounded(
+        &mut self,
+        rect: &Rect<f32>,
+        corners: &Corners<f32>,
+        texture_id: &TextureId,
+    ) {
+        // for NOW Only for playing around with the new api
+        self.scene.add(
+            quad()
+                .rect(rect.clone())
+                .corners(corners.clone())
+                .primitive()
+                .textured(texture_id),
+        )
+    }
+
+    pub fn draw_image_2(&mut self, rect: &Rect<f32>, texture_id: &TextureId, brush: &Brush) {
+        // for NOW Only for playing around with the new api
+        self.scene.add(
+            quad()
+                .rect(rect.clone())
+                .primitive()
+                .textured(texture_id)
+                .fill(brush.fill_style)
+                .stroke(brush.stroke_style),
+        )
+    }
+
+    pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: &Brush) {
+        // for NOW Only for playing around with the new api
+        self.scene.add(
+            circle()
+                .pos(cx, cy)
+                .radius(radius)
+                .primitive()
+                .fill(brush.fill_style)
+                .stroke(brush.stroke_style),
+        )
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
@@ -221,6 +233,7 @@ impl Painter {
         self.paint();
         self.antialias(tmp);
     }
+
     pub fn antialias(&mut self, v: bool) -> bool {
         let old = self.antialias;
         self.antialias = v;

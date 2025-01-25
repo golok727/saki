@@ -1,6 +1,9 @@
 pub mod error;
 pub mod surface;
 
+pub use error::*;
+pub use surface::*;
+
 pub use wgpu::CommandEncoder;
 
 #[derive(Debug, Clone)]

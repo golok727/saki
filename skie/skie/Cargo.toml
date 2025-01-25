@@ -3,6 +3,9 @@ name = "skie"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "src/skie.rs"
+
 [dependencies]
 skie-draw = { path = "../skie-draw" }
 derive_more.workspace = true

@@ -15,13 +15,10 @@ use image::{ImageBuffer, RgbaImage};
 pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
-    circle,
     gpu::surface::{GpuSurface, GpuSurfaceSpecification},
-    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind, TextureViewDescriptor},
-    quad,
-    traits::Half,
-    vec2, Color, Corners, FontWeight, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text,
-    TextureFilterMode, TextureId, TextureOptions, Vec2,
+    paint::{AtlasKey, Brush, GpuTextureViewDescriptor, SkieAtlas, SkieImage, TextureKind},
+    quad, vec2, Canvas, Color, Corners, FontWeight, Half, LineCap, LineJoin, Path2D, Rect, Size,
+    Text, TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -121,7 +118,7 @@ pub struct Window {
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     next_texture_id: usize,
 
-    pub(crate) painter: Painter,
+    pub(crate) canvas: Canvas,
     pub(crate) state: RwLock<State>,
 
     surface: GpuSurface<'static>,
@@ -147,7 +144,7 @@ impl Window {
 
         let texture_atlas = app.texture_atlas.clone();
 
-        let mut painter = Painter::create(Size { width, height })
+        let mut painter = Canvas::create(Size { width, height })
             .with_text_system(app.text_system.clone())
             .with_texture_atlas(texture_atlas.clone())
             .antialias(true)
@@ -208,7 +205,7 @@ impl Window {
                 height: size.height as f32,
             };
 
-            let mut dims = Rect::new(size.width.half(), size.height.half(), 500.0, 500.0);
+            let mut dims = Rect::xywh(size.width.half(), size.height.half(), 500.0, 500.0);
             dims.origin.x -= dims.size.width.half();
             dims.origin.y -= dims.size.height.half();
 
@@ -217,7 +214,7 @@ impl Window {
 
         Ok(Self {
             handle,
-            painter,
+            canvas: painter,
             surface,
             state: RwLock::new(State::default()),
             texture_atlas,
@@ -244,8 +241,8 @@ impl Window {
 
     pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
         self.surface
-            .resize(self.painter.renderer.gpu(), width, height);
-        self.painter.resize(width, height);
+            .resize(self.canvas.renderer.gpu(), width, height);
+        self.canvas.resize(width, height);
     }
 
     pub fn winit_handle(&self) -> &Arc<WinitWindow> {
@@ -256,78 +253,47 @@ impl Window {
         let size = self.winit_handle().inner_size();
         let width = size.width as f32;
         let height = size.height as f32;
+        let canvas = &mut self.canvas;
 
-        let mut scene = Scene::default();
+        let mut brush = Brush::default();
 
-        scene.add(
-            quad()
-                .pos(width / 2.0 - 350.0, height / 2.0 - 350.0)
-                .size(700.0, 700.0)
-                .primitive()
-                .textured(&self.yellow_thing_texture_id),
+        canvas.draw_image(
+            &Rect::xywh(width / 2.0 - 350.0, height / 2.0 - 350.0, 700.0, 700.0),
+            &self.yellow_thing_texture_id,
         );
 
-        scene.add(
-            quad()
-                .pos(100.0, height - 400.0)
-                .size(300.0, 300.0)
-                .primitive()
-                .textured(&self.checker_texture_id)
-                .fill_color(Color::from_rgb(0xFF0000)),
+        brush.fill_color(Color::from_rgb(0xFF0000));
+        canvas.draw_image_2(
+            &Rect::xywh(100.0, height - 400.0, 300.0, 300.0),
+            &self.yellow_thing_texture_id,
+            &brush,
         );
 
-        scene.add(
-            quad()
-                .pos(100.0, 200.0)
-                .size(250.0, 250.0)
-                .primitive()
-                .textured(&self.checker_texture_id)
-                .fill_color(Color::from_rgb(0xFFFF00)),
+        brush.fill_color(Color::from_rgb(0xFFFF00));
+        canvas.draw_image_2(
+            &Rect::xywh(100.0, 200.0, 250.0, 250.0),
+            &self.checker_texture_id,
+            &brush,
         );
 
-        scene.add(
-            quad()
-                .pos(width - 300.0, height - 300.0)
-                .size(200.0, 200.0)
-                .primitive()
-                .textured(&self.yellow_thing_texture_id)
-                .stroke_width(10),
+        canvas.draw_image(
+            &Rect::xywh(width - 300.0, height - 300.0, 200.0, 200.0),
+            &self.yellow_thing_texture_id,
         );
 
-        scene.add(
-            quad()
-                .pos(100.0, 500.0)
-                .size(300.0, 100.0)
-                .primitive()
-                .fill_color(Color::from_rgb(0x55a09e)),
-        );
+        brush.fill_color(Color::from_rgb(0x55a09e));
+        canvas.draw_rect(&Rect::xywh(100.0, 500.0, 300.0, 100.0), &brush);
 
-        scene.add(
-            circle()
-                .pos(400.0, 500.0)
-                .radius(300.0)
-                .primitive()
-                .fill_color(Color::KHAKI),
-        );
-
-        scene.add(
-            circle()
-                .pos(400.0, 500.0)
-                .radius(200.0)
-                .primitive()
-                .textured(&self.checker_texture_id)
-                .fill_color(Color::TORCH_RED),
-        );
+        brush.fill_color(Color::KHAKI);
+        canvas.draw_circle(400.0, 500.0, 300.0, &brush);
 
         let bar_height: f32 = 50.0;
         let margin_bottom: f32 = 30.0;
 
-        scene.add(
-            quad()
-                .pos(0.0, height - bar_height - margin_bottom)
-                .size(width, bar_height)
-                .primitive()
-                .fill_color(Color::from_rgb(0x0A0A11)),
+        brush.fill_color(Color::from_rgb(0x0A0A11));
+        canvas.draw_rect(
+            &Rect::xywh(0.0, height - bar_height - margin_bottom, width, bar_height),
+            &brush,
         );
 
         for object in &self.objects {
@@ -344,72 +310,72 @@ impl Window {
                     let width: f32 = (bbox.size.width * aspect).into();
                     let height: f32 = (bbox.size.height).into();
 
-                    scene.add(
-                        quad()
-                            .pos(x, y)
-                            .size(width, height)
-                            .corners(Corners::with_all(width.half() * 0.2))
-                            .primitive()
-                            .textured(texture),
+                    canvas.draw_image_rounded(
+                        &Rect::xywh(x, y, width, height),
+                        &Corners::with_all(width.half() * 0.2),
+                        texture,
                     );
                 }
             }
         }
 
-        scene.add(
-            quad()
-                .pos(800.0, 200.0)
-                .size(200.0, 500.0)
-                .corners(Corners::with_all(100.0).with_top_left(50.0))
-                .primitive()
-                .fill_color(Color::LIGHT_GREEN)
-                .stroke_width(20)
-                .stroke_color(Color::TORCH_RED),
+        brush.fill_color(Color::LIGHT_GREEN);
+        brush.stroke_width(20);
+        brush.stroke_color(Color::TORCH_RED);
+
+        canvas.draw_round_rect(
+            &Rect::xywh(800.0, 200.0, 200.0, 500.0),
+            &Corners::with_all(100.0).with_top_left(50.0),
+            &brush,
         );
 
-        scene.add(
-            quad()
-                .pos(width - 200.0, 50.0)
-                .size(100.0, 50.0)
-                .corners(Corners::with_all(10.0))
-                .primitive()
-                .fill_color(Color::TORCH_RED)
-                .stroke_width(5),
+        brush.reset();
+
+        brush.fill_color(Color::TORCH_RED);
+        brush.stroke_width(20);
+        brush.stroke_color(Color::WHITE);
+
+        canvas.draw_round_rect(
+            &Rect::xywh(800.0, 200.0, 200.0, 500.0),
+            &Corners::with_all(100.0).with_top_left(50.0),
+            &brush,
         );
 
-        let mut path = Path2D::default();
-        path.move_to((100.0, 100.0).into());
-        path.line_to((500.0, 100.0).into());
-        path.line_to((100.0, 400.0).into());
-        path.close();
+        brush.reset();
 
-        scene.add(
-            path.primitive()
-                .stroke(StrokeStyle::default().round_join().line_width(50)),
-        );
-
-        let mut path = Path2D::default();
-        path.move_to((300.0, 500.0).into());
-        path.line_to((600.0, 500.0).into());
-        path.line_to((400.0, 700.0).into());
-
-        scene.add(
-            path.primitive().stroke(
-                StrokeStyle::default()
-                    .color(Color::WHITE)
-                    .round_cap()
-                    .bevel_join()
-                    .line_width(30),
-            ),
-        );
-
-        self.painter.paint_scene(&scene);
         {
-            let state = self.state.read();
-            self.scroller.render(&mut self.painter, state.mouse_pos());
+            let mut path = Path2D::default();
+            path.move_to((100.0, 100.0).into());
+            path.line_to((500.0, 100.0).into());
+            path.line_to((100.0, 400.0).into());
+            path.close();
+
+            brush.reset();
+            brush.stroke_width(20);
+            brush.stroke_color(Color::WHITE);
+            brush.stroke_join(LineJoin::Bevel);
+            canvas.draw_path(path, &brush);
         }
 
-        self.painter.fill_text(
+        {
+            let mut path = Path2D::default();
+            path.move_to((300.0, 500.0).into());
+            path.line_to((600.0, 500.0).into());
+            path.line_to((400.0, 700.0).into());
+
+            brush.stroke_color(Color::WHITE);
+            brush.stroke_join(LineJoin::Miter);
+            brush.stroke_cap(LineCap::Round);
+            canvas.draw_path(path, &brush);
+        }
+
+        canvas.paint();
+        {
+            let state = self.state.read();
+            self.scroller.render(canvas, state.mouse_pos());
+        }
+
+        canvas.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
                 .pos((50.0, height - bar_height - margin_bottom).into())
                 .size_px(32.0)
@@ -418,7 +384,7 @@ impl Window {
             Color::GRAY,
         );
 
-        self.painter.fill_text(
+        canvas.fill_text(
             &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh\nराधा कृष्ण")
                 .pos((width.half(), 100.0).into())
                 .font_family("Segoe UI Emoji"),
@@ -442,17 +408,17 @@ impl Window {
     }
 
     pub(crate) fn paint(&mut self) -> Result<()> {
-        self.painter.clear();
+        self.canvas.clear();
 
-        // remove
+        // TODO: remove
         self._add_basic_scene();
 
         let cur_texture = self.surface.surface.get_current_texture()?;
         let view = cur_texture
             .texture
-            .create_view(&TextureViewDescriptor::default());
+            .create_view(&GpuTextureViewDescriptor::default());
 
-        self.painter.finish(&view, self.clear_color.into());
+        self.canvas.finish(&view, self.clear_color.into());
 
         cur_texture.present();
         Ok(())
@@ -589,7 +555,7 @@ impl<'a> WindowContext<'a> {
             )
         });
 
-        self.window.painter.renderer.set_texture_from_atlas(
+        self.window.canvas.renderer.set_texture_from_atlas(
             &self.window.texture_atlas,
             &key,
             &TextureOptions::default()
@@ -676,7 +642,8 @@ impl Scroller {
         }
     }
 
-    fn render(&self, painter: &mut Painter, mouse_pos: Option<&Vec2<f32>>) {
+    fn render(&self, canvas: &mut Canvas, mouse_pos: Option<&Vec2<f32>>) {
+        let mut brush = Brush::default();
         let container = &self.dims;
 
         let hovered = mouse_pos
@@ -691,17 +658,17 @@ impl Scroller {
             Color::DARK_GRAY
         };
 
-        painter.paint_primitive(
+        brush.fill_color(Color::WHITE);
+        brush.stroke_color(stroke_color);
+        brush.stroke_width(stroke_width);
+        canvas.draw_primitive(
             quad()
                 .rect(container.clone())
-                .corners(Corners::with_all(10.0))
-                .primitive()
-                .fill_color(Color::WHITE)
-                .stroke_color(stroke_color)
-                .stroke_width(stroke_width),
+                .corners(Corners::with_all(10.0)),
+            &brush,
         );
+        canvas.paint();
 
-        painter.paint();
         // paint children clipped to this rect
         let mut clip = container.clone();
         let hsw = stroke_width.half() as f32;
@@ -726,18 +693,19 @@ impl Scroller {
             Color::DARK_BLUE,
         ];
 
+        brush.reset();
         // paint children overflow hidden
-        painter.paint_with_clip_rect(&clip, |painter| {
+        canvas.paint_with_clip_rect(&clip, |canvas| {
             for _ in 0..10 {
                 for i in 0..10 {
-                    painter.paint_primitive(
-                        quad()
-                            .rect(Rect::new_from_origin_size(
-                                cursor + vec2(-self.scroll_x, 0.0),
-                                size,
-                            ))
-                            .primitive()
-                            .fill_color(colors[i % colors.len()]),
+                    brush.fill_color(colors[i % colors.len()]);
+
+                    canvas.draw_primitive(
+                        quad().rect(Rect::new_from_origin_size(
+                            cursor + vec2(-self.scroll_x, 0.0),
+                            size,
+                        )),
+                        &brush,
                     );
                     cursor.x += margin + size.width;
                 }

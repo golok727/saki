@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use std::borrow::Cow;
 
 #[derive(Debug)]
-pub struct TextureAtlas<Key: AtlasKeyImpl>(Mutex<AtlasStorage<Key>>);
+pub struct TextureAtlas<Key: AtlasKeySource>(Mutex<AtlasStorage<Key>>);
 
 /*
 
@@ -25,45 +25,28 @@ _____________________________________
 use std::fmt::Debug;
 use std::hash::Hash;
 
-pub trait AtlasKeyImpl: Hash + Debug + Clone + PartialEq + Eq {
-    const WHITE_TEXTURE_KEY: Self;
-
-    fn kind(&self) -> TextureKind;
+pub trait AtlasKeySource: Hash + Debug + Clone + PartialEq + Eq {
+    fn texture_kind(&self) -> TextureKind;
 }
 
 pub type AtlasTextureInfoMap<Key> = ahash::AHashMap<Key, AtlasTextureInfo>;
 
 #[derive(Debug)]
-struct AtlasStorage<Key: AtlasKeyImpl> {
+struct AtlasStorage<Key: AtlasKeySource> {
     gpu: GpuContext,
     gray_textures: AtlasTextureList<Option<AtlasTexture>>,
     color_textures: AtlasTextureList<Option<AtlasTexture>>,
     key_to_tile: ahash::AHashMap<Key, AtlasTile>,
 }
 
-impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
+impl<Key: AtlasKeySource> TextureAtlas<Key> {
     pub fn new(gpu: GpuContext) -> Self {
-        // TODO should we initialize the white_texture in here ?
-        let sys = Self(Mutex::new(AtlasStorage::<Key> {
+        Self(Mutex::new(AtlasStorage::<Key> {
             gpu,
             gray_textures: Default::default(),
             color_textures: Default::default(),
             key_to_tile: ahash::AHashMap::new(),
-        }));
-
-        // add the default white texture
-        sys.get_or_insert(&Key::WHITE_TEXTURE_KEY, || {
-            (
-                TextureKind::Color,
-                Size {
-                    width: 1,
-                    height: 1,
-                },
-                Cow::Borrowed(&[255, 255, 255, 255]),
-            )
-        });
-
-        sys
+        }))
     }
 
     pub fn get_texture_for_tile<R>(
@@ -119,7 +102,7 @@ impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
     /// Combination of `create_texture` and `upload_texture`
     pub fn create_texture_init(&self, key: &Key, size: Size<i32>, data: &[u8]) -> AtlasTile {
         let mut lock = self.0.lock();
-        let tile = lock.create_texture(size, key.kind(), key.clone());
+        let tile = lock.create_texture(size, key.texture_kind(), key.clone());
         lock.upload_texture(&tile, data);
         tile
     }
@@ -128,7 +111,7 @@ impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
     /// use the `upload_texture` method to upload data into tile
     pub fn create_texture(&self, key: &Key, size: Size<i32>) -> AtlasTile {
         let mut lock = self.0.lock();
-        lock.create_texture(size, key.kind(), key.clone())
+        lock.create_texture(size, key.texture_kind(), key.clone())
     }
 
     pub fn upload_texture(&self, tile: &AtlasTile, data: &[u8]) {
@@ -137,7 +120,7 @@ impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
     }
 }
 
-impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
+impl<Key: AtlasKeySource> AtlasStorage<Key> {
     fn get_storage_write(
         &mut self,
         kind: &TextureKind,
@@ -288,7 +271,7 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
         );
 
         let view = raw.create_view(&wgpu::TextureViewDescriptor::default());
-        let allocator = etagere::BucketedAtlasAllocator::new(size.into());
+        let allocator = etagere::BucketedAtlasAllocator::new(to_etagere_size(size));
 
         let storage = self.get_storage_write(&kind);
         let slot = storage.free_slots.pop();
@@ -341,12 +324,13 @@ pub struct AtlasTexture {
 
 impl AtlasTexture {
     fn allocate(&mut self, size: Size<i32>) -> Option<AtlasTile> {
-        let allocation = self.allocator.allocate(size.into())?;
+        let allocation = self.allocator.allocate(to_etagere_size(size))?;
         let id = allocation.id;
 
         let alloc_rect = allocation.rectangle;
 
-        let bounds: Rect<i32> = Rect::new_from_origin_size(alloc_rect.min.into(), size);
+        let bounds: Rect<i32> =
+            Rect::new_from_origin_size(from_etagere_point(alloc_rect.min), size);
 
         Some(AtlasTile {
             id: id.into(),
@@ -438,36 +422,6 @@ impl std::fmt::Debug for AtlasTexture {
     }
 }
 
-impl<T: From<i32>> From<etagere::Point> for Vec2<T> {
-    fn from(value: etagere::Point) -> Self {
-        Vec2 {
-            x: value.x.into(),
-            y: value.y.into(),
-        }
-    }
-}
-
-impl<T> From<etagere::Size> for Size<T>
-where
-    T: From<i32>,
-{
-    fn from(value: etagere::Size) -> Self {
-        Self {
-            width: value.width.into(),
-            height: value.height.into(),
-        }
-    }
-}
-
-impl<T> From<Size<T>> for etagere::Size
-where
-    T: Into<i32>,
-{
-    fn from(value: Size<T>) -> Self {
-        etagere::size2(value.width.into(), value.height.into())
-    }
-}
-
 impl From<etagere::AllocId> for AtlasTileId {
     fn from(value: etagere::AllocId) -> Self {
         Self(value.serialize())
@@ -506,6 +460,13 @@ impl<T: std::fmt::Debug> std::ops::IndexMut<usize> for AtlasTextureList<T> {
     }
 }
 
+fn to_etagere_size(size: Size<i32>) -> etagere::Size {
+    etagere::size2(size.width, size.height)
+}
+fn from_etagere_point(p: etagere::Point) -> Vec2<i32> {
+    Vec2 { x: p.x, y: p.y }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -518,7 +479,7 @@ mod test {
                     kind: TextureKind::Color,
                     slot: 0,
                 },
-                bounds: Rect::new(512, 512, 512, 512),
+                bounds: Rect::xywh(512, 512, 512, 512),
             },
             atlas_texture_size: Size {
                 width: 1024,
@@ -547,7 +508,7 @@ mod test {
                     kind: TextureKind::Color,
                     slot: 0,
                 },
-                bounds: Rect::new(0, 0, 128, 128),
+                bounds: Rect::xywh(0, 0, 128, 128),
             },
             atlas_texture_size: Size {
                 width: 1024,
@@ -581,7 +542,7 @@ mod test {
                     kind: TextureKind::Color,
                     slot: 0,
                 },
-                bounds: Rect::new(800, 800, 1, 1),
+                bounds: Rect::xywh(800, 800, 1, 1),
             },
             atlas_texture_size: Size {
                 width: 1024,
