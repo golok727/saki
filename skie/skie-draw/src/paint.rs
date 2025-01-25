@@ -1,4 +1,5 @@
 pub mod atlas;
+pub mod brush;
 pub mod color;
 pub mod draw_list;
 pub mod image;
@@ -12,6 +13,7 @@ pub mod texture;
 use crate::{math::Vec2, text::GlyphImage};
 
 pub use atlas::*;
+pub use brush::*;
 pub use color::*;
 pub use draw_list::*;
 pub use image::*;

@@ -3,6 +3,9 @@ name = "skie-draw"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "src/draw.rs"
+
 [dependencies]
 wgpu.workspace = true
 winit.workspace = true

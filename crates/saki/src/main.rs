@@ -86,8 +86,8 @@ fn load_images_from_args(cx: &mut WindowContext) {
 
     // Define the positions and sizes for the images
     let rects = [
-        Rect::new(px(350), px(100), px(500), px(500)),
-        Rect::new(px(800), px(600), px(300), px(300)),
+        Rect::xywh(px(350), px(100), px(500), px(500)),
+        Rect::xywh(px(800), px(600), px(300), px(300)),
     ];
 
     // Attempt to load up to two images

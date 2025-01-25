@@ -27,7 +27,7 @@ impl<T> From<(T, T, T, T)> for Rect<T> {
 }
 
 impl<T> Rect<T> {
-    pub fn new(x: T, y: T, width: T, height: T) -> Self {
+    pub fn xywh(x: T, y: T, width: T, height: T) -> Self {
         Self {
             origin: Vec2 { x, y },
             size: Size { width, height },

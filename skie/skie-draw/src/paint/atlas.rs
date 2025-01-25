@@ -479,7 +479,7 @@ mod test {
                     kind: TextureKind::Color,
                     slot: 0,
                 },
-                bounds: Rect::new(512, 512, 512, 512),
+                bounds: Rect::xywh(512, 512, 512, 512),
             },
             atlas_texture_size: Size {
                 width: 1024,
@@ -508,7 +508,7 @@ mod test {
                     kind: TextureKind::Color,
                     slot: 0,
                 },
-                bounds: Rect::new(0, 0, 128, 128),
+                bounds: Rect::xywh(0, 0, 128, 128),
             },
             atlas_texture_size: Size {
                 width: 1024,
@@ -542,7 +542,7 @@ mod test {
                     kind: TextureKind::Color,
                     slot: 0,
                 },
-                bounds: Rect::new(800, 800, 1, 1),
+                bounds: Rect::xywh(800, 800, 1, 1),
             },
             atlas_texture_size: Size {
                 width: 1024,
