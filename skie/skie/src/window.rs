@@ -124,7 +124,7 @@ pub struct Window {
     pub(crate) painter: Painter,
     pub(crate) state: RwLock<State>,
 
-    surface: GpuSurface,
+    surface: GpuSurface<'static>,
 
     pub(crate) handle: Arc<WinitWindow>,
 }

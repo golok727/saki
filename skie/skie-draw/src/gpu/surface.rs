@@ -8,13 +8,13 @@ pub struct GpuSurfaceSpecification {
 }
 
 #[derive(Debug)]
-pub struct GpuSurface {
-    pub surface: wgpu::Surface<'static>,
+pub struct GpuSurface<'a> {
+    pub surface: wgpu::Surface<'a>,
     pub config: wgpu::SurfaceConfiguration,
 }
 
-impl GpuSurface {
-    pub(super) fn new(surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration) -> Self {
+impl<'a> GpuSurface<'a> {
+    pub(super) fn new(surface: wgpu::Surface<'a>, config: wgpu::SurfaceConfiguration) -> Self {
         Self { surface, config }
     }
 
@@ -34,11 +34,11 @@ impl GpuSurface {
 }
 
 impl GpuContext {
-    pub fn create_surface(
-        &self,
-        screen: impl Into<wgpu::SurfaceTarget<'static>>,
+    pub fn create_surface<'a, 'surface>(
+        &'a self,
+        screen: impl Into<wgpu::SurfaceTarget<'surface>>,
         specs: &GpuSurfaceSpecification,
-    ) -> Result<GpuSurface, GpuSurfaceCreateError> {
+    ) -> Result<GpuSurface<'surface>, GpuSurfaceCreateError> {
         let width = specs.width.max(1);
         let height = specs.height.max(1);
 
