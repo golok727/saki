@@ -10,11 +10,26 @@ use crate::paint::WHITE_UV;
 
 #[derive(Default, Debug)]
 pub struct DrawList {
+    pub(crate) antialias: bool,
+    pub(crate) feathering: f32,
+
     pub(crate) mesh: Mesh,
     pub(crate) path: Path2D,
 }
 
 impl DrawList {
+    pub fn is_antialiazed(&self) -> bool {
+        self.antialias
+    }
+
+    pub fn antialias(&mut self, value: bool) {
+        self.antialias = value
+    }
+
+    pub fn feathering(&mut self, value: f32) {
+        self.feathering = value
+    }
+
     pub fn clear(&mut self) {
         self.mesh.clear();
         self.path.clear();
@@ -84,16 +99,8 @@ impl DrawList {
             .arc(center, radius, start_angle, end_angle, clockwise);
     }
 
-    /// Fills the current path
-    pub fn fill_path(&mut self, color: Color) {
-        // FIXME:  add earcut("Fill Path")
-        self.fill_path_convex(color, false);
-    }
-
     pub(crate) fn fill_path_convex(&mut self, color: Color, calc_uv: bool) {
-        // FIXME: move to drawlist;
-        const FEATHERING: f32 = 1.0;
-        let feathering = FEATHERING;
+        let feathering = self.feathering;
         let points_count = self.path.points.len();
 
         if points_count <= 2 || color.is_transparent() {
@@ -119,7 +126,7 @@ impl DrawList {
             }
         };
 
-        if feathering > 0.0 {
+        if self.antialias && self.feathering > 0.0 {
             // AA fill
             let idx_count = (points_count - 2) * 3 + points_count * 6;
             let vtx_count = points_count * 2;
@@ -198,11 +205,15 @@ impl DrawList {
         Polyline::add_to_mesh(&mut self.mesh, &path.points, stroke_style);
     }
 
-    pub fn fill_with_path(&mut self, _path: &Path2D, _color: Color) {
-        // TODO: earcut for user facing api
-    }
+    // TODO: earcut
+    //
+    /// pub fn fill_path(&mut self, color: Color) {
+    // }
 
-    pub fn add_prim_quad(&mut self, rect: &Rect<f32>, color: Color) {
+    // pub fn fill_with_path(&mut self, _path: &Path2D, _color: Color) {
+    // }
+
+    pub fn fill_rect(&mut self, rect: &Rect<f32>, color: Color) {
         if color.is_transparent() {
             return;
         }

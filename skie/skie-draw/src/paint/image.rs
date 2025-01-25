@@ -39,7 +39,7 @@ impl SkieImage {
     }
 
     pub fn greyscale(mut self) -> Self {
-        self.texture_kind = TextureKind::Grayscale;
+        self.texture_kind = TextureKind::Mask;
         self
     }
 }

@@ -1,7 +1,7 @@
 use crate::gpu::GpuContext;
 use crate::math::{Rect, Size, Vec2};
 
-use super::{TextureFormat, TextureKind, WgpuTexture, WgpuTextureView};
+use super::{GpuTexture, GpuTextureView, TextureFormat, TextureKind};
 use parking_lot::Mutex;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -144,14 +144,14 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
         kind: &TextureKind,
     ) -> &mut AtlasTextureList<Option<AtlasTexture>> {
         match kind {
-            TextureKind::Grayscale => &mut self.gray_textures,
+            TextureKind::Mask => &mut self.gray_textures,
             TextureKind::Color => &mut self.color_textures,
         }
     }
 
     fn get_storage_read(&self, kind: &TextureKind) -> &AtlasTextureList<Option<AtlasTexture>> {
         match kind {
-            TextureKind::Grayscale => &self.gray_textures,
+            TextureKind::Mask => &self.gray_textures,
             TextureKind::Color => &self.color_textures,
         }
     }
@@ -380,11 +380,11 @@ impl AtlasTexture {
         self.size.height
     }
 
-    pub fn raw(&self) -> &WgpuTexture {
+    pub fn raw(&self) -> &GpuTexture {
         &self.raw
     }
 
-    pub fn view(&self) -> &WgpuTextureView {
+    pub fn view(&self) -> &GpuTextureView {
         &self.view
     }
 }

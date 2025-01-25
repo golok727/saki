@@ -67,11 +67,17 @@ pub struct TextureOptions {
     pub mag_filter: TextureFilterMode,
     pub min_filter: TextureFilterMode,
     pub mipmap_filter: TextureFilterMode,
+    pub kind: TextureKind,
 }
 
 impl TextureOptions {
     pub fn mag_filter(mut self, mode: TextureFilterMode) -> Self {
         self.mag_filter = mode;
+        self
+    }
+
+    pub fn kind(mut self, kind: TextureKind) -> Self {
+        self.kind = kind;
         self
     }
 
@@ -114,17 +120,19 @@ impl std::fmt::Display for TextureId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Hash, Eq)]
 #[repr(usize)]
 pub enum TextureKind {
-    Grayscale = 0,
+    // single channel;
+    Mask = 0,
+    #[default]
     Color = 1,
 }
 
 impl TextureKind {
     pub fn get_texture_format(&self) -> TextureFormat {
         match self {
-            Self::Grayscale => TextureFormat::R8Unorm,
+            Self::Mask => TextureFormat::R8Unorm,
             // FIXME: should we use Bgara ?
             Self::Color => TextureFormat::Rgba8Unorm,
         }
@@ -133,7 +141,7 @@ impl TextureKind {
     pub fn bytes_per_pixel(&self) -> u32 {
         match self {
             TextureKind::Color => 4,
-            TextureKind::Grayscale => 1,
+            TextureKind::Mask => 1,
         }
     }
 
@@ -141,7 +149,7 @@ impl TextureKind {
         matches!(self, Self::Color)
     }
 
-    pub fn is_gray(&self) -> bool {
+    pub fn is_mask(&self) -> bool {
         matches!(self, Self::Color)
     }
 }
@@ -150,11 +158,11 @@ impl std::fmt::Display for TextureKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Color => write!(f, "Kind::Color"),
-            Self::Grayscale => write!(f, "Kind::Gray"),
+            Self::Mask => write!(f, "Kind::Gray"),
         }
     }
 }
 
+// re-export
+pub use wgpu::{Texture as GpuTexture, TextureView as GpuTextureView};
 pub type TextureFormat = wgpu::TextureFormat;
-pub type WgpuTexture = wgpu::Texture;
-pub type WgpuTextureView = wgpu::TextureView;

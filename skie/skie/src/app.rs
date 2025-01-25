@@ -111,15 +111,6 @@ pub struct AppContext {
     pub(crate) gpu: Arc<GpuContext>,
 }
 
-#[cfg(target_os = "windows")]
-static DEFAULT_FONT: &[u8] = include_bytes!("C:\\Windows\\Fonts\\segoeui.ttf");
-
-#[cfg(target_os = "macos")]
-static DEFAULT_FONT: &[u8] = include_bytes!("/System/Library/Fonts/Supplemental/Arial.ttf");
-
-#[cfg(target_os = "linux")]
-static DEFAULT_FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
-
 impl AppContext {
     fn new(handle: &mut AppHandle) -> AppContextRef {
         let jobs = Jobs::new(Some(7));
@@ -130,8 +121,6 @@ impl AppContext {
         let texture_system = Arc::new(SkieAtlas::new(gpu.clone()));
 
         let text_system = TextSystem::default();
-
-        let _ = text_system.add_fonts(vec![std::borrow::Cow::Borrowed(DEFAULT_FONT)]);
 
         let cx = Rc::new_cyclic(|this| {
             RefCell::new(Self {
@@ -349,7 +338,9 @@ impl AppContext {
             }
             WindowEvent::RedrawRequested => {
                 let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.paint();
+                if let Err(error) = window.paint() {
+                    log::error!("Error rendering {:#?}", error);
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let window = self.windows.get(&window_id).expect("expected a window");

@@ -16,11 +16,12 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     circle,
+    gpu::surface::{GpuSurface, GpuSurfaceSpecification},
     paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
-    vec2, Color, Corners, Painter, Path2D, Rect, Scene, Size, StrokeStyle, TextureFilterMode,
-    TextureId, TextureOptions, Vec2, WgpuRendererSpecs,
+    vec2, Color, Corners, FontWeight, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text,
+    TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -109,19 +110,21 @@ impl State {
 }
 
 pub struct Window {
-    pub(crate) painter: Painter,
-    pub(crate) state: RwLock<State>,
-
     objects: Vec<Object>,
     clear_color: Color,
 
     yellow_thing_texture_id: TextureId,
     checker_texture_id: TextureId,
 
+    scroller: Scroller,
+
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     next_texture_id: usize,
 
-    scroller: Scroller,
+    pub(crate) painter: Painter,
+    pub(crate) state: RwLock<State>,
+
+    surface: GpuSurface,
 
     pub(crate) handle: Arc<WinitWindow>,
 }
@@ -144,12 +147,18 @@ impl Window {
 
         let texture_atlas = app.texture_atlas.clone();
 
-        let mut painter = Painter::new(
-            app.gpu.clone(),
+        let mut painter = Painter::create(Size { width, height })
+            .with_text_system(app.text_system.clone())
+            .with_texture_atlas(texture_atlas.clone())
+            .antialias(true)
+            .build(app.gpu.clone());
+
+        let width = specs.width;
+        let height = specs.height;
+
+        let surface = app.gpu.create_surface(
             Arc::clone(&handle),
-            texture_atlas.clone(),
-            app.text_system.clone(),
-            &(WgpuRendererSpecs { width, height }),
+            &(GpuSurfaceSpecification { width, height }),
         )?;
 
         let checker_texture_key = AtlasKey::from(SkieImage::new(1));
@@ -209,6 +218,7 @@ impl Window {
         Ok(Self {
             handle,
             painter,
+            surface,
             state: RwLock::new(State::default()),
             texture_atlas,
             yellow_thing_texture_id: yellow_thing_texture_key.into(),
@@ -233,6 +243,8 @@ impl Window {
     }
 
     pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
+        self.surface
+            .resize(self.painter.renderer.gpu(), width, height);
         self.painter.resize(width, height);
     }
 
@@ -240,8 +252,7 @@ impl Window {
         &self.handle
     }
 
-    // FIXME: for now
-    pub fn build_scene(&mut self) {
+    pub fn _add_basic_scene(&mut self) {
         let size = self.winit_handle().inner_size();
         let width = size.width as f32;
         let height = size.height as f32;
@@ -397,6 +408,22 @@ impl Window {
             let state = self.state.read();
             self.scroller.render(&mut self.painter, state.mouse_pos());
         }
+
+        self.painter.fill_text(
+            &Text::new("NORMAL ✨ feat/font-system")
+                .pos((50.0, height - bar_height - margin_bottom).into())
+                .size_px(32.0)
+                .font_weight(FontWeight::BOLD)
+                .font_family("Agave Nerd Font"),
+            Color::GRAY,
+        );
+
+        self.painter.fill_text(
+            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh\nराधा कृष्ण")
+                .pos((width.half(), 100.0).into())
+                .font_family("Segoe UI Emoji"),
+            Color::WHITE,
+        );
     }
 
     pub(crate) fn handle_scroll_wheel(&mut self, _dx: f32, dy: f32) {
@@ -414,10 +441,21 @@ impl Window {
         }
     }
 
-    pub(crate) fn paint(&mut self) {
-        self.painter.begin_frame();
-        self.build_scene();
-        self.painter.finish(self.clear_color.into());
+    pub(crate) fn paint(&mut self) -> Result<()> {
+        self.painter.clear();
+
+        // remove
+        self._add_basic_scene();
+
+        let cur_texture = self.surface.surface.get_current_texture()?;
+        let view = cur_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        self.painter.finish(&view, self.clear_color.into());
+
+        cur_texture.present();
+        Ok(())
     }
 
     fn get_next_tex_id(&mut self) -> usize {
@@ -614,7 +652,6 @@ fn create_checker_texture(width: usize, height: usize, tile_size: usize) -> Vec<
             }
         }
     }
-
     texture_data
 }
 
@@ -654,7 +691,7 @@ impl Scroller {
             Color::DARK_GRAY
         };
 
-        painter.draw_primitive(
+        painter.paint_primitive(
             quad()
                 .rect(container.clone())
                 .corners(Corners::with_all(10.0))
@@ -693,7 +730,7 @@ impl Scroller {
         painter.paint_with_clip_rect(&clip, |painter| {
             for _ in 0..10 {
                 for i in 0..10 {
-                    painter.draw_primitive(
+                    painter.paint_primitive(
                         quad()
                             .rect(Rect::new_from_origin_size(
                                 cursor + vec2(-self.scroll_x, 0.0),

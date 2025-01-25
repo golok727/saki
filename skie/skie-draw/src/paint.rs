@@ -11,7 +11,7 @@ pub mod texture;
 
 use atlas::{AtlasKeyImpl, TextureAtlas};
 
-use crate::{math::Vec2, text_system::AtlasGlyph};
+use crate::{math::Vec2, text::GlyphImage};
 
 pub use color::*;
 pub use draw_list::*;
@@ -28,11 +28,11 @@ pub type SkieAtlas = TextureAtlas<AtlasKey>;
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum AtlasKey {
     Image(SkieImage),
-    Glyf(AtlasGlyph),
+    Glyf(GlyphImage),
 }
 
-impl From<AtlasGlyph> for AtlasKey {
-    fn from(atlas_glyf: AtlasGlyph) -> Self {
+impl From<GlyphImage> for AtlasKey {
+    fn from(atlas_glyf: GlyphImage) -> Self {
         Self::Glyf(atlas_glyf)
     }
 }
@@ -48,7 +48,13 @@ impl AtlasKeyImpl for AtlasKey {
 
     fn kind(&self) -> TextureKind {
         match self {
-            AtlasKey::Glyf(_) => TextureKind::Grayscale,
+            AtlasKey::Glyf(glyph) => {
+                if glyph.is_emoji {
+                    TextureKind::Color
+                } else {
+                    TextureKind::Mask
+                }
+            }
             AtlasKey::Image(image) => image.texture_kind,
         }
     }

@@ -44,8 +44,12 @@ impl Scene {
             .into_iter()
     }
 
-    pub fn batches(&self, tex_info: SceneTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {
-        SceneBatchIterator::new(self, tex_info)
+    pub fn batches(
+        &self,
+        tex_info: SceneTextureInfoMap,
+        antialias: bool,
+    ) -> impl Iterator<Item = Mesh> + '_ {
+        SceneBatchIterator::new(self, tex_info, antialias)
     }
 }
 
@@ -63,10 +67,11 @@ struct SceneBatchIterator<'a> {
     groups: Vec<(TextureId, Vec<GroupEntry>)>,
     tex_info: SceneTextureInfoMap,
     cur_group: usize,
+    antialias: bool,
 }
 
 impl<'a> SceneBatchIterator<'a> {
-    pub fn new(scene: &'a Scene, tex_info: SceneTextureInfoMap) -> Self {
+    pub fn new(scene: &'a Scene, tex_info: SceneTextureInfoMap, antialias: bool) -> Self {
         let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
         for (i, prim) in scene.items.iter().enumerate() {
@@ -101,6 +106,7 @@ impl<'a> SceneBatchIterator<'a> {
             tex_info,
             cur_group: 0,
             groups,
+            antialias,
         }
     }
 
@@ -115,6 +121,7 @@ impl<'a> SceneBatchIterator<'a> {
         let render_texture = group.0.clone();
 
         let mut drawlist = DrawList::default();
+        drawlist.antialias(self.antialias);
 
         for entry in &group.1 {
             let prim = &self.scene.items[entry.index];
@@ -150,7 +157,7 @@ impl<'a> SceneBatchIterator<'a> {
                     let fill_color = prim.fill.color;
 
                     if quad.corners.is_zero() && prim.stroke.is_none() {
-                        drawlist.add_prim_quad(&quad.bounds, fill_color);
+                        drawlist.fill_rect(&quad.bounds, fill_color);
                     } else {
                         drawlist.path.clear();
                         drawlist.path.round_rect(&quad.bounds, &quad.corners);
@@ -163,7 +170,8 @@ impl<'a> SceneBatchIterator<'a> {
                 }
 
                 PrimitiveKind::Path(path) => {
-                    drawlist.fill_with_path(path, prim.fill.color);
+                    // TODO:
+                    // drawlist.fill_with_path(path, prim.fill.color);
 
                     if let Some(stroke_style) = &prim.stroke {
                         let stroke_style = if path.closed {

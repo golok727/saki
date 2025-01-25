@@ -1,9 +1,4 @@
-use crate::{
-    arc_string::ArcString,
-    math::Corners,
-    text_system::{Font, FontStyle, FontWeight},
-    traits::Zero,
-};
+use crate::{math::Corners, traits::Zero};
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
@@ -151,6 +146,10 @@ pub struct Primitive {
 }
 
 impl Primitive {
+    pub fn new(prim: impl Into<Self>) -> Self {
+        prim.into()
+    }
+
     #[inline(always)]
     pub(crate) fn can_render(&self) -> bool {
         let stroke_color = self.stroke.map_or(Color::TRANSPARENT, |s| s.color);
