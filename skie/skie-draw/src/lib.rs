@@ -1,26 +1,31 @@
 pub mod arc_string;
+pub mod canvas;
 pub mod gpu;
 pub mod math;
 pub mod paint;
-pub mod painter;
 pub mod renderer;
 pub mod scene;
 pub mod text;
 pub mod traits;
 
-pub use gpu::{error::GpuContextCreateError, GpuContext};
+pub use canvas::Canvas;
+pub use gpu::{
+    GpuContext, GpuContextCreateError, GpuSurface, GpuSurfaceCreateError, GpuSurfaceSpecification,
+};
+
 pub use math::{mat3, vec2, Corners, Mat3, Rect, Size, Vec2};
 pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
-    atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap, TextureAtlas},
-    circle,
-    path::Path2D,
-    quad, AtlasKey, Circle, FillStyle, LineCap, LineJoin, Primitive, Quad, SkieAtlas, StrokeStyle,
-    Text, TextAlign, TextBaseline,
+    circle, path::Path2D, quad, AtlasKey, AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap,
+    Circle, FillStyle, LineCap, LineJoin, Primitive, Quad, SkieAtlas, StrokeStyle, Text, TextAlign,
+    TextBaseline, TextureAtlas,
 };
-pub use paint::{TextureAddressMode, TextureFilterMode, TextureFormat, TextureId, TextureOptions};
-pub use painter::Painter;
+
+pub use paint::{
+    GpuTexture, GpuTextureView, GpuTextureViewDescriptor, TextureAddressMode, TextureFilterMode,
+    TextureFormat, TextureId, TextureOptions,
+};
 
 pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
 

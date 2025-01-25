@@ -17,10 +17,10 @@ pub(crate) use winit::window::Window as WinitWindow;
 use skie_draw::{
     circle,
     gpu::surface::{GpuSurface, GpuSurfaceSpecification},
-    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind, TextureViewDescriptor},
+    paint::{AsPrimitive, AtlasKey, GpuTextureViewDescriptor, SkieAtlas, SkieImage, TextureKind},
     quad,
     traits::Half,
-    vec2, Color, Corners, FontWeight, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text,
+    vec2, Canvas, Color, Corners, FontWeight, Path2D, Rect, Scene, Size, StrokeStyle, Text,
     TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
 
@@ -121,7 +121,7 @@ pub struct Window {
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     next_texture_id: usize,
 
-    pub(crate) painter: Painter,
+    pub(crate) painter: Canvas,
     pub(crate) state: RwLock<State>,
 
     surface: GpuSurface<'static>,
@@ -147,7 +147,7 @@ impl Window {
 
         let texture_atlas = app.texture_atlas.clone();
 
-        let mut painter = Painter::create(Size { width, height })
+        let mut painter = Canvas::create(Size { width, height })
             .with_text_system(app.text_system.clone())
             .with_texture_atlas(texture_atlas.clone())
             .antialias(true)
@@ -444,13 +444,13 @@ impl Window {
     pub(crate) fn paint(&mut self) -> Result<()> {
         self.painter.clear();
 
-        // remove
+        // TODO: remove
         self._add_basic_scene();
 
         let cur_texture = self.surface.surface.get_current_texture()?;
         let view = cur_texture
             .texture
-            .create_view(&TextureViewDescriptor::default());
+            .create_view(&GpuTextureViewDescriptor::default());
 
         self.painter.finish(&view, self.clear_color.into());
 
@@ -676,7 +676,7 @@ impl Scroller {
         }
     }
 
-    fn render(&self, painter: &mut Painter, mouse_pos: Option<&Vec2<f32>>) {
+    fn render(&self, painter: &mut Canvas, mouse_pos: Option<&Vec2<f32>>) {
         let container = &self.dims;
 
         let hovered = mouse_pos

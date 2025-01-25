@@ -9,10 +9,9 @@ pub mod primitives;
 pub mod text;
 pub mod texture;
 
-use atlas::{AtlasKeyImpl, TextureAtlas};
-
 use crate::{math::Vec2, text::GlyphImage};
 
+pub use atlas::*;
 pub use color::*;
 pub use draw_list::*;
 pub use image::*;

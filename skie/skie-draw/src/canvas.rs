@@ -4,82 +4,16 @@ use crate::{
     paint::{AsPrimitive, AtlasKey, GpuTextureView, SkieAtlas, TextureKind},
     quad,
     renderer::Renderable,
-    Circle, Color, GlyphImage, GpuContext, IsZero, Path2D, Primitive, Quad, Rect, Rgba, Scene,
-    Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, WgpuRendererSpecs, Zero,
+    Circle, Color, GlyphImage, IsZero, Path2D, Primitive, Quad, Rect, Rgba, Scene, Size, Text,
+    TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
 };
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
 use wgpu::FilterMode;
 
-#[derive(Default)]
-pub struct PainterBuilder {
-    pub texture_atlas: Option<Arc<SkieAtlas>>,
-    pub text_system: Option<Arc<TextSystem>>,
-    pub antialias: bool,
-    pub size: Size<u32>,
-}
+mod builder;
+pub use builder::CanvasBuilder;
 
-impl PainterBuilder {
-    pub fn new(size: Size<u32>) -> Self {
-        Self {
-            size,
-            ..Default::default()
-        }
-    }
-
-    pub fn build(self, gpu: GpuContext) -> Painter {
-        let texture_atlas = self
-            .texture_atlas
-            .unwrap_or(Arc::new(SkieAtlas::new(gpu.clone())));
-
-        let text_system = self.text_system.unwrap_or(Arc::new(TextSystem::default()));
-
-        let renderer = WgpuRenderer::new(
-            gpu,
-            &texture_atlas,
-            &WgpuRendererSpecs {
-                width: self.size.width,
-                height: self.size.height,
-            },
-        );
-
-        Painter {
-            renderer,
-
-            texture_atlas,
-            text_system,
-
-            screen: self.size,
-            antialias: self.antialias,
-
-            scene: Default::default(),
-            renderables: Default::default(),
-            clip_rects: Default::default(),
-        }
-    }
-
-    pub fn with_size(mut self, size: Size<u32>) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn with_texture_atlas(mut self, atlas: Arc<SkieAtlas>) -> Self {
-        self.texture_atlas = Some(atlas);
-        self
-    }
-
-    pub fn with_text_system(mut self, text_system: Arc<TextSystem>) -> Self {
-        self.text_system = Some(text_system);
-        self
-    }
-
-    pub fn antialias(mut self, val: bool) -> Self {
-        self.antialias = val;
-        self
-    }
-}
-
-//  Winit window painter
-pub struct Painter {
+pub struct Canvas {
     pub renderer: WgpuRenderer,
     pub(crate) scene: Scene,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
@@ -88,12 +22,12 @@ pub struct Painter {
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
     antialias: bool,
-    // todo msaa
+    // TODO msaa
 }
 
-impl Painter {
-    pub fn create(size: Size<u32>) -> PainterBuilder {
-        PainterBuilder::new(size)
+impl Canvas {
+    pub fn create(size: Size<u32>) -> CanvasBuilder {
+        CanvasBuilder::new(size)
     }
 
     pub fn atlas(&self) -> &Arc<SkieAtlas> {
