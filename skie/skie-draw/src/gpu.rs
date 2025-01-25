@@ -12,6 +12,7 @@ pub struct GpuContext {
 }
 
 impl GpuContext {
+    // TODO: allow config
     pub async fn new() -> Result<Self, error::GpuContextCreateError> {
         let instance = wgpu::Instance::default();
 
