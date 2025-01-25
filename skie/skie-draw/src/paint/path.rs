@@ -1,7 +1,4 @@
-use crate::{
-    math::{Corners, Mat3, Rect, Vec2},
-    traits::IsZero,
-};
+use crate::{Corners, IsZero, Mat3, Rect, Vec2};
 
 #[derive(Debug, Clone)]
 pub struct Path2D {

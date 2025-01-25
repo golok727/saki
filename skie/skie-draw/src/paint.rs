@@ -16,6 +16,7 @@ pub use color::*;
 pub use draw_list::*;
 pub use image::*;
 pub use mesh::*;
+pub use path::*;
 pub use polyline::*;
 pub use primitives::*;
 pub use text::*;

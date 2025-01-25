@@ -1,13 +1,8 @@
 use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
-use crate::gpu::CommandEncoder;
-use crate::math::{Rect, Size};
-use crate::paint::atlas::{AtlasKeyImpl, TextureAtlas};
-use crate::paint::{GpuTextureView, TextureKind, TextureOptions};
 use crate::{
-    gpu::GpuContext,
-    math::Mat3,
-    paint::{Mesh, TextureId, Vertex},
+    gpu::CommandEncoder, paint::Vertex, AtlasKeyImpl, GpuContext, GpuTextureView, Mat3, Mesh, Rect,
+    Size, TextureAtlas, TextureId, TextureKind, TextureOptions,
 };
 
 use wgpu::util::DeviceExt;

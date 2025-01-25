@@ -288,7 +288,7 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
         );
 
         let view = raw.create_view(&wgpu::TextureViewDescriptor::default());
-        let allocator = etagere::BucketedAtlasAllocator::new(size.into());
+        let allocator = etagere::BucketedAtlasAllocator::new(to_etagere_size(size));
 
         let storage = self.get_storage_write(&kind);
         let slot = storage.free_slots.pop();
@@ -341,12 +341,13 @@ pub struct AtlasTexture {
 
 impl AtlasTexture {
     fn allocate(&mut self, size: Size<i32>) -> Option<AtlasTile> {
-        let allocation = self.allocator.allocate(size.into())?;
+        let allocation = self.allocator.allocate(to_etagere_size(size))?;
         let id = allocation.id;
 
         let alloc_rect = allocation.rectangle;
 
-        let bounds: Rect<i32> = Rect::new_from_origin_size(alloc_rect.min.into(), size);
+        let bounds: Rect<i32> =
+            Rect::new_from_origin_size(from_etagere_point(alloc_rect.min), size);
 
         Some(AtlasTile {
             id: id.into(),
@@ -438,36 +439,6 @@ impl std::fmt::Debug for AtlasTexture {
     }
 }
 
-impl<T: From<i32>> From<etagere::Point> for Vec2<T> {
-    fn from(value: etagere::Point) -> Self {
-        Vec2 {
-            x: value.x.into(),
-            y: value.y.into(),
-        }
-    }
-}
-
-impl<T> From<etagere::Size> for Size<T>
-where
-    T: From<i32>,
-{
-    fn from(value: etagere::Size) -> Self {
-        Self {
-            width: value.width.into(),
-            height: value.height.into(),
-        }
-    }
-}
-
-impl<T> From<Size<T>> for etagere::Size
-where
-    T: Into<i32>,
-{
-    fn from(value: Size<T>) -> Self {
-        etagere::size2(value.width.into(), value.height.into())
-    }
-}
-
 impl From<etagere::AllocId> for AtlasTileId {
     fn from(value: etagere::AllocId) -> Self {
         Self(value.serialize())
@@ -504,6 +475,13 @@ impl<T: std::fmt::Debug> std::ops::IndexMut<usize> for AtlasTextureList<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.slots[index]
     }
+}
+
+fn to_etagere_size(size: Size<i32>) -> etagere::Size {
+    etagere::size2(size.width, size.height)
+}
+fn from_etagere_point(p: etagere::Point) -> Vec2<i32> {
+    Vec2 { x: p.x, y: p.y }
 }
 
 #[cfg(test)]

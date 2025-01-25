@@ -2,7 +2,7 @@ use super::Vec2;
 use std::ops::Mul;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Zeroable, bytemuck::Pod)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mat3 {
     data: [f32; 9],
 }

@@ -2270,11 +2270,16 @@ dependencies = [
  "etagere",
  "log",
  "parking_lot",
+ "skie-math",
  "smallvec",
  "thiserror 2.0.3",
  "wgpu",
  "winit",
 ]
+
+[[package]]
+name = "skie-math"
+version = "0.1.0"
 
 [[package]]
 name = "skrifa"

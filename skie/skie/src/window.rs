@@ -18,10 +18,8 @@ use skie_draw::{
     circle,
     gpu::surface::{GpuSurface, GpuSurfaceSpecification},
     paint::{AsPrimitive, AtlasKey, GpuTextureViewDescriptor, SkieAtlas, SkieImage, TextureKind},
-    quad,
-    traits::Half,
-    vec2, Canvas, Color, Corners, FontWeight, Path2D, Rect, Scene, Size, StrokeStyle, Text,
-    TextureFilterMode, TextureId, TextureOptions, Vec2,
+    quad, vec2, Canvas, Color, Corners, FontWeight, Half, Path2D, Rect, Scene, Size, StrokeStyle,
+    Text, TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]

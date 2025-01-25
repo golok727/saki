@@ -13,6 +13,9 @@ parking_lot.workspace = true
 derive_more.workspace = true
 anyhow.workspace = true
 smallvec.workspace = true
+
+skie-math = { path = "../skie-math" }
 bytemuck = { version = "1.20.0", features = ["derive"] }
+
 etagere = "0.2.13"
 cosmic-text = "0.12.1"

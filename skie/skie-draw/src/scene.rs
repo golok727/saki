@@ -1,10 +1,6 @@
 use crate::{
-    paint::{
-        atlas::{AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap},
-        AtlasKey, Mesh, PrimitiveKind,
-    },
-    traits::IsZero,
-    DrawList, Primitive, TextureId,
+    paint::{AtlasKey, AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, PrimitiveKind},
+    DrawList, IsZero, Primitive, TextureId,
 };
 
 use ahash::HashSet;

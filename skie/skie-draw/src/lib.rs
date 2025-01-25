@@ -1,12 +1,12 @@
 pub mod arc_string;
 pub mod canvas;
 pub mod gpu;
-pub mod math;
 pub mod paint;
 pub mod renderer;
 pub mod scene;
 pub mod text;
-pub mod traits;
+
+pub use skie_math as math;
 
 pub use canvas::Canvas;
 pub use gpu::{
@@ -17,14 +17,14 @@ pub use math::{mat3, vec2, Corners, Mat3, Rect, Size, Vec2};
 pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
-    circle, path::Path2D, quad, AtlasKey, AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap,
-    Circle, FillStyle, LineCap, LineJoin, Primitive, Quad, SkieAtlas, StrokeStyle, Text, TextAlign,
+    circle, quad, AtlasKey, AtlasKeyImpl, AtlasTextureInfo, AtlasTextureInfoMap, Circle, FillStyle,
+    LineCap, LineJoin, Path2D, Primitive, Quad, SkieAtlas, StrokeStyle, Text, TextAlign,
     TextBaseline, TextureAtlas,
 };
 
 pub use paint::{
-    GpuTexture, GpuTextureView, GpuTextureViewDescriptor, TextureAddressMode, TextureFilterMode,
-    TextureFormat, TextureId, TextureOptions,
+    GpuTexture, GpuTextureView, GpuTextureViewDescriptor, Mesh, TextureAddressMode,
+    TextureFilterMode, TextureFormat, TextureId, TextureKind, TextureOptions,
 };
 
 pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
@@ -32,4 +32,4 @@ pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
 pub use scene::Scene;
 pub use text::{Font, FontId, FontStyle, FontWeight, GlyphId, GlyphImage, TextSystem};
 
-pub use traits::{Half, IsZero, Zero};
+pub use skie_math::traits::*;
