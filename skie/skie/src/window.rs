@@ -17,7 +17,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 use skie_draw::{
     circle,
     gpu::surface::{GpuSurface, GpuSurfaceSpecification},
-    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind},
+    paint::{AsPrimitive, AtlasKey, SkieAtlas, SkieImage, TextureKind, TextureViewDescriptor},
     quad,
     traits::Half,
     vec2, Color, Corners, FontWeight, Painter, Path2D, Rect, Scene, Size, StrokeStyle, Text,
@@ -450,7 +450,7 @@ impl Window {
         let cur_texture = self.surface.surface.get_current_texture()?;
         let view = cur_texture
             .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+            .create_view(&TextureViewDescriptor::default());
 
         self.painter.finish(&view, self.clear_color.into());
 

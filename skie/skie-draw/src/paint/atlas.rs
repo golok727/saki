@@ -4,7 +4,6 @@ use crate::math::{Rect, Size, Vec2};
 use super::{GpuTexture, GpuTextureView, TextureFormat, TextureKind};
 use parking_lot::Mutex;
 use std::borrow::Cow;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct TextureAtlas<Key: AtlasKeyImpl>(Mutex<AtlasStorage<Key>>);
@@ -36,14 +35,14 @@ pub type AtlasTextureInfoMap<Key> = ahash::AHashMap<Key, AtlasTextureInfo>;
 
 #[derive(Debug)]
 struct AtlasStorage<Key: AtlasKeyImpl> {
-    gpu: Arc<GpuContext>,
+    gpu: GpuContext,
     gray_textures: AtlasTextureList<Option<AtlasTexture>>,
     color_textures: AtlasTextureList<Option<AtlasTexture>>,
     key_to_tile: ahash::AHashMap<Key, AtlasTile>,
 }
 
 impl<Key: AtlasKeyImpl> TextureAtlas<Key> {
-    pub fn new(gpu: Arc<GpuContext>) -> Self {
+    pub fn new(gpu: GpuContext) -> Self {
         // TODO should we initialize the white_texture in here ?
         let sys = Self(Mutex::new(AtlasStorage::<Key> {
             gpu,
@@ -208,7 +207,7 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
             let tile_width: u32 = tile.bounds.size.width as _;
             let tile_height: u32 = tile.bounds.size.height as _;
             self.gpu.queue.write_texture(
-                wgpu::ImageCopyTexture {
+                wgpu::TexelCopyTextureInfo {
                     texture: &texture.raw,
                     aspect: wgpu::TextureAspect::All,
                     mip_level: 0,
@@ -219,7 +218,7 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
                     },
                 },
                 data,
-                wgpu::ImageDataLayout {
+                wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(texture.kind.bytes_per_pixel() * tile_width),
                     rows_per_image: None,
@@ -269,14 +268,14 @@ impl<Key: AtlasKeyImpl> AtlasStorage<Key> {
         let init_data = vec![0u8; n_bytes as usize];
 
         self.gpu.queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &raw,
                 aspect: wgpu::TextureAspect::All,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             &init_data,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(width * bytes_per_pixel),
                 rows_per_image: None,

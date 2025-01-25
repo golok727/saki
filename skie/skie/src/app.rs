@@ -108,15 +108,14 @@ pub struct AppContext {
 
     pub(crate) windows: ahash::AHashMap<WindowId, Window>,
 
-    pub(crate) gpu: Arc<GpuContext>,
+    pub(crate) gpu: GpuContext,
 }
 
 impl AppContext {
     fn new(handle: &mut AppHandle) -> AppContextRef {
         let jobs = Jobs::new(Some(7));
 
-        let gpu =
-            Arc::new(pollster::block_on(GpuContext::new()).expect("Error creating gpu context"));
+        let gpu = pollster::block_on(GpuContext::new()).expect("Error creating gpu context");
 
         let texture_system = Arc::new(SkieAtlas::new(gpu.clone()));
 

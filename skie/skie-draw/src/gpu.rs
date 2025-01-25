@@ -3,11 +3,10 @@ pub mod surface;
 
 pub use wgpu::CommandEncoder;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GpuContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
 }
@@ -135,14 +134,14 @@ impl GpuContext {
         );
 
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &texture,
                 aspect: wgpu::TextureAspect::All,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             data,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),
                 rows_per_image: None,

@@ -26,7 +26,7 @@ impl PainterBuilder {
         }
     }
 
-    pub fn build(self, gpu: Arc<GpuContext>) -> Painter {
+    pub fn build(self, gpu: GpuContext) -> Painter {
         let texture_atlas = self
             .texture_atlas
             .unwrap_or(Arc::new(SkieAtlas::new(gpu.clone())));

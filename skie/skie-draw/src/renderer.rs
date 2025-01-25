@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::gpu::CommandEncoder;
@@ -124,7 +123,7 @@ pub struct WgpuRendererSpecs {
 
 #[derive(Debug)]
 pub struct WgpuRenderer {
-    gpu: Arc<GpuContext>,
+    gpu: GpuContext,
 
     size: Size<u32>,
 
@@ -142,11 +141,7 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-    pub fn new<Key>(
-        gpu: Arc<GpuContext>,
-        atlas: &TextureAtlas<Key>,
-        specs: &WgpuRendererSpecs,
-    ) -> Self
+    pub fn new<Key>(gpu: GpuContext, atlas: &TextureAtlas<Key>, specs: &WgpuRendererSpecs) -> Self
     where
         Key: AtlasKeyImpl,
     {
