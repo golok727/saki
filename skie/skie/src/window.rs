@@ -413,14 +413,14 @@ impl Window {
         // TODO: remove
         self._add_basic_scene();
 
-        let cur_texture = self.surface.surface.get_current_texture()?;
-        let view = cur_texture
+        let surface_texture = self.surface.get_current_texture()?;
+        let view = surface_texture
             .texture
             .create_view(&GpuTextureViewDescriptor::default());
 
         self.canvas.finish(&view, self.clear_color.into());
+        surface_texture.present();
 
-        cur_texture.present();
         Ok(())
     }
 

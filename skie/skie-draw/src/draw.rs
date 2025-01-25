@@ -17,7 +17,7 @@ pub use math::{mat3, vec2, Corners, Mat3, Rect, Size, Vec2};
 pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
-    circle, quad, AtlasKey, AtlasKeySource, AtlasTextureInfo, AtlasTextureInfoMap, Circle,
+    circle, quad, AtlasKey, AtlasKeySource, AtlasTextureInfo, AtlasTextureInfoMap, Brush, Circle,
     FillStyle, LineCap, LineJoin, Path2D, Primitive, Quad, SkieAtlas, StrokeStyle, Text, TextAlign,
     TextBaseline, TextureAtlas,
 };

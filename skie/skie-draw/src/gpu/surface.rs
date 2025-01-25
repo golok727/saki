@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use super::error::GpuSurfaceCreateError;
 use super::GpuContext;
 
@@ -11,6 +13,14 @@ pub struct GpuSurfaceSpecification {
 pub struct GpuSurface<'a> {
     pub surface: wgpu::Surface<'a>,
     pub config: wgpu::SurfaceConfiguration,
+}
+
+impl<'a> Deref for GpuSurface<'a> {
+    type Target = wgpu::Surface<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.surface
+    }
 }
 
 impl<'a> GpuSurface<'a> {
