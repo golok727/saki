@@ -29,6 +29,23 @@ pub type SkieAtlas = TextureAtlas<AtlasKey>;
 pub enum AtlasKey {
     Image(SkieImage),
     Glyf(GlyphImage),
+    WhiteTexture,
+}
+
+impl AtlasKeySource for AtlasKey {
+    fn texture_kind(&self) -> TextureKind {
+        match self {
+            AtlasKey::Glyf(glyph) => {
+                if glyph.is_emoji {
+                    TextureKind::Color
+                } else {
+                    TextureKind::Mask
+                }
+            }
+            AtlasKey::Image(image) => image.texture_kind,
+            AtlasKey::WhiteTexture => TextureKind::Color,
+        }
+    }
 }
 
 impl From<GlyphImage> for AtlasKey {
@@ -40,22 +57,5 @@ impl From<GlyphImage> for AtlasKey {
 impl From<SkieImage> for AtlasKey {
     fn from(image: SkieImage) -> Self {
         Self::Image(image)
-    }
-}
-
-impl AtlasKeySource for AtlasKey {
-    const WHITE_TEXTURE_KEY: Self = Self::Image(SkieImage::WHITE_IMAGE);
-
-    fn kind(&self) -> TextureKind {
-        match self {
-            AtlasKey::Glyf(glyph) => {
-                if glyph.is_emoji {
-                    TextureKind::Color
-                } else {
-                    TextureKind::Mask
-                }
-            }
-            AtlasKey::Image(image) => image.texture_kind,
-        }
     }
 }

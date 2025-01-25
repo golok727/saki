@@ -9,16 +9,10 @@ pub struct SkieImage {
     pub(crate) texture_kind: TextureKind,
 }
 
-impl SkieImage {
-    pub const WHITE_IMAGE: Self = Self {
-        image_id: SkieImageId(0),
-        texture_kind: TextureKind::Color,
-    };
-}
+impl SkieImage {}
 
 impl SkieImage {
     pub fn new(id: usize) -> Self {
-        debug_assert_ne!(id, 0, "SkieImageId(0) is reserved for white texture.");
         Self {
             image_id: SkieImageId(id),
             texture_kind: TextureKind::Color,

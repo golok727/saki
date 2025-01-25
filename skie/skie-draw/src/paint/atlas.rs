@@ -26,9 +26,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 pub trait AtlasKeySource: Hash + Debug + Clone + PartialEq + Eq {
-    const WHITE_TEXTURE_KEY: Self;
-
-    fn kind(&self) -> TextureKind;
+    fn texture_kind(&self) -> TextureKind;
 }
 
 pub type AtlasTextureInfoMap<Key> = ahash::AHashMap<Key, AtlasTextureInfo>;
@@ -43,27 +41,12 @@ struct AtlasStorage<Key: AtlasKeySource> {
 
 impl<Key: AtlasKeySource> TextureAtlas<Key> {
     pub fn new(gpu: GpuContext) -> Self {
-        // TODO should we initialize the white_texture in here ?
-        let sys = Self(Mutex::new(AtlasStorage::<Key> {
+        Self(Mutex::new(AtlasStorage::<Key> {
             gpu,
             gray_textures: Default::default(),
             color_textures: Default::default(),
             key_to_tile: ahash::AHashMap::new(),
-        }));
-
-        // add the default white texture
-        sys.get_or_insert(&Key::WHITE_TEXTURE_KEY, || {
-            (
-                TextureKind::Color,
-                Size {
-                    width: 1,
-                    height: 1,
-                },
-                Cow::Borrowed(&[255, 255, 255, 255]),
-            )
-        });
-
-        sys
+        }))
     }
 
     pub fn get_texture_for_tile<R>(
@@ -119,7 +102,7 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
     /// Combination of `create_texture` and `upload_texture`
     pub fn create_texture_init(&self, key: &Key, size: Size<i32>, data: &[u8]) -> AtlasTile {
         let mut lock = self.0.lock();
-        let tile = lock.create_texture(size, key.kind(), key.clone());
+        let tile = lock.create_texture(size, key.texture_kind(), key.clone());
         lock.upload_texture(&tile, data);
         tile
     }
@@ -128,7 +111,7 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
     /// use the `upload_texture` method to upload data into tile
     pub fn create_texture(&self, key: &Key, size: Size<i32>) -> AtlasTile {
         let mut lock = self.0.lock();
-        lock.create_texture(size, key.kind(), key.clone())
+        lock.create_texture(size, key.texture_kind(), key.clone())
     }
 
     pub fn upload_texture(&self, tile: &AtlasTile, data: &[u8]) {

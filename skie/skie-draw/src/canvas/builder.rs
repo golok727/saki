@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::{GpuContext, Size, SkieAtlas, TextSystem, WgpuRenderer, WgpuRendererSpecs};
+use crate::{
+    renderer::create_skie_renderer, GpuContext, Size, SkieAtlas, TextSystem, WgpuRendererSpecs,
+};
 
 use super::Canvas;
 
@@ -27,7 +29,7 @@ impl CanvasBuilder {
 
         let text_system = self.text_system.unwrap_or(Arc::new(TextSystem::default()));
 
-        let renderer = WgpuRenderer::new(
+        let renderer = create_skie_renderer(
             gpu,
             &texture_atlas,
             &WgpuRendererSpecs {

@@ -1,8 +1,8 @@
-use std::{cell::Cell, num::NonZeroU64, ops::Range};
+use std::{borrow::Cow, cell::Cell, num::NonZeroU64, ops::Range};
 
 use crate::{
-    gpu::CommandEncoder, paint::Vertex, AtlasKeySource, GpuContext, GpuTextureView, Mat3, Mesh,
-    Rect, Size, TextureAtlas, TextureId, TextureKind, TextureOptions,
+    gpu::CommandEncoder, paint::Vertex, AtlasKey, AtlasKeySource, GpuContext, GpuTextureView, Mat3,
+    Mesh, Rect, Size, SkieAtlas, TextureAtlas, TextureId, TextureKind, TextureOptions,
 };
 
 use wgpu::util::DeviceExt;
@@ -136,10 +136,7 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-    pub fn new<Key>(gpu: GpuContext, atlas: &TextureAtlas<Key>, specs: &WgpuRendererSpecs) -> Self
-    where
-        Key: AtlasKeySource,
-    {
+    pub fn new(gpu: GpuContext, specs: &WgpuRendererSpecs) -> Self {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let global_uniforms =
@@ -189,7 +186,7 @@ impl WgpuRenderer {
             capacity: INITIAL_INDEX_BUFFER_SIZE,
         };
 
-        let mut renderer = Self {
+        Self {
             gpu,
             global_uniforms,
             textures: Default::default(),
@@ -201,10 +198,7 @@ impl WgpuRenderer {
                 width: specs.width,
                 height: specs.height,
             },
-        };
-
-        renderer.set_texture_from_atlas(atlas, &Key::WHITE_TEXTURE_KEY, &TextureOptions::default());
-        renderer
+        }
     }
 
     pub fn size(&self) -> Size<u32> {
@@ -486,6 +480,28 @@ impl WgpuRenderer {
         self.vertex_buffer.slices.clear();
         self.index_buffer.slices.clear();
     }
+}
+
+pub(crate) fn create_skie_renderer(
+    gpu: GpuContext,
+    atlas: &SkieAtlas,
+    specs: &WgpuRendererSpecs,
+) -> WgpuRenderer {
+    let mut renderer = WgpuRenderer::new(gpu, specs);
+    // add white texture to the atlas
+    atlas.get_or_insert(&AtlasKey::WhiteTexture, || {
+        (
+            TextureKind::Color,
+            Size {
+                width: 1,
+                height: 1,
+            },
+            Cow::Borrowed(&[255, 255, 255, 255]),
+        )
+    });
+    // bind the white texture in renderer for use
+    renderer.set_texture_from_atlas(atlas, &AtlasKey::WhiteTexture, &TextureOptions::default());
+    renderer
 }
 
 #[derive(Debug)]
