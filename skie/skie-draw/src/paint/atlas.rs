@@ -329,8 +329,7 @@ impl AtlasTexture {
 
         let alloc_rect = allocation.rectangle;
 
-        let bounds: Rect<i32> =
-            Rect::new_from_origin_size(from_etagere_point(alloc_rect.min), size);
+        let bounds: Rect<i32> = Rect::from_origin_size(from_etagere_point(alloc_rect.min), size);
 
         Some(AtlasTile {
             id: id.into(),

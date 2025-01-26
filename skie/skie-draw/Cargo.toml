@@ -29,5 +29,7 @@ cosmic-text = "0.12.1"
 
 [features]
 default = []
+all = ["application"]
 # provides a quick start application module backed by winit
 application = ["dep:winit"]
+experimental = []

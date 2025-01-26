@@ -34,7 +34,7 @@ impl<T> Rect<T> {
         }
     }
 
-    pub fn new_from_origin_size(origin: Vec2<T>, size: Size<T>) -> Self {
+    pub fn from_origin_size(origin: Vec2<T>, size: Size<T>) -> Self {
         Self { origin, size }
     }
 }

@@ -9,11 +9,17 @@ use crate::{
     TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
 };
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-use skie_math::Corners;
+use skie_math::{Corners, Mat3};
 use wgpu::FilterMode;
 
 mod builder;
 pub use builder::CanvasBuilder;
+
+#[derive(Debug, Clone)]
+pub(crate) struct CanvasState {
+    pub transform: Mat3,
+    pub clip: Rect<f32>,
+}
 
 /*
  TODO
@@ -26,6 +32,8 @@ pub struct Canvas {
     pub(crate) scene: Scene,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
+    state_stack: Vec<CanvasState>,
+    current_state: CanvasState,
     renderables: Vec<Renderable>,
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
@@ -58,19 +66,39 @@ impl Canvas {
         &self.text_system
     }
 
-    // pub fn clip() {
-    //
-    // }
+    pub fn save(&mut self) {
+        self.state_stack.push(self.current_state.clone());
+    }
 
-    // pub fn translate(&mut self) {
-    //
-    // }
+    pub fn restore(&mut self) {
+        if let Some(state) = self.state_stack.pop() {
+            self.current_state = state;
+        }
+    }
+
+    #[cfg(feature = "experimental")]
+    pub fn clip(&mut self, _rect: &Rect<f32>) {}
+
+    #[cfg(feature = "experimental")]
+    pub fn translate(&mut self, x: f32, y: f32) {
+        dbg!(x, y);
+    }
+
+    #[cfg(feature = "experimental")]
+    pub fn scale(&mut self, x: f32, y: f32) {
+        dbg!(x, y);
+    }
+
+    #[cfg(feature = "experimental")]
+    pub fn rotate(&mut self, x: f32, y: f32) {
+        dbg!(x, y);
+    }
 
     pub fn get_clip_rect(&self) -> Rect<f32> {
         self.clip_rects
             .last()
             .cloned()
-            .unwrap_or(Rect::new_from_origin_size(
+            .unwrap_or(Rect::from_origin_size(
                 Vec2::zero(),
                 self.screen.map_cloned(|v| v as f32),
             ))
@@ -234,7 +262,7 @@ impl Canvas {
 
                         self.scene.add(
                             quad()
-                                .rect(Rect::new_from_origin_size(
+                                .rect(Rect::from_origin_size(
                                     (x as f32, y as f32).into(),
                                     size.map(|v| *v as f32),
                                 ))

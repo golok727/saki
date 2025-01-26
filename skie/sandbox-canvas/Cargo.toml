@@ -1,0 +1,8 @@
+[package]
+name = "sandbox-canvas"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+skie-draw = { workspace = true, features = ["application", "experimental"] }
+pollster.workspace = true
