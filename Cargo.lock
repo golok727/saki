@@ -708,7 +708,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "example_skie_canvas"
+name = "example_skie_draw_app"
 version = "0.1.0"
 dependencies = [
  "pollster",
