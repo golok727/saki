@@ -42,7 +42,7 @@ impl<'a> Polyline<'a> {
             return;
         }
 
-        let h_linewidth = stroke_style.line_width as f32 / 2.0;
+        let h_linewidth = stroke_style.line_width.max(1) as f32 / 2.0;
 
         let mut segments: Vec<PolySegment> = points
             .windows(2)
