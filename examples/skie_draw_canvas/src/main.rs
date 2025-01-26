@@ -26,10 +26,15 @@ fn main() {
 
     canvas.draw_round_rect(&rect, &Corners::with_all(10.0), &brush);
 
-    // TODO: auto flush
+    brush.reset();
+    brush.fill_color(Color::WHITE);
+    let center = rect.center();
+    canvas.draw_circle(center.x, center.y, 200.0, &brush);
+
+    // TODO auto flush
     canvas.paint();
 
-    // TODO: screenshot
+    // TODO screenshot
     let output_texture = create_render_texture(&gpu, canvas.width(), canvas.height());
     let view = output_texture.create_view(&GpuTextureViewDescriptor::default());
 
