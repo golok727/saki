@@ -147,11 +147,11 @@ impl SkieAppHandle for App {
     }
 }
 
-async fn async_main() {
+async fn run() {
     let mut app = App::new();
     app::launch(&mut app).await.expect("error running app");
 }
 
 fn main() {
-    pollster::block_on(async_main());
+    pollster::block_on(run());
 }

@@ -33,12 +33,12 @@ impl SkieAppHandle for SandboxApp {
     }
 }
 
-async fn async_main() {
+async fn run() {
     app::launch(&mut SandboxApp)
         .await
         .expect("error running app");
 }
 
 fn main() {
-    pollster::block_on(async_main());
+    pollster::block_on(run());
 }

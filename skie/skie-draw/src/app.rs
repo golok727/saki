@@ -1,5 +1,6 @@
 use derive_more::derive::{Deref, DerefMut};
 use std::sync::Arc;
+pub use winit;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
