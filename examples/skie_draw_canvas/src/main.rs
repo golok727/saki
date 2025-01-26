@@ -3,9 +3,9 @@ use std::{fs, path::Path};
 use pollster::FutureExt;
 use skie_draw::{
     gpu::{TexelCopyBufferInfo, TexelCopyTextureInfo},
-    Brush, Canvas, Color, Corners, Extent3d, GpuContext, GpuTexture, GpuTextureDescriptor,
+    vec2, Brush, Canvas, Color, Corners, Extent3d, GpuContext, GpuTexture, GpuTextureDescriptor,
     GpuTextureDimension, GpuTextureFormat, GpuTextureUsages, GpuTextureViewDescriptor, Half, Rect,
-    Size,
+    Size, Text,
 };
 
 fn main() {
@@ -30,6 +30,12 @@ fn main() {
     brush.fill_color(Color::WHITE);
     let center = rect.center();
     canvas.draw_circle(center.x, center.y, 200.0, &brush);
+
+    // Aligns wont work now :)
+    let text = Text::new("✨ Hello ✨")
+        .pos(center - vec2(170.0, 50.0))
+        .size_px(64.0);
+    canvas.fill_text(&text, Color::BLACK);
 
     // TODO auto flush
     canvas.paint();
