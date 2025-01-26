@@ -1,11 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "skie/*"]
+members = ["crates/*", "examples/canvas", "skie/*"]
 default-members = ["crates/saki"]
 
 [workspace.dependencies]
-skie = { path = "./skie/skie" }
-winit = "0.30.5"
+skie = { path = "skie/skie" }
+skie-draw = { path = "skie/skie-draw" }
+winit = "0.30.8"
 wgpu = "24.0.1"
 pollster = "0.4.0"
 async-task = "4.7.1"

@@ -34,6 +34,18 @@ pub struct Canvas {
 }
 
 impl Canvas {
+    pub fn screen(&self) -> Size<u32> {
+        self.screen
+    }
+
+    pub fn width(&self) -> u32 {
+        self.screen.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.screen.height
+    }
+
     pub fn create(size: Size<u32>) -> CanvasBuilder {
         CanvasBuilder::new(size)
     }
@@ -45,6 +57,14 @@ impl Canvas {
     pub fn text_system(&self) -> &Arc<TextSystem> {
         &self.text_system
     }
+
+    // pub fn clip() {
+    //
+    // }
+
+    // pub fn translate(&mut self) {
+    //
+    // }
 
     pub fn get_clip_rect(&self) -> Rect<f32> {
         self.clip_rects
@@ -292,6 +312,7 @@ impl Canvas {
         self.screen = self.renderer.size();
     }
 
+    // TODO: automaticaly do it instead ( will be removed )
     // commit renderables
     // builds batched geometry for the current scene and clears the items
     pub fn paint(&mut self) {

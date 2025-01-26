@@ -155,6 +155,22 @@ where
 
 impl<T> Rect<T>
 where
+    T: Clone + Sub<T, Output = T> + Half,
+{
+    /// Make the rect cented at the origin
+    pub fn centered(&self) -> Self {
+        Self {
+            origin: Vec2 {
+                x: self.origin.x.clone() - self.size.width.clone().half(),
+                y: self.origin.y.clone() - self.size.height.clone().half(),
+            },
+            size: self.size.clone(),
+        }
+    }
+}
+
+impl<T> Rect<T>
+where
     T: Clone + PartialOrd + Add<T, Output = T> + Sub<T, Output = T>,
 {
     pub fn intersect(&self, other: &Self) -> Self {
@@ -207,11 +223,29 @@ impl<T> Rect<T>
 where
     T: Add<T, Output = T> + PartialOrd + Clone,
 {
-    pub fn contains(&self, point: &Vec2<T>) -> bool {
+    pub fn contains_point(&self, point: &Vec2<T>) -> bool {
         point.x >= self.origin.x
             && point.x <= self.origin.x.clone() + self.size.width.clone()
             && point.y >= self.origin.y
             && point.y <= self.origin.y.clone() + self.size.height.clone()
+    }
+}
+
+impl<T> Rect<T>
+// copy ?
+where
+    T: Add<T, Output = T> + PartialOrd + Clone,
+{
+    pub fn contains(&self, other: &Rect<T>) -> bool {
+        let is_x_inside = other.origin.x.clone() >= self.origin.x.clone()
+            && other.origin.x.clone() + other.size.width.clone()
+                <= self.origin.x.clone() + self.size.width.clone();
+
+        let is_y_inside = other.origin.y.clone() >= self.origin.y.clone()
+            && other.origin.y.clone() + other.size.height.clone()
+                <= self.origin.y.clone() + self.size.height.clone();
+
+        is_x_inside && is_y_inside
     }
 }
 

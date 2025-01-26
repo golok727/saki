@@ -8,7 +8,6 @@ path = "src/draw.rs"
 
 [dependencies]
 wgpu.workspace = true
-winit.workspace = true
 log.workspace = true
 thiserror.workspace = true
 ahash.workspace = true
@@ -17,8 +16,18 @@ derive_more.workspace = true
 anyhow.workspace = true
 smallvec.workspace = true
 
+# Optional
+winit = { workspace = true, optional = true }
+
+
 skie-math = { path = "../skie-math" }
 bytemuck = { version = "1.20.0", features = ["derive"] }
 
 etagere = "0.2.13"
 cosmic-text = "0.12.1"
+
+
+[features]
+default = []
+# provides a quick start application module backed by winit
+application = ["dep:winit"]

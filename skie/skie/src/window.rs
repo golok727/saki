@@ -396,7 +396,7 @@ impl Window {
         {
             let state = self.state.read();
             if let Some(pos) = state.mouse_pos() {
-                let contains = self.scroller.dims.contains(pos);
+                let contains = self.scroller.dims.contains_point(pos);
                 if contains {
                     let something = (10.0 * 10.0 * 10.0) * 0.05 * dy;
                     self.scroller.scroll_x += something;
@@ -647,7 +647,7 @@ impl Scroller {
         let container = &self.dims;
 
         let hovered = mouse_pos
-            .map(|pos| container.contains(pos))
+            .map(|pos| container.contains_point(pos))
             .unwrap_or_default();
 
         let stroke_width = 20;
