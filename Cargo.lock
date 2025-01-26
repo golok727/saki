@@ -2298,6 +2298,15 @@ name = "skie-math"
 version = "0.1.0"
 
 [[package]]
+name = "skie_draw_canvas"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "pollster",
+ "skie-draw",
+]
+
+[[package]]
 name = "skrifa"
 version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

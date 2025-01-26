@@ -418,7 +418,7 @@ impl Window {
             .texture
             .create_view(&GpuTextureViewDescriptor::default());
 
-        self.canvas.finish(&view, self.clear_color.into());
+        self.canvas.finish(&view, self.clear_color);
         surface_texture.present();
 
         Ok(())

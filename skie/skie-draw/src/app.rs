@@ -153,7 +153,7 @@ impl<'a> ApplicationHandler for App<'a> {
 
                     self.cx.canvas.clear();
                     self.app_handle.draw(&mut self.cx, window);
-                    self.cx.canvas.finish(&view, self.cx.clear_color.into());
+                    self.cx.canvas.finish(&view, self.cx.clear_color);
 
                     surface_texture.present();
                 }

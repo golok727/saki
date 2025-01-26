@@ -365,7 +365,7 @@ impl Canvas {
     }
 
     /// Renders and presets to the screen
-    pub fn finish(&mut self, output_texture: &GpuTextureView, clear_color: Rgba) {
+    pub fn finish(&mut self, output_texture: &GpuTextureView, clear_color: Color) {
         let mut encoder = self.renderer.create_command_encoder();
 
         {

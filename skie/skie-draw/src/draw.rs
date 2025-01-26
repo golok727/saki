@@ -10,7 +10,9 @@ pub use skie_math as math;
 
 pub use canvas::Canvas;
 pub use gpu::{
-    GpuContext, GpuContextCreateError, GpuSurface, GpuSurfaceCreateError, GpuSurfaceSpecification,
+    Extent3d, GpuContext, GpuContextCreateError, GpuSurface, GpuSurfaceCreateError,
+    GpuSurfaceSpecification, GpuTextureDescriptor, GpuTextureDimension, GpuTextureFormat,
+    GpuTextureUsages,
 };
 
 pub use math::{mat3, vec2, Corners, Mat3, Rect, Size, Vec2};

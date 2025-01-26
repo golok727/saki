@@ -5,6 +5,15 @@ pub use error::*;
 pub use surface::*;
 
 pub use wgpu::CommandEncoder;
+pub use wgpu::Extent3d;
+pub use wgpu::TextureDescriptor as GpuTextureDescriptor;
+pub use wgpu::TextureDimension as GpuTextureDimension;
+pub use wgpu::TextureFormat as GpuTextureFormat;
+pub use wgpu::TextureUsages as GpuTextureUsages;
+pub use wgpu::{
+    BufferDescriptor, BufferUsages, Maintain, MapMode, Origin3d, TexelCopyBufferInfo,
+    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
+};
 
 #[derive(Debug, Clone)]
 pub struct GpuContext {
@@ -73,7 +82,7 @@ impl GpuContext {
             })
     }
 
-    pub fn create_texture(&self, descriptor: &wgpu::TextureDescriptor) -> wgpu::Texture {
+    pub fn create_texture(&self, descriptor: &GpuTextureDescriptor) -> wgpu::Texture {
         self.device.create_texture(descriptor)
     }
 

@@ -1,0 +1,9 @@
+[package]
+name = "skie_draw_canvas"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+skie-draw = { workspace = true }
+pollster.workspace = true
+image.workspace = true
