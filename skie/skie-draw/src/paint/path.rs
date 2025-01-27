@@ -178,7 +178,11 @@ impl Path2D {
     }
 
     pub fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>) {
-        // FIXME: clamp
+        if corners.is_zero() {
+            self.rect(rect);
+            return;
+        }
+
         let Corners {
             top_left,
             top_right,

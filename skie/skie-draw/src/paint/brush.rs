@@ -25,6 +25,12 @@ impl Default for Brush {
 }
 
 impl Brush {
+    pub fn filled(fill_color: Color) -> Self {
+        Self {
+            fill_style: FillStyle { color: fill_color },
+            ..Default::default()
+        }
+    }
     /// Returns whether anti-aliasing is enabled for the brush.
     pub fn is_antialias(&self) -> bool {
         self.antialias
@@ -119,7 +125,7 @@ impl Brush {
 
     /// Checks if there is nothing to draw with the brush (i.e., both the fill and stroke colors are transparent).
     pub fn noting_to_draw(&self) -> bool {
-        self.fill_style.color.is_transparent() || self.stroke_style.color.is_transparent()
+        self.fill_style.color.is_transparent() && self.stroke_style.color.is_transparent()
     }
 }
 

@@ -262,18 +262,14 @@ impl Window {
             &self.yellow_thing_texture_id,
         );
 
-        brush.fill_color(Color::from_rgb(0xFF0000));
-        canvas.draw_image_2(
+        canvas.draw_image(
             &Rect::xywh(100.0, height - 400.0, 300.0, 300.0),
             &self.yellow_thing_texture_id,
-            &brush,
         );
 
-        brush.fill_color(Color::from_rgb(0xFFFF00));
-        canvas.draw_image_2(
+        canvas.draw_image(
             &Rect::xywh(100.0, 200.0, 250.0, 250.0),
             &self.checker_texture_id,
-            &brush,
         );
 
         canvas.draw_image(

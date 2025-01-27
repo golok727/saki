@@ -3,13 +3,13 @@ use std::{borrow::Cow, sync::Arc};
 use crate::{
     circle,
     paint::{
-        AsPrimitive, AtlasKey, Brush, GpuTextureView, GraphicsInstruction, RenderList, SkieAtlas,
+        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, Primitive, RenderList, SkieAtlas,
         TextureKind,
     },
     quad,
     renderer::Renderable,
-    Color, GlyphImage, IsZero, Path2D, Primitive, Rect, Size, Text, TextSystem, TextureId,
-    TextureOptions, Vec2, WgpuRenderer, Zero,
+    Color, GlyphImage, IsZero, Path2D, Rect, Size, Text, TextSystem, TextureId, TextureOptions,
+    Vec2, WgpuRenderer, Zero,
 };
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
 use skie_math::{Corners, Mat3};
@@ -120,51 +120,28 @@ impl Canvas {
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
+    #[inline]
     pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: &Brush) {
-        self.list.add(GraphicsInstruction::new(
-            prim.primitive()
-                .fill(brush.fill_style)
-                .stroke(brush.stroke_style),
-            brush.clone(),
-        ))
+        self.list
+            .add(GraphicsInstruction::brush(prim, brush.clone()));
     }
 
     pub fn draw_path(&mut self, path: Path2D, brush: &Brush) {
-        self.list.add(GraphicsInstruction::new(
-            path.primitive()
-                .fill(brush.fill_style)
-                .stroke(brush.stroke_style),
-            brush.clone(),
-        ))
+        self.draw_primitive(path, brush);
     }
 
     pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: &Brush) {
-        self.list.add(GraphicsInstruction::new(
-            quad()
-                .rect(rect.clone())
-                .primitive()
-                .fill(brush.fill_style)
-                .stroke(brush.stroke_style),
-            brush.clone(),
-        ))
+        self.draw_primitive(quad().rect(rect.clone()), brush);
     }
 
     pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: &Brush) {
-        self.list.add(GraphicsInstruction::new(
-            quad()
-                .rect(rect.clone())
-                .corners(corners.clone())
-                .primitive()
-                .fill(brush.fill_style)
-                .stroke(brush.stroke_style),
-            brush.clone(),
-        ))
+        self.draw_primitive(quad().rect(rect.clone()).corners(corners.clone()), brush);
     }
 
     pub fn draw_image(&mut self, rect: &Rect<f32>, texture_id: &TextureId) {
-        self.list.add(GraphicsInstruction::new(
-            quad().rect(rect.clone()).primitive().textured(texture_id),
-            Brush::default(),
+        self.list.add(GraphicsInstruction::textured(
+            quad().rect(rect.clone()),
+            texture_id.clone(),
         ));
     }
 
@@ -174,40 +151,14 @@ impl Canvas {
         corners: &Corners<f32>,
         texture_id: &TextureId,
     ) {
-        self.list.add(GraphicsInstruction::new(
-            quad()
-                .rect(rect.clone())
-                .corners(corners.clone())
-                .primitive()
-                .textured(texture_id),
-            Brush::default(),
-        ))
-    }
-
-    pub fn draw_image_2(&mut self, rect: &Rect<f32>, texture_id: &TextureId, brush: &Brush) {
-        // for NOW Only for playing around with the new api
-        self.list.add(GraphicsInstruction::new(
-            quad()
-                .rect(rect.clone())
-                .primitive()
-                .textured(texture_id)
-                .fill(brush.fill_style)
-                .stroke(brush.stroke_style),
-            brush.clone(),
-        ))
+        self.list.add(GraphicsInstruction::textured(
+            quad().rect(rect.clone()).corners(corners.clone()),
+            texture_id.clone(),
+        ));
     }
 
     pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: &Brush) {
-        // for NOW Only for playing around with the new api
-        self.list.add(GraphicsInstruction::new(
-            circle()
-                .pos(cx, cy)
-                .radius(radius)
-                .primitive()
-                .fill(brush.fill_style)
-                .stroke(brush.stroke_style),
-            brush.clone(),
-        ))
+        self.draw_primitive(circle().pos(cx, cy).radius(radius), brush);
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
@@ -274,16 +225,13 @@ impl Canvas {
                         let x = physical_glyph.x + image.placement.left;
                         let y = line_y as i32 + physical_glyph.y - image.placement.top;
 
-                        self.list.add(GraphicsInstruction::new(
-                            quad()
-                                .rect(Rect::from_origin_size(
-                                    (x as f32, y as f32).into(),
-                                    size.map(|v| *v as f32),
-                                ))
-                                .primitive()
-                                .textured(&TextureId::AtlasKey(glyph_key))
-                                .fill_color(fill_color),
-                            Brush::default(),
+                        self.list.add(GraphicsInstruction::textured_brush(
+                            quad().rect(Rect::from_origin_size(
+                                (x as f32, y as f32).into(),
+                                size.map(|v| *v as f32),
+                            )),
+                            TextureId::AtlasKey(glyph_key),
+                            Brush::filled(fill_color),
                         ));
                     }
                 }
@@ -302,8 +250,6 @@ impl Canvas {
         self.antialias = v;
         old
     }
-
-    pub fn paint_glyph() {}
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,
