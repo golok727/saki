@@ -708,14 +708,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example_skie_draw_app"
-version = "0.1.0"
-dependencies = [
- "pollster",
- "skie-draw",
-]
-
-[[package]]
 name = "exr"
 version = "1.73.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2294,17 +2286,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "skie-math"
-version = "0.1.0"
-
-[[package]]
-name = "skie_draw_canvas"
+name = "skie-examples"
 version = "0.1.0"
 dependencies = [
  "image",
  "pollster",
  "skie-draw",
 ]
+
+[[package]]
+name = "skie-math"
+version = "0.1.0"
 
 [[package]]
 name = "skrifa"

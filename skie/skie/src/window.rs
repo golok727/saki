@@ -15,8 +15,8 @@ use image::{ImageBuffer, RgbaImage};
 pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
-    gpu::surface::{GpuSurface, GpuSurfaceSpecification},
-    paint::{AtlasKey, Brush, GpuTextureViewDescriptor, SkieAtlas, SkieImage, TextureKind},
+    gpu::surface::BackendRenderTarget,
+    paint::{AtlasKey, Brush, SkieAtlas, SkieImage, TextureKind},
     quad, vec2, Canvas, Color, Corners, FontWeight, Half, LineCap, LineJoin, Path2D, Rect, Size,
     Text, TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
@@ -121,7 +121,7 @@ pub struct Window {
     pub(crate) canvas: Canvas,
     pub(crate) state: RwLock<State>,
 
-    surface: GpuSurface<'static>,
+    surface: BackendRenderTarget<'static>,
 
     pub(crate) handle: Arc<WinitWindow>,
 }
@@ -144,19 +144,13 @@ impl Window {
 
         let texture_atlas = app.texture_atlas.clone();
 
-        let mut painter = Canvas::create(Size { width, height })
+        let mut canvas = Canvas::create(Size { width, height })
             .with_text_system(app.text_system.clone())
             .with_texture_atlas(texture_atlas.clone())
             .antialias(true)
             .build(app.gpu.clone());
 
-        let width = specs.width;
-        let height = specs.height;
-
-        let surface = app.gpu.create_surface(
-            Arc::clone(&handle),
-            &(GpuSurfaceSpecification { width, height }),
-        )?;
+        let surface = canvas.create_backend_target(Arc::clone(&handle))?;
 
         let checker_texture_key = AtlasKey::from(SkieImage::new(1));
         let yellow_thing_texture_key = AtlasKey::from(SkieImage::new(2));
@@ -190,11 +184,11 @@ impl Window {
             .min_filter(TextureFilterMode::Linear)
             .mag_filter(TextureFilterMode::Linear);
 
-        painter
+        canvas
             .renderer
             .set_texture_from_atlas(&texture_atlas, &checker_texture_key, &opts);
 
-        painter
+        canvas
             .renderer
             .set_texture_from_atlas(&texture_atlas, &yellow_thing_texture_key, &opts);
 
@@ -214,7 +208,7 @@ impl Window {
 
         Ok(Self {
             handle,
-            canvas: painter,
+            canvas,
             surface,
             state: RwLock::new(State::default()),
             texture_atlas,
@@ -240,8 +234,6 @@ impl Window {
     }
 
     pub(crate) fn handle_resize(&mut self, width: u32, height: u32) {
-        self.surface
-            .resize(self.canvas.renderer.gpu(), width, height);
         self.canvas.resize(width, height);
     }
 
@@ -262,18 +254,14 @@ impl Window {
             &self.yellow_thing_texture_id,
         );
 
-        brush.fill_color(Color::from_rgb(0xFF0000));
-        canvas.draw_image_2(
+        canvas.draw_image(
             &Rect::xywh(100.0, height - 400.0, 300.0, 300.0),
             &self.yellow_thing_texture_id,
-            &brush,
         );
 
-        brush.fill_color(Color::from_rgb(0xFFFF00));
-        canvas.draw_image_2(
+        canvas.draw_image(
             &Rect::xywh(100.0, 200.0, 250.0, 250.0),
             &self.checker_texture_id,
-            &brush,
         );
 
         canvas.draw_image(
@@ -369,7 +357,7 @@ impl Window {
             canvas.draw_path(path, &brush);
         }
 
-        canvas.paint();
+        canvas.flush();
         {
             let state = self.state.read();
             self.scroller.render(canvas, state.mouse_pos());
@@ -409,17 +397,12 @@ impl Window {
 
     pub(crate) fn paint(&mut self) -> Result<()> {
         self.canvas.clear();
+        self.canvas.clear_color(self.clear_color);
 
         // TODO: remove
         self._add_basic_scene();
 
-        let surface_texture = self.surface.get_current_texture()?;
-        let view = surface_texture
-            .texture
-            .create_view(&GpuTextureViewDescriptor::default());
-
-        self.canvas.finish(&view, self.clear_color);
-        surface_texture.present();
+        self.canvas.paint(&mut self.surface)?;
 
         Ok(())
     }
@@ -667,7 +650,7 @@ impl Scroller {
                 .corners(Corners::with_all(10.0)),
             &brush,
         );
-        canvas.paint();
+        canvas.flush();
 
         // paint children clipped to this rect
         let mut clip = container.clone();

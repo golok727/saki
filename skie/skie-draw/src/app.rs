@@ -1,4 +1,3 @@
-use derive_more::derive::{Deref, DerefMut};
 use std::sync::Arc;
 pub use winit;
 use winit::application::ApplicationHandler;
@@ -8,24 +7,8 @@ pub use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 pub use winit::window::{Window, WindowAttributes};
 
-use crate::{
-    Canvas, Color, GpuContext, GpuSurface, GpuSurfaceSpecification, GpuTextureViewDescriptor, Size,
-};
+use crate::{BackendRenderTarget, Canvas, GpuContext, Size};
 pub use winit::dpi::{LogicalSize, PhysicalSize};
-
-#[derive(Deref, DerefMut)]
-pub struct DrawingContext {
-    clear_color: Color,
-    #[deref]
-    #[deref_mut]
-    canvas: Canvas,
-}
-
-impl DrawingContext {
-    pub fn set_clear_color(&mut self, color: Color) {
-        self.clear_color = color;
-    }
-}
 
 pub trait SkieAppHandle: 'static {
     fn on_keydown(&mut self, _keycode: KeyCode) {}
@@ -33,14 +16,15 @@ pub trait SkieAppHandle: 'static {
     fn init(&mut self) -> WindowAttributes;
     fn on_create_window(&mut self, _window: &Window) {}
     fn update(&mut self, window: &Window);
-    fn draw(&mut self, cx: &mut DrawingContext, window: &Window);
+    fn draw(&mut self, cx: &mut Canvas, window: &Window);
 }
 
 struct App<'a> {
-    surface: Option<GpuSurface<'static>>,
+    surface: Option<BackendRenderTarget<'static>>,
     window: Option<Arc<Window>>,
+    #[allow(unused)]
     gpu: GpuContext,
-    cx: DrawingContext,
+    canvas: Canvas,
     app_handle: &'a mut dyn SkieAppHandle,
 }
 
@@ -54,10 +38,7 @@ impl<'a> App<'a> {
             surface: None,
             window: None,
             gpu,
-            cx: DrawingContext {
-                canvas,
-                clear_color: Color::WHITE,
-            },
+            canvas,
             app_handle: user_app,
         })
     }
@@ -84,19 +65,13 @@ impl<'a> ApplicationHandler for App<'a> {
             self.app_handle.on_create_window(&window);
 
             let size = window.inner_size();
+            self.canvas.resize(size.width, size.height);
             let surface = self
-                .gpu
-                .create_surface(
-                    window.clone(),
-                    &GpuSurfaceSpecification {
-                        width: size.width,
-                        height: size.height,
-                    },
-                )
+                .canvas
+                .create_backend_target(window.clone())
                 .expect("error creating surface");
 
             self.surface = Some(surface);
-            self.cx.canvas.resize(size.width, size.height);
 
             window
         });
@@ -146,23 +121,17 @@ impl<'a> ApplicationHandler for App<'a> {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(surface) = &mut self.surface {
-                    let surface_texture = surface.get_current_texture().unwrap();
-                    let view = surface_texture
-                        .texture
-                        .create_view(&GpuTextureViewDescriptor::default());
+                    self.canvas.clear();
 
-                    self.cx.canvas.clear();
-                    self.app_handle.draw(&mut self.cx, window);
-                    self.cx.canvas.finish(&view, self.cx.clear_color);
+                    self.app_handle.draw(&mut self.canvas, window);
 
-                    surface_texture.present();
+                    if self.canvas.paint(surface).is_err() {
+                        eprintln!("Error painting");
+                    }
                 }
             }
             WindowEvent::Resized(size) => {
-                if let Some(surface) = &mut self.surface {
-                    surface.resize(&self.gpu, size.width, size.height);
-                    self.cx.canvas.resize(size.width, size.height);
-                }
+                self.canvas.resize(size.width, size.height);
             }
             _ => {}
         }

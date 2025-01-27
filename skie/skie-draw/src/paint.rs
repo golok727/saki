@@ -7,6 +7,7 @@ pub mod mesh;
 pub mod path;
 pub mod polyline;
 pub mod primitives;
+pub mod render_list;
 pub mod text;
 pub mod texture;
 
@@ -21,6 +22,7 @@ pub use mesh::*;
 pub use path::*;
 pub use polyline::*;
 pub use primitives::*;
+pub use render_list::*;
 pub use text::*;
 pub use texture::*;
 

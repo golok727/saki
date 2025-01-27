@@ -1,51 +1,82 @@
 use crate::{
-    paint::{AtlasKey, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, PrimitiveKind},
-    DrawList, IsZero, Primitive, TextureId,
+    paint::{AtlasKey, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, Primitive},
+    Brush, DrawList, TextureId,
 };
 
 use ahash::HashSet;
 
-#[derive(Debug, Default, Clone)]
-pub struct Scene {
-    pub(crate) items: Vec<Primitive>,
+use super::Color;
+
+#[derive(Debug, Clone)]
+pub(crate) struct GraphicsInstruction {
+    primitive: Primitive,
+    brush: Brush,
+    texture_id: TextureId,
 }
 
-impl Scene {
-    pub fn push_layer(&mut self) {
-        todo!()
+impl GraphicsInstruction {
+    fn nothing_to_draw(&self) -> bool {
+        self.brush.noting_to_draw()
     }
 
-    pub fn pop_layer(&mut self) {
-        todo!()
+    pub fn textured(primitive: impl Into<Primitive>, texture_id: TextureId) -> Self {
+        Self {
+            primitive: primitive.into(),
+            texture_id,
+            brush: Brush::filled(Color::WHITE),
+        }
     }
 
-    pub fn add(&mut self, prim: Primitive) {
-        self.items.push(prim)
+    pub fn brush(primitive: impl Into<Primitive>, brush: Brush) -> Self {
+        Self {
+            primitive: primitive.into(),
+            texture_id: TextureId::WHITE_TEXTURE,
+            brush,
+        }
     }
 
-    pub fn extend(&mut self, other: &Self) {
-        self.items.extend_from_slice(&other.items)
+    pub fn textured_brush(
+        primitive: impl Into<Primitive>,
+        texture_id: TextureId,
+        brush: Brush,
+    ) -> Self {
+        Self {
+            primitive: primitive.into(),
+            texture_id,
+            brush,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct RenderList {
+    pub(crate) instructions: Vec<GraphicsInstruction>,
+}
+
+impl RenderList {
+    pub fn add(&mut self, instruction: GraphicsInstruction) {
+        self.instructions.push(instruction)
     }
 
-    pub fn clear(&mut self) -> Vec<Primitive> {
-        let old: Vec<Primitive> = std::mem::take(&mut self.items);
+    pub fn clear(&mut self) -> Vec<GraphicsInstruction> {
+        let old: Vec<GraphicsInstruction> = std::mem::take(&mut self.instructions);
         old
     }
 
     pub fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
-        self.items
+        self.instructions
             .iter()
-            .map(|f| f.texture.clone())
+            .map(|instruction| instruction.texture_id.clone())
             .collect::<HashSet<_>>()
             .into_iter()
     }
 
     pub fn batches(
         &self,
-        tex_info: SceneTextureInfoMap,
+        tex_info: GraphicsTextureInfoMap,
         antialias: bool,
     ) -> impl Iterator<Item = Mesh> + '_ {
-        SceneBatchIterator::new(self, tex_info, antialias)
+        InstructionBatchIterator::new(self, tex_info, antialias)
     }
 }
 
@@ -55,25 +86,23 @@ struct GroupEntry {
     texture_id: TextureId,
 }
 
-pub type SceneTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
+pub type GraphicsTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
 
 // A simple batcher for now in future we will expand this.
-struct SceneBatchIterator<'a> {
-    scene: &'a Scene,
+struct InstructionBatchIterator<'a> {
+    scene: &'a RenderList,
     groups: Vec<(TextureId, Vec<GroupEntry>)>,
-    tex_info: SceneTextureInfoMap,
+    tex_info: GraphicsTextureInfoMap,
     cur_group: usize,
     antialias: bool,
 }
 
-impl<'a> SceneBatchIterator<'a> {
-    pub fn new(scene: &'a Scene, tex_info: SceneTextureInfoMap, antialias: bool) -> Self {
+impl<'a> InstructionBatchIterator<'a> {
+    pub fn new(scene: &'a RenderList, tex_info: GraphicsTextureInfoMap, antialias: bool) -> Self {
         let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
-        for (i, prim) in scene.items.iter().enumerate() {
-            let tex = prim.texture.clone();
-
-            let render_texture = match &tex {
+        for (i, instruction) in scene.instructions.iter().enumerate() {
+            let render_texture = match &instruction.texture_id {
                 TextureId::AtlasKey(key) => {
                     let info = tex_info.get(key);
                     info.map(|info| TextureId::Atlas(info.tile.texture))
@@ -87,14 +116,14 @@ impl<'a> SceneBatchIterator<'a> {
                     .or_default()
                     .push(GroupEntry {
                         index: i,
-                        texture_id: tex,
+                        texture_id: instruction.texture_id.clone(),
                     });
             }
         }
 
         let mut groups: Vec<(TextureId, Vec<GroupEntry>)> = tex_to_item_idx.into_iter().collect();
 
-        // FIXME: Not right
+        // FIXME
         groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
 
         Self {
@@ -120,9 +149,11 @@ impl<'a> SceneBatchIterator<'a> {
         drawlist.antialias(self.antialias);
 
         for entry in &group.1 {
-            let prim = &self.scene.items[entry.index];
+            let instruction = &self.scene.instructions[entry.index];
+            let primitive = &instruction.primitive;
+            let brush = &instruction.brush;
 
-            if !prim.can_render() {
+            if instruction.nothing_to_draw() {
                 continue;
             }
 
@@ -135,47 +166,37 @@ impl<'a> SceneBatchIterator<'a> {
                 None
             };
 
-            let build = |drawlist: &mut DrawList| match &prim.kind {
-                PrimitiveKind::Circle(circle) => {
-                    let fill_color = prim.fill.color;
+            let build = |drawlist: &mut DrawList| match &primitive {
+                Primitive::Circle(circle) => {
+                    let fill_color = brush.fill_style.color;
 
                     drawlist.path.clear();
                     drawlist.path.circle(circle.center, circle.radius);
 
                     drawlist.fill_path_convex(fill_color, !is_white_texture);
-                    if let Some(stroke_style) = &prim.stroke {
-                        drawlist.stroke_path(&stroke_style.join())
-                    }
+                    drawlist.stroke_path(&brush.stroke_style.join())
                 }
 
-                PrimitiveKind::Quad(quad) => {
-                    let fill_color = prim.fill.color;
+                Primitive::Quad(quad) => {
+                    let fill_color = brush.fill_style.color;
 
-                    if quad.corners.is_zero() && prim.stroke.is_none() {
-                        drawlist.fill_rect(&quad.bounds, fill_color);
-                    } else {
-                        drawlist.path.clear();
-                        drawlist.path.round_rect(&quad.bounds, &quad.corners);
-                        drawlist.fill_path_convex(fill_color, !is_white_texture);
-
-                        if let Some(stroke_style) = &prim.stroke {
-                            drawlist.stroke_path(&stroke_style.join())
-                        }
-                    }
+                    drawlist.path.clear();
+                    drawlist.path.round_rect(&quad.bounds, &quad.corners);
+                    drawlist.fill_path_convex(fill_color, !is_white_texture);
+                    drawlist.stroke_path(&brush.stroke_style.join())
                 }
 
-                PrimitiveKind::Path(path) => {
+                Primitive::Path(path) => {
                     // TODO:
                     // drawlist.fill_with_path(path, prim.fill.color);
 
-                    if let Some(stroke_style) = &prim.stroke {
-                        let stroke_style = if path.closed {
-                            stroke_style.join()
-                        } else {
-                            *stroke_style
-                        };
-                        drawlist.stroke_with_path(path, &stroke_style);
-                    }
+                    let stroke_style = if path.closed {
+                        brush.stroke_style.join()
+                    } else {
+                        brush.stroke_style
+                    };
+
+                    drawlist.stroke_with_path(path, &stroke_style);
                 }
             };
 
@@ -202,7 +223,7 @@ impl<'a> SceneBatchIterator<'a> {
     }
 }
 
-impl<'a> Iterator for SceneBatchIterator<'a> {
+impl<'a> Iterator for InstructionBatchIterator<'a> {
     type Item = Mesh;
 
     fn next(&mut self) -> Option<Self::Item> {

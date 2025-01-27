@@ -3,7 +3,8 @@ use std::sync::Arc;
 use skie_math::{Mat3, Rect};
 
 use crate::{
-    renderer::create_skie_renderer, GpuContext, Size, SkieAtlas, TextSystem, WgpuRendererSpecs,
+    renderer::create_skie_renderer, Color, GpuContext, Size, SkieAtlas, TextSystem,
+    WgpuRendererSpecs,
 };
 
 use super::{Canvas, CanvasState};
@@ -51,12 +52,13 @@ impl CanvasBuilder {
             current_state: CanvasState {
                 transform: Mat3::identity(),
                 clip: Rect::xywh(0.0, 0.0, screen.width as f32, screen.height as f32),
+                clear_color: Color::WHITE,
             },
 
             screen,
             antialias: self.antialias,
 
-            scene: Default::default(),
+            list: Default::default(),
             renderables: Default::default(),
             clip_rects: Default::default(),
         }

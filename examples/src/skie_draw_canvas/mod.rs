@@ -3,17 +3,16 @@ use std::{fs, path::Path};
 use pollster::FutureExt;
 use skie_draw::{
     gpu::{TexelCopyBufferInfo, TexelCopyTextureInfo},
-    vec2, Brush, Canvas, Color, Corners, Extent3d, GpuContext, GpuTexture, GpuTextureDescriptor,
-    GpuTextureDimension, GpuTextureFormat, GpuTextureUsages, GpuTextureViewDescriptor, Half, Rect,
-    Size, Text,
+    vec2, Brush, Canvas, Color, Corners, Extent3d, GpuContext, GpuTexture, Half, Rect, Size, Text,
 };
 
-fn main() {
+pub fn run() {
     let gpu = GpuContext::new()
         .block_on()
         .expect("Error creating gpu context");
 
     let mut canvas = Canvas::create(Size::new(1024, 1024)).build(gpu.clone());
+    let mut surface = canvas.create_offscreen_target();
 
     let size = canvas.screen().map(|v| *v as f32);
 
@@ -38,15 +37,14 @@ fn main() {
     canvas.fill_text(&text, Color::BLACK);
 
     // TODO auto flush
-    canvas.paint();
+    canvas.flush();
 
-    // TODO screenshot
-    let output_texture = create_render_texture(&gpu, canvas.width(), canvas.height());
-    let view = output_texture.create_view(&GpuTextureViewDescriptor::default());
+    canvas.clear_color(Color::THAMAR_BLACK);
 
-    canvas.finish(&view, Color::THAMAR_BLACK);
+    canvas.paint(&mut surface).expect("error painting");
 
-    save_to_file("render.png", &gpu, &output_texture);
+    // TODO SCREENSHOT
+    save_to_file("render.png", &gpu, &surface.texture);
 }
 
 fn save_to_file(file_name: &str, gpu: &GpuContext, texture: &GpuTexture) {
@@ -107,21 +105,4 @@ fn save_to_file(file_name: &str, gpu: &GpuContext, texture: &GpuTexture) {
         .expect("Failed to save image");
 
     println!("Saved to {}", out_path.to_string_lossy());
-}
-
-fn create_render_texture(gpu: &GpuContext, width: u32, height: u32) -> GpuTexture {
-    gpu.create_texture(&GpuTextureDescriptor {
-        label: Some("framebuffer"),
-        size: Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: GpuTextureDimension::D2,
-        format: GpuTextureFormat::Rgba8Unorm,
-        usage: GpuTextureUsages::RENDER_ATTACHMENT | GpuTextureUsages::COPY_SRC,
-        view_formats: &[],
-    })
 }

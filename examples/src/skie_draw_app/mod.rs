@@ -1,3 +1,4 @@
+use pollster::FutureExt;
 use skie_draw::{
     app::{self, KeyCode, LogicalSize, SkieAppHandle, WindowAttributes},
     Half,
@@ -21,16 +22,17 @@ impl App {
 }
 
 #[derive(Default)]
-pub struct KeyState {
+struct KeyState {
     pressed: HashSet<KeyCode>,
 }
 
 impl KeyState {
-    pub fn is_pressed(&self, key: KeyCode) -> bool {
+    #[allow(unused)]
+    fn is_pressed(&self, key: KeyCode) -> bool {
         self.pressed.contains(&key)
     }
 
-    pub fn any_pressed(&self, keys: impl IntoIterator<Item = KeyCode>) -> bool {
+    fn any_pressed(&self, keys: impl IntoIterator<Item = KeyCode>) -> bool {
         keys.into_iter().any(|key| self.pressed.contains(&key))
     }
 }
@@ -80,7 +82,7 @@ impl MovingSquare {
 impl SkieAppHandle for App {
     fn init(&mut self) -> WindowAttributes {
         WindowAttributes::default()
-            .with_inner_size(LogicalSize::new(700, 500))
+            .with_inner_size(LogicalSize::new(701, 500))
             .with_title("Skie")
             .with_resizable(false)
     }
@@ -91,8 +93,8 @@ impl SkieAppHandle for App {
         self.square.rect = Rect::xywh(
             size.width.half() as f32,
             size.height.half() as f32,
-            200.0,
-            200.0,
+            201.0,
+            201.0,
         )
         .centered();
     }
@@ -101,17 +103,17 @@ impl SkieAppHandle for App {
         self.square.update(&self.keystate, window);
     }
 
-    fn draw(&mut self, cx: &mut app::DrawingContext, window: &app::Window) {
+    fn draw(&mut self, cx: &mut Canvas, window: &app::Window) {
         let scale_factor = window.scale_factor();
-        cx.set_clear_color(Color::THAMAR_BLACK);
+        cx.clear_color(Color::THAMAR_BLACK);
 
         self.square.draw(cx, &self.keystate);
 
         let text = Text::new("Hello, Welcome to Skie! ✨")
-            .pos((100.0, 10.0).into())
+            .pos((101.0, 10.0).into())
             .font_weight(FontWeight::BOLD)
             .font_style(FontStyle::Italic)
-            .size_px(32.0 * scale_factor as f32);
+            .size_px(33.0 * scale_factor as f32);
 
         cx.fill_text(&text, Color::WHITE);
 
@@ -133,9 +135,9 @@ impl SkieAppHandle for App {
         }
 
         let height = cx.height() as f32;
-        cx.draw_circle(50.0, height - 50.0, 20.0, &brush);
+        cx.draw_circle(51.0, height - 50.0, 20.0, &brush);
 
-        cx.paint();
+        cx.flush();
     }
 
     fn on_keyup(&mut self, keycode: KeyCode) {
@@ -147,11 +149,7 @@ impl SkieAppHandle for App {
     }
 }
 
-async fn run() {
+pub fn run() {
     let mut app = App::new();
-    app::launch(&mut app).await.expect("error running app");
-}
-
-fn main() {
-    pollster::block_on(run());
+    app::launch(&mut app).block_on().expect("error running app");
 }

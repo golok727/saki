@@ -1,5 +1,9 @@
 use std::ops::Deref;
 
+use crate::canvas::surface::CanvasSurface;
+use crate::Canvas;
+use anyhow::Result;
+
 use super::error::GpuSurfaceCreateError;
 use super::GpuContext;
 
@@ -10,12 +14,12 @@ pub struct GpuSurfaceSpecification {
 }
 
 #[derive(Debug)]
-pub struct GpuSurface<'a> {
+pub struct BackendRenderTarget<'a> {
     pub surface: wgpu::Surface<'a>,
     pub config: wgpu::SurfaceConfiguration,
 }
 
-impl<'a> Deref for GpuSurface<'a> {
+impl<'a> Deref for BackendRenderTarget<'a> {
     type Target = wgpu::Surface<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -23,23 +27,41 @@ impl<'a> Deref for GpuSurface<'a> {
     }
 }
 
-impl<'a> GpuSurface<'a> {
+impl<'a> BackendRenderTarget<'a> {
     pub(super) fn new(surface: wgpu::Surface<'a>, config: wgpu::SurfaceConfiguration) -> Self {
         Self { surface, config }
     }
+}
 
-    pub fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {
-        if self.config.width != new_width || self.config.height != new_height {
-            self.config.width = new_width.max(1);
-            self.config.height = new_height.max(1);
+impl<'a> CanvasSurface for BackendRenderTarget<'a> {
+    fn paint(&mut self, canvas: &mut Canvas) -> Result<()> {
+        let surface_texture = self.surface.get_current_texture()?;
 
-            self.surface.configure(&gpu.device, &self.config);
-            log::trace!(
-                "Surface target resize:  width = {} height = {}",
-                self.config.width,
-                self.config.height
-            );
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        canvas.render_to_texture(&view);
+        surface_texture.present();
+
+        Ok(())
+    }
+
+    fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {
+        if self.config.width == new_width && self.config.height == new_height {
+            return;
         }
+
+        self.config.width = new_width.max(1);
+        self.config.height = new_height.max(1);
+
+        self.surface.configure(&gpu.device, &self.config);
+
+        log::trace!(
+            "Surface target resize: width = {} height = {}",
+            self.config.width,
+            self.config.height
+        );
     }
 }
 
@@ -48,7 +70,7 @@ impl GpuContext {
         &'a self,
         screen: impl Into<wgpu::SurfaceTarget<'surface>>,
         specs: &GpuSurfaceSpecification,
-    ) -> Result<GpuSurface<'surface>, GpuSurfaceCreateError> {
+    ) -> Result<BackendRenderTarget<'surface>, GpuSurfaceCreateError> {
         let width = specs.width.max(1);
         let height = specs.height.max(1);
 
@@ -80,6 +102,6 @@ impl GpuContext {
 
         surface.configure(&self.device, &surface_config);
 
-        Ok(GpuSurface::new(surface, surface_config))
+        Ok(BackendRenderTarget::new(surface, surface_config))
     }
 }
