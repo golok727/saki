@@ -56,7 +56,7 @@ impl CanvasBuilder {
             screen,
             antialias: self.antialias,
 
-            scene: Default::default(),
+            instructions: Default::default(),
             renderables: Default::default(),
             clip_rects: Default::default(),
         }

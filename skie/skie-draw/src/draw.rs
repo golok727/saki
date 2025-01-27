@@ -3,7 +3,6 @@ pub mod canvas;
 pub mod gpu;
 pub mod paint;
 pub mod renderer;
-pub mod scene;
 pub mod text;
 
 pub use skie_math as math;
@@ -31,7 +30,6 @@ pub use paint::{
 
 pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
 
-pub use scene::Scene;
 pub use text::{Font, FontId, FontStyle, FontWeight, GlyphId, GlyphImage, TextSystem};
 
 pub use skie_math::traits::*;
