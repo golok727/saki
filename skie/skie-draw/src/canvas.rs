@@ -3,7 +3,7 @@ use std::{borrow::Cow, sync::Arc};
 use crate::{
     circle,
     paint::{
-        AsPrimitive, AtlasKey, Brush, GpuTextureView, Instruction, InstructionList, SkieAtlas,
+        AsPrimitive, AtlasKey, Brush, GpuTextureView, GraphicsInstruction, RenderList, SkieAtlas,
         TextureKind,
     },
     quad,
@@ -22,6 +22,7 @@ pub use builder::CanvasBuilder;
 pub(crate) struct CanvasState {
     pub transform: Mat3,
     pub clip: Rect<f32>,
+    pub clear_color: Color,
 }
 
 /*
@@ -32,7 +33,7 @@ pub(crate) struct CanvasState {
 */
 pub struct Canvas {
     pub renderer: WgpuRenderer,
-    pub(crate) instructions: InstructionList,
+    pub(crate) list: RenderList,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
 
@@ -81,6 +82,10 @@ impl Canvas {
         }
     }
 
+    pub fn clear_color(&mut self, clear_color: Color) {
+        self.current_state.clear_color = clear_color;
+    }
+
     #[cfg(feature = "experimental")]
     pub fn clip(&mut self, _rect: &Rect<f32>) {}
 
@@ -111,12 +116,12 @@ impl Canvas {
 
     pub fn clear(&mut self) {
         self.renderables.clear();
-        self.instructions.clear();
+        self.list.clear();
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
     pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: &Brush) {
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             prim.primitive()
                 .fill(brush.fill_style)
                 .stroke(brush.stroke_style),
@@ -125,7 +130,7 @@ impl Canvas {
     }
 
     pub fn draw_path(&mut self, path: Path2D, brush: &Brush) {
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             path.primitive()
                 .fill(brush.fill_style)
                 .stroke(brush.stroke_style),
@@ -134,7 +139,7 @@ impl Canvas {
     }
 
     pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: &Brush) {
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             quad()
                 .rect(rect.clone())
                 .primitive()
@@ -145,7 +150,7 @@ impl Canvas {
     }
 
     pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: &Brush) {
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             quad()
                 .rect(rect.clone())
                 .corners(corners.clone())
@@ -157,7 +162,7 @@ impl Canvas {
     }
 
     pub fn draw_image(&mut self, rect: &Rect<f32>, texture_id: &TextureId) {
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             quad().rect(rect.clone()).primitive().textured(texture_id),
             Brush::default(),
         ));
@@ -169,7 +174,7 @@ impl Canvas {
         corners: &Corners<f32>,
         texture_id: &TextureId,
     ) {
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             quad()
                 .rect(rect.clone())
                 .corners(corners.clone())
@@ -181,7 +186,7 @@ impl Canvas {
 
     pub fn draw_image_2(&mut self, rect: &Rect<f32>, texture_id: &TextureId, brush: &Brush) {
         // for NOW Only for playing around with the new api
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             quad()
                 .rect(rect.clone())
                 .primitive()
@@ -194,7 +199,7 @@ impl Canvas {
 
     pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: &Brush) {
         // for NOW Only for playing around with the new api
-        self.instructions.add(Instruction::new(
+        self.list.add(GraphicsInstruction::new(
             circle()
                 .pos(cx, cy)
                 .radius(radius)
@@ -269,7 +274,7 @@ impl Canvas {
                         let x = physical_glyph.x + image.placement.left;
                         let y = line_y as i32 + physical_glyph.y - image.placement.top;
 
-                        self.instructions.add(Instruction::new(
+                        self.list.add(GraphicsInstruction::new(
                             quad()
                                 .rect(Rect::from_origin_size(
                                     (x as f32, y as f32).into(),
@@ -302,7 +307,7 @@ impl Canvas {
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,
-        scene: &'scene InstructionList,
+        scene: &'scene RenderList,
         clip_rect: Rect<f32>,
         antialias: bool,
     ) -> impl Iterator<Item = Renderable> + 'scene {
@@ -327,17 +332,6 @@ impl Canvas {
             })
     }
 
-    pub fn paint_scene(&mut self, scene: &InstructionList) {
-        let renderables = Self::build_renderables(
-            &self.texture_atlas,
-            scene,
-            self.get_clip_rect(),
-            self.antialias,
-        );
-
-        self.renderables.extend(renderables);
-    }
-
     pub fn with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
         let cur_rect = self.get_clip_rect();
         self.clip_rects.push(cur_rect.intersect(clip));
@@ -356,13 +350,13 @@ impl Canvas {
     pub fn paint(&mut self) {
         let renderables = Self::build_renderables(
             &self.texture_atlas,
-            &self.instructions,
+            &self.list,
             self.get_clip_rect(),
             self.antialias,
         );
 
         self.renderables.extend(renderables);
-        self.instructions.clear();
+        self.list.clear();
     }
 
     pub fn paint_with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
@@ -375,7 +369,7 @@ impl Canvas {
     }
 
     /// Renders and presets to the screen
-    pub fn finish(&mut self, output_texture: &GpuTextureView, clear_color: Color) {
+    pub fn finish(&mut self, output_texture: &GpuTextureView) {
         let mut encoder = self.renderer.create_command_encoder();
 
         {
@@ -386,7 +380,7 @@ impl Canvas {
                         view: output_texture,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(clear_color.into()),
+                            load: wgpu::LoadOp::Clear(self.current_state.clear_color.into()),
                             store: wgpu::StoreOp::Store,
                         },
                     })],

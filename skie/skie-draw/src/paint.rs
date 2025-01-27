@@ -3,11 +3,11 @@ pub mod brush;
 pub mod color;
 pub mod draw_list;
 pub mod image;
-pub mod instruction;
 pub mod mesh;
 pub mod path;
 pub mod polyline;
 pub mod primitives;
+pub mod render_list;
 pub mod text;
 pub mod texture;
 
@@ -18,11 +18,11 @@ pub use brush::*;
 pub use color::*;
 pub use draw_list::*;
 pub use image::*;
-pub use instruction::*;
 pub use mesh::*;
 pub use path::*;
 pub use polyline::*;
 pub use primitives::*;
+pub use render_list::*;
 pub use text::*;
 pub use texture::*;
 

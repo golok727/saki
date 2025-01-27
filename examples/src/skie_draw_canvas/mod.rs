@@ -44,7 +44,8 @@ pub fn run() {
     let output_texture = create_render_texture(&gpu, canvas.width(), canvas.height());
     let view = output_texture.create_view(&GpuTextureViewDescriptor::default());
 
-    canvas.finish(&view, Color::THAMAR_BLACK);
+    canvas.clear_color(Color::THAMAR_BLACK);
+    canvas.finish(&view);
 
     save_to_file("render.png", &gpu, &output_texture);
 }

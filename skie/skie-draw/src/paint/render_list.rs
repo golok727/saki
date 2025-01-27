@@ -6,13 +6,25 @@ use crate::{
 use ahash::HashSet;
 
 #[derive(Debug, Clone)]
-pub(crate) struct Instruction {
+pub(crate) struct GraphicsInstruction {
     primitive: Primitive,
     brush: Brush,
 }
 
-impl Instruction {
-    pub fn new(primitive: impl Into<Primitive>, brush: Brush) -> Instruction {
+pub(crate) enum Graphics {
+    Textured {
+        primitive: Primitive,
+        texture_id: TextureId,
+    },
+
+    Brush {
+        primitive: Primitive,
+        brush: Brush,
+    },
+}
+
+impl GraphicsInstruction {
+    pub fn new(primitive: impl Into<Primitive>, brush: Brush) -> GraphicsInstruction {
         Self {
             primitive: primitive.into(),
             brush,
@@ -21,12 +33,12 @@ impl Instruction {
 }
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct InstructionList {
-    pub(crate) instructions: Vec<Instruction>,
+pub(crate) struct RenderList {
+    pub(crate) instructions: Vec<GraphicsInstruction>,
 }
 
-impl InstructionList {
-    pub fn add(&mut self, instruction: Instruction) {
+impl RenderList {
+    pub fn add(&mut self, instruction: GraphicsInstruction) {
         self.instructions.push(instruction)
     }
 
@@ -34,8 +46,8 @@ impl InstructionList {
         self.instructions.extend_from_slice(&other.instructions)
     }
 
-    pub fn clear(&mut self) -> Vec<Instruction> {
-        let old: Vec<Instruction> = std::mem::take(&mut self.instructions);
+    pub fn clear(&mut self) -> Vec<GraphicsInstruction> {
+        let old: Vec<GraphicsInstruction> = std::mem::take(&mut self.instructions);
         old
     }
 
@@ -66,7 +78,7 @@ pub type SceneTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
 
 // A simple batcher for now in future we will expand this.
 struct InstructionBatchIterator<'a> {
-    scene: &'a InstructionList,
+    scene: &'a RenderList,
     groups: Vec<(TextureId, Vec<GroupEntry>)>,
     tex_info: SceneTextureInfoMap,
     cur_group: usize,
@@ -74,7 +86,7 @@ struct InstructionBatchIterator<'a> {
 }
 
 impl<'a> InstructionBatchIterator<'a> {
-    pub fn new(scene: &'a InstructionList, tex_info: SceneTextureInfoMap, antialias: bool) -> Self {
+    pub fn new(scene: &'a RenderList, tex_info: SceneTextureInfoMap, antialias: bool) -> Self {
         let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
         for (i, instruction) in scene.instructions.iter().enumerate() {

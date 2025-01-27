@@ -409,6 +409,7 @@ impl Window {
 
     pub(crate) fn paint(&mut self) -> Result<()> {
         self.canvas.clear();
+        self.canvas.clear_color(self.clear_color);
 
         // TODO: remove
         self._add_basic_scene();
@@ -418,7 +419,7 @@ impl Window {
             .texture
             .create_view(&GpuTextureViewDescriptor::default());
 
-        self.canvas.finish(&view, self.clear_color);
+        self.canvas.finish(&view);
         surface_texture.present();
 
         Ok(())
