@@ -519,7 +519,8 @@ struct ScenePipes {
 
 impl ScenePipes {
     pub fn new(gpu: &GpuContext, bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self {
-        let shader = gpu.create_shader_labeled(include_str!("./scene/shader.wgsl"), "Scene Shader");
+        let shader =
+            gpu.create_shader_labeled(include_str!("./resources/shader.wgsl"), "Scene Shader");
 
         let layout = gpu.device.create_pipeline_layout(
             &(wgpu::PipelineLayoutDescriptor {

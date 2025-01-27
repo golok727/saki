@@ -1,5 +1,5 @@
 [package]
-name = "skie_draw_canvas"
+name = "example_skie_draw_canvas"
 version = "0.1.0"
 edition = "2021"
 
