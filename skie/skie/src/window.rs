@@ -402,7 +402,7 @@ impl Window {
         // TODO: remove
         self._add_basic_scene();
 
-        self.canvas.paint(&mut self.surface)?;
+        self.canvas.paint(&mut self.surface)?.present();
 
         Ok(())
     }

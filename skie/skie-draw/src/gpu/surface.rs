@@ -3,6 +3,7 @@ use std::ops::Deref;
 use crate::canvas::surface::CanvasSurface;
 use crate::Canvas;
 use anyhow::Result;
+use wgpu::SurfaceTexture;
 
 use super::error::GpuSurfaceCreateError;
 use super::GpuContext;
@@ -34,7 +35,9 @@ impl<'a> BackendRenderTarget<'a> {
 }
 
 impl<'a> CanvasSurface for BackendRenderTarget<'a> {
-    fn paint(&mut self, canvas: &mut Canvas) -> Result<()> {
+    type PaintOutput = SurfaceTexture;
+
+    fn paint(&mut self, canvas: &mut Canvas) -> Result<Self::PaintOutput> {
         let surface_texture = self.surface.get_current_texture()?;
 
         let view = surface_texture
@@ -42,9 +45,8 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         canvas.render_to_texture(&view);
-        surface_texture.present();
 
-        Ok(())
+        Ok(surface_texture)
     }
 
     fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {

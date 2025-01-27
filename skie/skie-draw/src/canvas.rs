@@ -334,7 +334,10 @@ impl Canvas {
         self.clip_rects.pop();
     }
 
-    pub fn paint(&mut self, surface: &mut impl CanvasSurface) -> Result<()> {
+    pub fn paint<Output>(
+        &mut self,
+        surface: &mut impl CanvasSurface<PaintOutput = Output>,
+    ) -> Result<Output> {
         surface.resize(self.renderer.gpu(), self.width(), self.height());
         surface.paint(self)
     }
