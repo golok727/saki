@@ -15,10 +15,6 @@ pub(crate) struct GraphicsInstruction {
 }
 
 impl GraphicsInstruction {
-    pub fn texture_id(&self) -> &TextureId {
-        &self.texture_id
-    }
-
     fn nothing_to_draw(&self) -> bool {
         self.brush.noting_to_draw()
     }
@@ -70,7 +66,7 @@ impl RenderList {
     pub fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
         self.instructions
             .iter()
-            .map(|instruction| instruction.texture_id().clone())
+            .map(|instruction| instruction.texture_id.clone())
             .collect::<HashSet<_>>()
             .into_iter()
     }
@@ -106,9 +102,7 @@ impl<'a> InstructionBatchIterator<'a> {
         let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
         for (i, instruction) in scene.instructions.iter().enumerate() {
-            let texture_id = instruction.texture_id().clone();
-
-            let render_texture = match &texture_id {
+            let render_texture = match &instruction.texture_id {
                 TextureId::AtlasKey(key) => {
                     let info = tex_info.get(key);
                     info.map(|info| TextureId::Atlas(info.tile.texture))
@@ -122,7 +116,7 @@ impl<'a> InstructionBatchIterator<'a> {
                     .or_default()
                     .push(GroupEntry {
                         index: i,
-                        texture_id,
+                        texture_id: instruction.texture_id.clone(),
                     });
             }
         }

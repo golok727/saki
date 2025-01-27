@@ -29,7 +29,7 @@ impl SkieAppHandle for SandboxApp {
         let mut brush = Brush::default();
         brush.fill_color(Color::TORCH_RED);
         cx.draw_rect(&rect, &brush);
-        cx.paint();
+        cx.flush();
     }
 }
 

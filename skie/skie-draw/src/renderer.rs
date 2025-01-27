@@ -330,10 +330,7 @@ impl WgpuRenderer {
             self.textures
                 .insert(atlas_tex_id, RendererTexture { bindgroup, kind });
         } else {
-            log::trace!(
-                "set_atlas_texture: BindGroup exists for {:#?}. skipping",
-                texture_id
-            )
+            log::trace!("set_atlas_texture: BindGroup exists. skipping",)
         }
     }
 
@@ -434,7 +431,7 @@ impl WgpuRenderer {
 
         render_pass.set_bind_group(0, &self.global_uniforms.bind_group, &[]);
 
-        log::info!("Rendering {} renderables", renderables.len());
+        log::trace!("Rendering {} renderables", renderables.len());
 
         for renderable in renderables {
             let scissor = ScissorRect::new(&renderable.clip_rect, &self.size);

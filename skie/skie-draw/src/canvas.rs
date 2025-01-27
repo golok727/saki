@@ -8,14 +8,18 @@ use crate::{
     },
     quad,
     renderer::Renderable,
-    Color, GlyphImage, IsZero, Path2D, Rect, Size, Text, TextSystem, TextureId, TextureOptions,
-    Vec2, WgpuRenderer, Zero,
+    BackendRenderTarget, Color, GlyphImage, GpuSurfaceCreateError, GpuSurfaceSpecification, IsZero,
+    Path2D, Rect, Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
 };
+use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
 use skie_math::{Corners, Mat3};
+use surface::{CanvasSurface, OffscreenRenderTarget};
 use wgpu::FilterMode;
 
 mod builder;
+pub mod surface;
+
 pub use builder::CanvasBuilder;
 
 #[derive(Debug, Clone)]
@@ -48,6 +52,27 @@ pub struct Canvas {
 }
 
 impl Canvas {
+    pub fn create(size: Size<u32>) -> CanvasBuilder {
+        CanvasBuilder::new(size)
+    }
+
+    pub fn create_offscreen_target(&self) -> OffscreenRenderTarget {
+        OffscreenRenderTarget::new(self.renderer.gpu(), self.width(), self.height())
+    }
+
+    pub fn create_backend_target<'window>(
+        &self,
+        into_surface_target: impl Into<wgpu::SurfaceTarget<'window>>,
+    ) -> Result<BackendRenderTarget<'window>, GpuSurfaceCreateError> {
+        self.renderer.gpu().create_surface(
+            into_surface_target,
+            &GpuSurfaceSpecification {
+                width: self.width(),
+                height: self.height(),
+            },
+        )
+    }
+
     pub fn screen(&self) -> Size<u32> {
         self.screen
     }
@@ -58,10 +83,6 @@ impl Canvas {
 
     pub fn height(&self) -> u32 {
         self.screen.height
-    }
-
-    pub fn create(size: Size<u32>) -> CanvasBuilder {
-        CanvasBuilder::new(size)
     }
 
     pub fn atlas(&self) -> &Arc<SkieAtlas> {
@@ -241,7 +262,7 @@ impl Canvas {
         });
 
         let tmp = self.antialias(false);
-        self.paint();
+        self.flush();
         self.antialias(tmp);
     }
 
@@ -253,23 +274,24 @@ impl Canvas {
 
     fn build_renderables<'scene>(
         texture_system: &SkieAtlas,
-        scene: &'scene RenderList,
+        render_list: &'scene RenderList,
         clip_rect: Rect<f32>,
         antialias: bool,
     ) -> impl Iterator<Item = Renderable> + 'scene {
-        let atlas_textures = scene
-            .get_required_textures()
-            .filter_map(|tex| -> Option<AtlasKey> {
-                if let TextureId::AtlasKey(key) = tex {
-                    Some(key)
-                } else {
-                    None
-                }
-            });
+        let atlas_textures =
+            render_list
+                .get_required_textures()
+                .filter_map(|tex| -> Option<AtlasKey> {
+                    if let TextureId::AtlasKey(key) = tex {
+                        Some(key)
+                    } else {
+                        None
+                    }
+                });
 
         let info_map = texture_system.get_texture_infos(atlas_textures);
 
-        scene
+        render_list
             .batches(info_map.clone(), antialias)
             .filter(|mesh| !mesh.is_empty())
             .map(move |mesh| Renderable {
@@ -290,10 +312,8 @@ impl Canvas {
         self.screen = self.renderer.size();
     }
 
-    // TODO: automaticaly do it instead ( will be removed )
-    // commit renderables
-    // builds batched geometry for the current scene and clears the items
-    pub fn paint(&mut self) {
+    // builds the current render list into mesh
+    pub fn flush(&mut self) {
         let renderables = Self::build_renderables(
             &self.texture_atlas,
             &self.list,
@@ -310,12 +330,17 @@ impl Canvas {
 
         self.clip_rects.push(cur_rect.intersect(clip));
         f(self);
-        self.paint();
+        self.flush();
         self.clip_rects.pop();
     }
 
+    pub fn paint(&mut self, surface: &mut impl CanvasSurface) -> Result<()> {
+        surface.resize(self.renderer.gpu(), self.width(), self.height());
+        surface.paint(self)
+    }
+
     /// Renders and presets to the screen
-    pub fn finish(&mut self, output_texture: &GpuTextureView) {
+    pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
         let mut encoder = self.renderer.create_command_encoder();
 
         {

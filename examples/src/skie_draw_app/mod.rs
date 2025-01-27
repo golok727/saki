@@ -137,7 +137,7 @@ impl SkieAppHandle for App {
         let height = cx.height() as f32;
         cx.draw_circle(51.0, height - 50.0, 20.0, &brush);
 
-        cx.paint();
+        cx.flush();
     }
 
     fn on_keyup(&mut self, keycode: KeyCode) {

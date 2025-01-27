@@ -7,9 +7,7 @@ pub use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 pub use winit::window::{Window, WindowAttributes};
 
-use crate::{
-    Canvas, GpuContext, GpuSurface, GpuSurfaceSpecification, GpuTextureViewDescriptor, Size,
-};
+use crate::{BackendRenderTarget, Canvas, GpuContext, Size};
 pub use winit::dpi::{LogicalSize, PhysicalSize};
 
 pub trait SkieAppHandle: 'static {
@@ -22,8 +20,9 @@ pub trait SkieAppHandle: 'static {
 }
 
 struct App<'a> {
-    surface: Option<GpuSurface<'static>>,
+    surface: Option<BackendRenderTarget<'static>>,
     window: Option<Arc<Window>>,
+    #[allow(unused)]
     gpu: GpuContext,
     canvas: Canvas,
     app_handle: &'a mut dyn SkieAppHandle,
@@ -66,19 +65,13 @@ impl<'a> ApplicationHandler for App<'a> {
             self.app_handle.on_create_window(&window);
 
             let size = window.inner_size();
+            self.canvas.resize(size.width, size.height);
             let surface = self
-                .gpu
-                .create_surface(
-                    window.clone(),
-                    &GpuSurfaceSpecification {
-                        width: size.width,
-                        height: size.height,
-                    },
-                )
+                .canvas
+                .create_backend_target(window.clone())
                 .expect("error creating surface");
 
             self.surface = Some(surface);
-            self.canvas.resize(size.width, size.height);
 
             window
         });
@@ -128,23 +121,17 @@ impl<'a> ApplicationHandler for App<'a> {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(surface) = &mut self.surface {
-                    let surface_texture = surface.get_current_texture().unwrap();
-                    let view = surface_texture
-                        .texture
-                        .create_view(&GpuTextureViewDescriptor::default());
-
                     self.canvas.clear();
-                    self.app_handle.draw(&mut self.canvas, window);
-                    self.canvas.finish(&view);
 
-                    surface_texture.present();
+                    self.app_handle.draw(&mut self.canvas, window);
+
+                    if self.canvas.paint(surface).is_err() {
+                        eprintln!("Error painting");
+                    }
                 }
             }
             WindowEvent::Resized(size) => {
-                if let Some(surface) = &mut self.surface {
-                    surface.resize(&self.gpu, size.width, size.height);
-                    self.canvas.resize(size.width, size.height);
-                }
+                self.canvas.resize(size.width, size.height);
             }
             _ => {}
         }
