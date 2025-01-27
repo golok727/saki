@@ -1,9 +1,9 @@
 [package]
-name = "example_skie_draw_canvas"
+name = "skie-examples"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-skie-draw = { workspace = true }
+skie-draw = { workspace = true, features = ['application'] }
 pollster.workspace = true
 image.workspace = true

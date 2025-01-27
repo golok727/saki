@@ -708,23 +708,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example_skie_draw_app"
-version = "0.1.0"
-dependencies = [
- "pollster",
- "skie-draw",
-]
-
-[[package]]
-name = "example_skie_draw_canvas"
-version = "0.1.0"
-dependencies = [
- "image",
- "pollster",
- "skie-draw",
-]
-
-[[package]]
 name = "exr"
 version = "1.73.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2300,6 +2283,15 @@ dependencies = [
  "thiserror 2.0.3",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "skie-examples"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "pollster",
+ "skie-draw",
 ]
 
 [[package]]

@@ -8,7 +8,7 @@ use skie_draw::{
     Size, Text,
 };
 
-fn main() {
+pub fn run() {
     let gpu = GpuContext::new()
         .block_on()
         .expect("Error creating gpu context");
