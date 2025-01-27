@@ -125,7 +125,7 @@ impl<'a> ApplicationHandler for App<'a> {
 
                     self.app_handle.draw(&mut self.canvas, window);
 
-                    if let Ok(surface_texture) = self.canvas.paint(surface) {
+                    if let Ok(surface_texture) = self.canvas.render(surface) {
                         surface_texture.present()
                     } else {
                         eprintln!("Error painting");

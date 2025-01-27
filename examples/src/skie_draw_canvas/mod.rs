@@ -41,7 +41,7 @@ pub fn run() {
 
     canvas.clear_color(Color::THAMAR_BLACK);
 
-    canvas.paint(&mut surface).expect("error painting");
+    canvas.render(&mut surface).expect("error painting");
 
     // TODO SCREENSHOT
     save_to_file("render.png", &gpu, &surface.texture);
