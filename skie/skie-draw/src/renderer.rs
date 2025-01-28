@@ -329,8 +329,6 @@ impl WgpuRenderer {
         if let Some((atlas_tex_id, kind, bindgroup)) = need_to_add {
             self.textures
                 .insert(atlas_tex_id, RendererTexture { bindgroup, kind });
-        } else {
-            log::trace!("set_atlas_texture: BindGroup exists. skipping",)
         }
     }
 

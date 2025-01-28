@@ -12,8 +12,7 @@ impl SkieAppHandle for SandboxApp {
     fn init(&mut self) -> WindowAttributes {
         WindowAttributes::default()
             .with_inner_size(LogicalSize::new(700, 500))
-            .with_title("SandBox")
-            .with_resizable(false)
+            .with_title("Sandbox App")
     }
 
     fn update(&mut self, _window: &app::Window) {}

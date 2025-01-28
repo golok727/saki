@@ -3,13 +3,14 @@ use std::{borrow::Cow, sync::Arc};
 use crate::{
     circle,
     paint::{
-        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, InstructionBatcher, Primitive,
-        RenderList, SkieAtlas, TextureKind,
+        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, GraphicsTextureInfoMap,
+        InstructionBatcher, Primitive, RenderList, SkieAtlas, TextureKind,
     },
     quad,
     renderer::Renderable,
-    BackendRenderTarget, Color, GlyphImage, GpuSurfaceCreateError, GpuSurfaceSpecification, IsZero,
-    Path2D, Rect, Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
+    AtlasTextureInfo, AtlasTextureInfoMap, BackendRenderTarget, Color, DrawList, GlyphImage,
+    GpuSurfaceCreateError, GpuSurfaceSpecification, IsZero, Mesh, Path2D, Rect, Size, Text,
+    TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer,
 };
 use ahash::HashSet;
 use anyhow::Result;
@@ -143,7 +144,7 @@ impl Canvas {
     }
 
     pub fn save(&mut self) {
-        self.flush();
+        self.stage_changes();
         self.state_stack.push(self.current_state.clone());
     }
 
@@ -152,7 +153,7 @@ impl Canvas {
             let restored = state;
 
             if restored != self.current_state {
-                self.flush();
+                self.stage_changes();
             }
             self.current_state = restored;
         }
@@ -196,7 +197,7 @@ impl Canvas {
         self.cached_renderables.clear();
     }
 
-    pub fn flush(&mut self) {
+    pub fn stage_changes(&mut self) {
         if self.list.is_empty() {
             return;
         }
@@ -252,7 +253,7 @@ impl Canvas {
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
-        self.flush();
+        self.stage_changes();
         self.text_system.write(|state| {
             let line_height_em = 1.4;
             let metrics = Metrics::new(text.size, text.size * line_height_em);
@@ -339,7 +340,7 @@ impl Canvas {
             }
             // end run
         });
-        self.flush();
+        self.stage_changes();
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -349,11 +350,12 @@ impl Canvas {
 
     fn prepare_for_render(&mut self) {
         // stage the remaining
-        self.flush();
+        self.stage_changes();
+
+        let mut info_map: AtlasTextureInfoMap<AtlasKey> = Default::default();
 
         for staged in &self.stage {
-            // todo we will change it to the actual texture later;
-            let atlas_textures =
+            let required_textures =
                 staged
                     .get_required_textures()
                     .filter_map(|tex| -> Option<AtlasKey> {
@@ -364,23 +366,105 @@ impl Canvas {
                         }
                     });
 
-            let info_map = self.texture_atlas.get_texture_infos(atlas_textures);
+            self.texture_atlas
+                .get_texture_infos(required_textures, &mut info_map);
 
-            // todo we will build here instead and add transform and all
-            let batches = InstructionBatcher::new(&staged.instructions, info_map);
+            let batcher = InstructionBatcher::new(&staged.instructions, &info_map);
+            for batch in batcher {
+                let texture = batch.render_texture();
 
-            self.cached_renderables
-                .extend(
-                    batches
-                        .filter(|mesh| !mesh.is_empty())
-                        .map(move |mesh| Renderable {
-                            clip_rect: staged.state.clip_rect.clone(),
-                            mesh,
-                        }),
-                );
+                if let Some(mesh) = self.build_batched_mesh(batch, &texture, &info_map) {
+                    self.cached_renderables.push(Renderable {
+                        clip_rect: staged.state.clip_rect.clone(),
+                        mesh,
+                    })
+                }
+            }
         }
 
         self.stage.clear();
+    }
+
+    fn build_batched_mesh<'a>(
+        &self,
+        instructions: impl Iterator<Item = &'a GraphicsInstruction>,
+        texture: &TextureId,
+        tex_info: &GraphicsTextureInfoMap,
+    ) -> Option<Mesh> {
+        let mut drawlist = DrawList::default();
+        for instruction in instructions {
+            let primitive = &instruction.primitive;
+            let brush = &instruction.brush;
+
+            if instruction.nothing_to_draw() {
+                return None;
+            }
+
+            let tex_id = instruction.texture_id.clone();
+            let is_white_texture = tex_id == TextureId::WHITE_TEXTURE;
+
+            let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {
+                tex_info.get(key)
+            } else {
+                None
+            };
+
+            let build = |drawlist: &mut DrawList| match &primitive {
+                Primitive::Circle(circle) => {
+                    let fill_color = brush.fill_style.color;
+
+                    drawlist.path.clear();
+                    drawlist.path.circle(circle.center, circle.radius);
+
+                    drawlist.fill_path_convex(fill_color, !is_white_texture);
+                    drawlist.stroke_path(&brush.stroke_style.join())
+                }
+
+                Primitive::Quad(quad) => {
+                    let fill_color = brush.fill_style.color;
+
+                    drawlist.path.clear();
+                    drawlist.path.round_rect(&quad.bounds, &quad.corners);
+                    drawlist.fill_path_convex(fill_color, !is_white_texture);
+                    drawlist.stroke_path(&brush.stroke_style.join())
+                }
+
+                Primitive::Path(path) => {
+                    // TODO:
+                    // drawlist.fill_with_path(path, prim.fill.color);
+
+                    let stroke_style = if path.closed {
+                        brush.stroke_style.join()
+                    } else {
+                        brush.stroke_style
+                    };
+
+                    drawlist.stroke_with_path(path, &stroke_style);
+                }
+            };
+
+            if let Some(info) = info {
+                // Convert to atlas space if the texture belongs to the atlas
+                drawlist.capture(build).map(|vertex| {
+                    if is_white_texture {
+                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
+                    } else {
+                        vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
+                    }
+                });
+            } else {
+                // Non atlas texture
+                build(&mut drawlist)
+            }
+        }
+
+        let mut mesh = drawlist.build();
+        if mesh.is_empty() {
+            return None;
+        }
+
+        mesh.texture = texture.clone();
+        Some(mesh)
     }
 
     /// Resizes the surface and paints to it

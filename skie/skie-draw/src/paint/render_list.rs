@@ -1,6 +1,8 @@
+use std::collections::VecDeque;
+
 use crate::{
-    paint::{AtlasKey, AtlasTextureInfo, AtlasTextureInfoMap, Mesh, Primitive},
-    Brush, DrawList, TextureId,
+    paint::{AtlasKey, AtlasTextureInfoMap, Primitive},
+    Brush, TextureId,
 };
 
 use ahash::HashSet;
@@ -15,7 +17,7 @@ pub struct GraphicsInstruction {
 }
 
 impl GraphicsInstruction {
-    fn nothing_to_draw(&self) -> bool {
+    pub fn nothing_to_draw(&self) -> bool {
         self.brush.noting_to_draw()
     }
 
@@ -74,16 +76,12 @@ impl RenderList {
     pub fn is_empty(&self) -> bool {
         self.instructions.is_empty()
     }
-
-    pub fn batches(&self, tex_info: GraphicsTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {
-        InstructionBatcher::new(&self.instructions, tex_info)
-    }
 }
 
-#[derive(Debug)]
-struct GroupEntry {
-    index: usize,
-    texture_id: TextureId,
+type GroupEntry = usize;
+struct Group {
+    render_texture: TextureId,
+    entries: Vec<GroupEntry>,
 }
 
 pub type GraphicsTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
@@ -91,14 +89,17 @@ pub type GraphicsTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
 // A simple batcher for now in future we will expand this.
 pub(crate) struct InstructionBatcher<'a> {
     instructions: &'a [GraphicsInstruction],
-    groups: Vec<(TextureId, Vec<GroupEntry>)>,
-    tex_info: GraphicsTextureInfoMap,
-    cur_group: usize,
+    // (Actual RenderTexture bind to renderer, GroupEntry)
+    groups: VecDeque<Group>,
 }
 
 impl<'a> InstructionBatcher<'a> {
-    pub fn new(instructions: &'a [GraphicsInstruction], tex_info: GraphicsTextureInfoMap) -> Self {
-        let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
+    pub fn new(
+        instructions: &'a [GraphicsInstruction],
+        tex_info: &'a GraphicsTextureInfoMap,
+    ) -> Self {
+        let mut render_tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> =
+            Default::default();
 
         for (i, instruction) in instructions.iter().enumerate() {
             let render_texture = match &instruction.texture_id {
@@ -110,120 +111,71 @@ impl<'a> InstructionBatcher<'a> {
             };
 
             if let Some(render_texture) = render_texture {
-                tex_to_item_idx
+                render_tex_to_item_idx
                     .entry(render_texture)
                     .or_default()
-                    .push(GroupEntry {
-                        index: i,
-                        texture_id: instruction.texture_id.clone(),
-                    });
+                    .push(i);
             }
         }
 
-        let mut groups: Vec<(TextureId, Vec<GroupEntry>)> = tex_to_item_idx.into_iter().collect();
+        let mut groups: Vec<_> = render_tex_to_item_idx
+            .into_iter()
+            .map(|(render_texture, entries)| Group {
+                render_texture,
+                entries,
+            })
+            .collect();
 
         // FIXME
-        groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
+        groups.sort_by_key(|group| group.entries.first().copied().unwrap_or(0));
+
+        let groups: VecDeque<_> = groups.into();
 
         Self {
             instructions,
-            tex_info,
-            cur_group: 0,
             groups,
         }
-    }
-
-    pub fn next_batch(&mut self) -> Option<Mesh> {
-        if self.cur_group >= self.groups.len() {
-            return None;
-        }
-
-        // FIXME: no need to build mesh here
-        let group = &self.groups[self.cur_group];
-
-        let render_texture = group.0.clone();
-
-        let mut drawlist = DrawList::default();
-
-        for entry in &group.1 {
-            let instruction = &self.instructions[entry.index];
-            let primitive = &instruction.primitive;
-            let brush = &instruction.brush;
-
-            if instruction.nothing_to_draw() {
-                continue;
-            }
-
-            let tex_id = entry.texture_id.clone();
-            let is_white_texture = tex_id == TextureId::WHITE_TEXTURE;
-
-            let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {
-                self.tex_info.get(key)
-            } else {
-                None
-            };
-
-            let build = |drawlist: &mut DrawList| match &primitive {
-                Primitive::Circle(circle) => {
-                    let fill_color = brush.fill_style.color;
-
-                    drawlist.path.clear();
-                    drawlist.path.circle(circle.center, circle.radius);
-
-                    drawlist.fill_path_convex(fill_color, !is_white_texture);
-                    drawlist.stroke_path(&brush.stroke_style.join())
-                }
-
-                Primitive::Quad(quad) => {
-                    let fill_color = brush.fill_style.color;
-
-                    drawlist.path.clear();
-                    drawlist.path.round_rect(&quad.bounds, &quad.corners);
-                    drawlist.fill_path_convex(fill_color, !is_white_texture);
-                    drawlist.stroke_path(&brush.stroke_style.join())
-                }
-
-                Primitive::Path(path) => {
-                    // TODO:
-                    // drawlist.fill_with_path(path, prim.fill.color);
-
-                    let stroke_style = if path.closed {
-                        brush.stroke_style.join()
-                    } else {
-                        brush.stroke_style
-                    };
-
-                    drawlist.stroke_with_path(path, &stroke_style);
-                }
-            };
-
-            if let Some(info) = info {
-                // Convert to atlas space if the texture belongs to the atlas
-                drawlist.capture(build).map(|vertex| {
-                    if is_white_texture {
-                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
-                    } else {
-                        vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
-                    }
-                });
-            } else {
-                // Non atlas texture
-                build(&mut drawlist)
-            }
-        }
-
-        self.cur_group += 1;
-
-        let mut mesh = drawlist.build();
-        mesh.texture = render_texture;
-        Some(mesh)
     }
 }
 
 impl<'a> Iterator for InstructionBatcher<'a> {
-    type Item = Mesh;
+    type Item = InstructionBatch<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_batch()
+        if let Some(group) = self.groups.pop_front() {
+            Some(InstructionBatch::<'a> {
+                instructions: self.instructions,
+                group,
+                idx: 0,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+pub struct InstructionBatch<'a> {
+    instructions: &'a [GraphicsInstruction],
+    group: Group,
+    idx: usize,
+}
+
+impl<'a> InstructionBatch<'a> {
+    pub fn render_texture(&self) -> TextureId {
+        self.group.render_texture.clone()
+    }
+}
+
+impl<'a> Iterator for InstructionBatch<'a> {
+    type Item = &'a GraphicsInstruction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.group.entries.len() {
+            return None;
+        }
+
+        let entry = &self.instructions[self.group.entries[self.idx]];
+        self.idx += 1;
+        Some(entry)
     }
 }

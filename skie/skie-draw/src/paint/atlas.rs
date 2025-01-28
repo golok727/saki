@@ -73,12 +73,17 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
         lock.get_texture_info(id)
     }
 
-    pub fn get_texture_infos(&self, ids: impl Iterator<Item = Key>) -> AtlasTextureInfoMap<Key> {
+    pub fn get_texture_infos(
+        &self,
+        ids: impl Iterator<Item = Key>,
+        output: &mut AtlasTextureInfoMap<Key>,
+    ) {
         let lock = self.0.lock();
 
-        ids.map(|id| (id.clone(), lock.get_texture_info(&id)))
-            .filter_map(|(id, info)| info.map(|info| (id, info)))
-            .collect()
+        output.extend(
+            ids.map(|id| (id.clone(), lock.get_texture_info(&id)))
+                .filter_map(|(id, info)| info.map(|info| (id, info))),
+        );
     }
 
     pub fn get_or_insert<'a>(
