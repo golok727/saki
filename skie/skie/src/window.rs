@@ -355,11 +355,10 @@ impl Window {
             canvas.draw_path(path, &brush);
         }
 
-        canvas.flush();
-        {
-            let state = self.state.read();
-            self.scroller.render(canvas, state.mouse_pos());
-        }
+        // {
+        //     let state = self.state.read();
+        //     self.scroller.render(canvas, state.mouse_pos());
+        // }
 
         canvas.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
@@ -647,7 +646,6 @@ impl Scroller {
                 .corners(Corners::with_all(10.0)),
             &brush,
         );
-        canvas.flush();
 
         // paint children clipped to this rect
         let mut clip = container.clone();
@@ -675,24 +673,25 @@ impl Scroller {
 
         brush.reset();
         // paint children overflow hidden
-        canvas.paint_with_clip_rect(&clip, |canvas| {
-            for _ in 0..10 {
-                for i in 0..10 {
-                    brush.fill_color(colors[i % colors.len()]);
+        canvas.save();
+        canvas.clip(&clip);
+        for _ in 0..10 {
+            for i in 0..10 {
+                brush.fill_color(colors[i % colors.len()]);
 
-                    canvas.draw_primitive(
-                        quad().rect(Rect::from_origin_size(
-                            cursor + vec2(-self.scroll_x, 0.0),
-                            size,
-                        )),
-                        &brush,
-                    );
-                    cursor.x += margin + size.width;
-                }
-                cursor.y += 30.0 + margin + size.height;
-                cursor.x = container.origin.x + 10.0;
+                canvas.draw_primitive(
+                    quad().rect(Rect::from_origin_size(
+                        cursor + vec2(-self.scroll_x, 0.0),
+                        size,
+                    )),
+                    &brush,
+                );
+                cursor.x += margin + size.width;
             }
-        });
+            cursor.y += 30.0 + margin + size.height;
+            cursor.x = container.origin.x + 10.0;
+        }
+        canvas.restore();
     }
 }
 

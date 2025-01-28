@@ -1,6 +1,6 @@
 use skie_draw::{
     app::{self, LogicalSize, SkieAppHandle, WindowAttributes},
-    Canvas, Color, Text,
+    Canvas, Color,
 };
 
 use skie_draw::{Brush, Rect};
@@ -29,8 +29,6 @@ impl SkieAppHandle for SandboxApp {
         let mut brush = Brush::default();
         brush.fill_color(Color::TORCH_RED);
         cx.draw_rect(&rect, &brush);
-
-        cx.flush();
     }
 }
 

@@ -8,10 +8,10 @@ use ahash::HashSet;
 use super::Color;
 
 #[derive(Debug, Clone)]
-pub(crate) struct GraphicsInstruction {
-    primitive: Primitive,
-    brush: Brush,
-    texture_id: TextureId,
+pub struct GraphicsInstruction {
+    pub primitive: Primitive,
+    pub brush: Brush,
+    pub texture_id: TextureId,
 }
 
 impl GraphicsInstruction {
@@ -49,7 +49,7 @@ impl GraphicsInstruction {
 }
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct RenderList {
+pub struct RenderList {
     pub(crate) instructions: Vec<GraphicsInstruction>,
 }
 
@@ -71,12 +71,12 @@ impl RenderList {
             .into_iter()
     }
 
-    pub fn batches(
-        &self,
-        tex_info: GraphicsTextureInfoMap,
-        antialias: bool,
-    ) -> impl Iterator<Item = Mesh> + '_ {
-        InstructionBatchIterator::new(self, tex_info, antialias)
+    pub fn is_empty(&self) -> bool {
+        self.instructions.is_empty()
+    }
+
+    pub fn batches(&self, tex_info: GraphicsTextureInfoMap) -> impl Iterator<Item = Mesh> + '_ {
+        InstructionBatcher::new(&self.instructions, tex_info)
     }
 }
 
@@ -89,19 +89,18 @@ struct GroupEntry {
 pub type GraphicsTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
 
 // A simple batcher for now in future we will expand this.
-struct InstructionBatchIterator<'a> {
-    scene: &'a RenderList,
+pub(crate) struct InstructionBatcher<'a> {
+    instructions: &'a [GraphicsInstruction],
     groups: Vec<(TextureId, Vec<GroupEntry>)>,
     tex_info: GraphicsTextureInfoMap,
     cur_group: usize,
-    antialias: bool,
 }
 
-impl<'a> InstructionBatchIterator<'a> {
-    pub fn new(scene: &'a RenderList, tex_info: GraphicsTextureInfoMap, antialias: bool) -> Self {
+impl<'a> InstructionBatcher<'a> {
+    pub fn new(instructions: &'a [GraphicsInstruction], tex_info: GraphicsTextureInfoMap) -> Self {
         let mut tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> = Default::default();
 
-        for (i, instruction) in scene.instructions.iter().enumerate() {
+        for (i, instruction) in instructions.iter().enumerate() {
             let render_texture = match &instruction.texture_id {
                 TextureId::AtlasKey(key) => {
                     let info = tex_info.get(key);
@@ -127,11 +126,10 @@ impl<'a> InstructionBatchIterator<'a> {
         groups.sort_by_key(|(_, val)| val.first().map(|v| v.index).unwrap_or(0));
 
         Self {
-            scene,
+            instructions,
             tex_info,
             cur_group: 0,
             groups,
-            antialias,
         }
     }
 
@@ -146,10 +144,9 @@ impl<'a> InstructionBatchIterator<'a> {
         let render_texture = group.0.clone();
 
         let mut drawlist = DrawList::default();
-        drawlist.antialias(self.antialias);
 
         for entry in &group.1 {
-            let instruction = &self.scene.instructions[entry.index];
+            let instruction = &self.instructions[entry.index];
             let primitive = &instruction.primitive;
             let brush = &instruction.brush;
 
@@ -223,7 +220,7 @@ impl<'a> InstructionBatchIterator<'a> {
     }
 }
 
-impl<'a> Iterator for InstructionBatchIterator<'a> {
+impl<'a> Iterator for InstructionBatcher<'a> {
     type Item = Mesh;
 
     fn next(&mut self) -> Option<Self::Item> {

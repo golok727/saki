@@ -3,14 +3,15 @@ use std::{borrow::Cow, sync::Arc};
 use crate::{
     circle,
     paint::{
-        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, Primitive, RenderList, SkieAtlas,
-        TextureKind,
+        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, InstructionBatcher, Primitive,
+        RenderList, SkieAtlas, TextureKind,
     },
     quad,
     renderer::Renderable,
     BackendRenderTarget, Color, GlyphImage, GpuSurfaceCreateError, GpuSurfaceSpecification, IsZero,
     Path2D, Rect, Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
 };
+use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
 use skie_math::{Corners, Mat3};
@@ -22,11 +23,27 @@ pub mod surface;
 
 pub use builder::CanvasBuilder;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CanvasState {
     pub transform: Mat3,
     pub clip: Rect<f32>,
     pub clear_color: Color,
+}
+
+// The instructions sharing the same state
+struct StagedInstructions {
+    instructions: Vec<GraphicsInstruction>,
+    state: CanvasState,
+}
+
+impl StagedInstructions {
+    fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
+        self.instructions
+            .iter()
+            .map(|instruction| instruction.texture_id.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+    }
 }
 
 /*
@@ -36,7 +53,9 @@ pub(crate) struct CanvasState {
  - [ ] use new brush api to paint
 */
 pub struct Canvas {
+    // TODO pub(crate)
     pub renderer: WgpuRenderer,
+
     pub(crate) list: RenderList,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
@@ -44,7 +63,9 @@ pub struct Canvas {
     state_stack: Vec<CanvasState>,
     current_state: CanvasState,
 
-    renderables: Vec<Renderable>,
+    stage: Vec<StagedInstructions>,
+    cached_renderables: Vec<Renderable>,
+
     clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
     antialias: bool,
@@ -94,12 +115,17 @@ impl Canvas {
     }
 
     pub fn save(&mut self) {
+        self.stage_changes();
         self.state_stack.push(self.current_state.clone());
     }
 
     pub fn restore(&mut self) {
         if let Some(state) = self.state_stack.pop() {
-            self.current_state = state;
+            let restored = state;
+
+            if restored != self.current_state {
+                self.stage_changes();
+            }
         }
     }
 
@@ -107,17 +133,28 @@ impl Canvas {
         self.current_state.clear_color = clear_color;
     }
 
-    #[cfg(feature = "experimental")]
-    pub fn clip(&mut self, _rect: &Rect<f32>) {}
+    pub fn clip(&mut self, rect: &Rect<f32>) {
+        self.current_state.clip = rect.clone();
+    }
 
-    #[cfg(feature = "experimental")]
-    pub fn translate(&mut self, x: f32, y: f32) {}
+    pub fn translate(&mut self, _x: f32, _y: f32) {}
 
-    #[cfg(feature = "experimental")]
-    pub fn scale(&mut self, x: f32, y: f32) {}
+    pub fn scale(&mut self, _x: f32, _y: f32) {}
 
-    #[cfg(feature = "experimental")]
-    pub fn rotate(&mut self, x: f32, y: f32) {}
+    pub fn rotate(&mut self, _x: f32, _y: f32) {}
+
+    fn stage_changes(&mut self) {
+        if self.list.is_empty() {
+            return;
+        }
+
+        let instructions = self.list.clear();
+
+        self.stage.push(StagedInstructions {
+            instructions,
+            state: self.current_state.clone(),
+        });
+    }
 
     pub fn get_clip_rect(&self) -> Rect<f32> {
         self.clip_rects
@@ -130,7 +167,7 @@ impl Canvas {
     }
 
     pub fn clear(&mut self) {
-        self.renderables.clear();
+        self.cached_renderables.clear();
         self.list.clear();
     }
 
@@ -177,6 +214,7 @@ impl Canvas {
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
+        self.stage_changes();
         self.text_system.write(|state| {
             let line_height_em = 1.4;
             let metrics = Metrics::new(text.size, text.size * line_height_em);
@@ -263,10 +301,7 @@ impl Canvas {
             }
             // end run
         });
-
-        let tmp = self.antialias(false);
-        self.flush();
-        self.antialias(tmp);
+        self.stage_changes();
     }
 
     pub fn antialias(&mut self, v: bool) -> bool {
@@ -275,66 +310,59 @@ impl Canvas {
         old
     }
 
-    fn build_renderables<'scene>(
-        texture_system: &SkieAtlas,
-        render_list: &'scene RenderList,
-        clip_rect: Rect<f32>,
-        antialias: bool,
-    ) -> impl Iterator<Item = Renderable> + 'scene {
-        let atlas_textures =
-            render_list
-                .get_required_textures()
-                .filter_map(|tex| -> Option<AtlasKey> {
-                    if let TextureId::AtlasKey(key) = tex {
-                        Some(key)
-                    } else {
-                        None
-                    }
-                });
-
-        let info_map = texture_system.get_texture_infos(atlas_textures);
-
-        render_list
-            .batches(info_map.clone(), antialias)
-            .filter(|mesh| !mesh.is_empty())
-            .map(move |mesh| Renderable {
-                clip_rect: clip_rect.clone(),
-                mesh,
-            })
-    }
-
-    pub fn with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
-        let cur_rect = self.get_clip_rect();
-        self.clip_rects.push(cur_rect.intersect(clip));
-        f(self);
-        self.clip_rects.pop();
-    }
-
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
         self.screen = self.renderer.size();
-    }
-
-    // builds the current render list into mesh
-    pub fn flush(&mut self) {
-        let renderables = Self::build_renderables(
-            &self.texture_atlas,
-            &self.list,
-            self.get_clip_rect(),
-            self.antialias,
-        );
-
-        self.renderables.extend(renderables);
-        self.list.clear();
+        if self.state_stack.is_empty() {
+            self.current_state.clip = Rect::xywh(0.0, 0.0, width as f32, height as f32);
+        }
     }
 
     pub fn paint_with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
-        let cur_rect = self.get_clip_rect();
+        self.save();
+        self.clip(clip);
 
-        self.clip_rects.push(cur_rect.intersect(clip));
         f(self);
-        self.flush();
-        self.clip_rects.pop();
+        self.restore();
+    }
+
+    fn prepare_for_render(&mut self) {
+        // stage the remaining
+        self.stage_changes();
+
+        for staged in &self.stage {
+            // todo we will change it to the actual texture later;
+            let atlas_textures =
+                staged
+                    .get_required_textures()
+                    .filter_map(|tex| -> Option<AtlasKey> {
+                        if let TextureId::AtlasKey(key) = tex {
+                            Some(key)
+                        } else {
+                            None
+                        }
+                    });
+
+            let info_map = self.texture_atlas.get_texture_infos(atlas_textures);
+
+            // todo we will build here instead and add transform and all
+            let batches = InstructionBatcher::new(&staged.instructions, info_map);
+
+            let clip = Rect::xywh(0., 0., self.screen.width as f32, self.screen.height as f32)
+                .intersect(&self.current_state.clip);
+
+            self.cached_renderables
+                .extend(
+                    batches
+                        .filter(|mesh| !mesh.is_empty())
+                        .map(move |mesh| Renderable {
+                            clip_rect: clip.clone(),
+                            mesh,
+                        }),
+                );
+        }
+
+        self.stage.clear();
     }
 
     /// Resizes the surface and paints to it
@@ -348,6 +376,7 @@ impl Canvas {
 
     /// Renders and presets to the screen
     pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
+        self.prepare_for_render();
         let mut encoder = self.renderer.create_command_encoder();
 
         {
@@ -368,8 +397,8 @@ impl Canvas {
                 }),
             );
 
-            self.renderer.prepare(&self.renderables);
-            self.renderer.render(&mut pass, &self.renderables);
+            self.renderer.prepare(&self.cached_renderables);
+            self.renderer.render(&mut pass, &self.cached_renderables);
         }
 
         self.renderer

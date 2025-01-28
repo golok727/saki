@@ -55,11 +55,13 @@ impl CanvasBuilder {
                 clear_color: Color::WHITE,
             },
 
+            stage: Default::default(),
+
             screen,
             antialias: self.antialias,
 
             list: Default::default(),
-            renderables: Default::default(),
+            cached_renderables: Default::default(),
             clip_rects: Default::default(),
         }
     }
