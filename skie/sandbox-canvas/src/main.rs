@@ -19,17 +19,21 @@ impl SkieAppHandle for SandboxApp {
 
     fn draw(&mut self, cx: &mut Canvas, window: &app::Window) {
         let scale_factor = window.scale_factor() as f32;
-        let size: LogicalSize<f32> = window.inner_size().to_logical(window.scale_factor());
-        let size = Size::new(size.width, size.height);
+        let size = window.inner_size();
+        let size = Size::new(size.width as f32, size.height as f32).scale(1.0 / scale_factor);
 
         cx.clear_color(Color::THAMAR_BLACK);
 
         cx.save();
-
         cx.scale(scale_factor, scale_factor);
+
         let rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
 
         let mut brush = Brush::default();
+
+        brush.fill_color(Color::KHAKI);
+        cx.draw_rect(&Rect::from_origin_size(Default::default(), size), &brush);
+
         brush.fill_color(Color::TORCH_RED);
         cx.draw_rect(&rect, &brush);
 

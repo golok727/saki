@@ -38,29 +38,45 @@ impl Mat3 {
 
     #[inline]
     pub fn from_scale(sx: f32, sy: f32) -> Self {
-        let mut mat = Self::new();
-        mat.scale(sx, sy);
-        mat
+        Self {
+            #[rustfmt::skip]
+            data: [
+                sx, 0.0, 0.0,
+                0.0, sy, 0.0,
+                0.0, 0.0, 1.0
+            ],
+        }
+    }
+
+    #[inline]
+    pub fn from_rotation(angle: f32) -> Self {
+        let cos = angle.cos();
+        let sin = angle.sin();
+         Self {
+            #[rustfmt::skip]
+            data: [
+                    cos, -sin, 0.0, 
+                    sin, cos, 0.0, 
+                    0.0, 0.0, 1.0
+            ],
+        }
     }
 
     #[inline]
     pub fn from_translation(dx: f32, dy: f32) -> Self {
-        let mut mat = Self::new();
-        mat.translate(dx, dy);
-        mat
-    }
-
-    #[inline]
-    pub fn translate(&mut self, dx: f32, dy: f32) -> &mut Self {
-        let translation = Self {
+        Self {
             #[rustfmt::skip]
             data: [
                 1.0, 0.0, dx,
                 0.0, 1.0, dy,
                 0.0, 0.0, 1.0
             ],
-        };
-        *self = translation * *self;
+        }
+    }
+
+    #[inline]
+    pub fn translate(&mut self, dx: f32, dy: f32) -> &mut Self {
+        *self = Self::from_translation(dx, dy) * *self;
         self
     }
 
@@ -75,28 +91,13 @@ impl Mat3 {
     }
 
     pub fn rotate(&mut self, angle: f32) -> &mut Self {
-        let cos = angle.cos();
-        let sin = angle.sin();
-        let rotation = Self {
-            data: [cos, -sin, 0.0, sin, cos, 0.0, 0.0, 0.0, 1.0],
-        };
-
-        *self = rotation * *self;
-
+        *self = Self::from_rotation(angle) * *self;
         self
     }
 
     #[inline]
     pub fn scale(&mut self, sx: f32, sy: f32) -> &mut Self {
-        let scale = Self {
-            #[rustfmt::skip]
-            data: [
-                sx, 0.0, 0.0,
-                0.0, sy, 0.0,
-                0.0, 0.0, 1.0
-            ],
-        };
-        *self = scale * *self;
+        *self = Self::from_scale(sx, sy) * *self;
 
         self
     }
