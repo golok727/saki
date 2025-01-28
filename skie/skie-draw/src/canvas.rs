@@ -20,6 +20,7 @@ use surface::{CanvasSurface, OffscreenRenderTarget};
 use wgpu::FilterMode;
 
 mod builder;
+pub mod snapshot;
 pub mod surface;
 
 pub use builder::CanvasBuilder;

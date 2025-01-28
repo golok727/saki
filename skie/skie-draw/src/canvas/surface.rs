@@ -2,7 +2,7 @@ use crate::GpuContext;
 use anyhow::Result;
 use wgpu::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 
-use super::Canvas;
+use super::{snapshot::CanvasSnapshotSource, Canvas};
 
 pub trait CanvasSurface {
     type PaintOutput;
@@ -28,6 +28,7 @@ impl OffscreenRenderTarget {
 
 impl CanvasSurface for OffscreenRenderTarget {
     type PaintOutput = ();
+
     fn paint(&mut self, canvas: &mut Canvas) -> Result<Self::PaintOutput> {
         canvas.render_to_texture(&self.view);
         Ok(())
@@ -45,6 +46,12 @@ impl CanvasSurface for OffscreenRenderTarget {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.texture = texture;
         self.view = view;
+    }
+}
+
+impl CanvasSnapshotSource for OffscreenRenderTarget {
+    fn get_output_texture(&self) -> wgpu::Texture {
+        self.texture.clone()
     }
 }
 
