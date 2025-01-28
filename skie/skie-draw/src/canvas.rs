@@ -8,14 +8,14 @@ use crate::{
     },
     quad,
     renderer::Renderable,
-    AtlasTextureInfo, AtlasTextureInfoMap, BackendRenderTarget, Color, DrawList, GlyphImage,
-    GpuSurfaceCreateError, GpuSurfaceSpecification, IsZero, Mesh, Path2D, Rect, Size, Text,
-    TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer,
+    AtlasTextureInfo, BackendRenderTarget, Color, DrawList, GlyphImage, GpuSurfaceCreateError,
+    GpuSurfaceSpecification, IsZero, Path2D, Rect, Size, Text, TextSystem, TextureId,
+    TextureOptions, Vec2, WgpuRenderer,
 };
 use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-use skie_math::{Corners, Mat3};
+use skie_math::{vec2, Corners, Mat3, One, Zero};
 use surface::{CanvasSurface, OffscreenRenderTarget};
 use wgpu::FilterMode;
 
@@ -24,21 +24,43 @@ pub mod surface;
 
 pub use builder::CanvasBuilder;
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
     translation: Vec2<f32>,
     scale: Vec2<f32>,
     rotation: f32,
 }
 
+impl Transform {
+    const NOOP: Self = Self {
+        translation: Vec2 { x: 0.0, y: 0.0 },
+        scale: Vec2 { x: 1.0, y: 1.0 },
+        rotation: 0.0,
+    };
+
+    pub fn is_noop(&self) -> bool {
+        self == &Self::NOOP
+    }
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            translation: Vec2::zero(),
+            scale: Vec2::one(),
+            rotation: 0.0,
+        }
+    }
+}
+
 impl From<&Transform> for Mat3 {
     fn from(transform: &Transform) -> Self {
         let mut mat = Mat3::identity();
-        mat.translate(transform.translation.x, transform.translation.y);
         mat.scale(transform.scale.x, transform.scale.y);
         if transform.rotation != 0.0 {
             mat.rotate(transform.rotation);
         }
+        mat.translate(transform.translation.x, transform.translation.y);
 
         mat
     }
@@ -61,16 +83,6 @@ Update cacahe renderables clip_rect
 struct StagedInstructions {
     instructions: Vec<GraphicsInstruction>,
     state: CanvasState,
-}
-
-impl StagedInstructions {
-    fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
-        self.instructions
-            .iter()
-            .map(|instruction| instruction.texture_id.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
-    }
 }
 
 /*
@@ -174,20 +186,24 @@ impl Canvas {
     }
 
     pub fn clip(&mut self, rect: &Rect<f32>) {
+        self.stage_changes();
         self.current_state.clip_rect = self.current_state.clip_rect.intersect(rect);
     }
 
     pub fn translate(&mut self, x: f32, y: f32) {
+        self.stage_changes();
         self.current_state.transform.translation.x += x;
         self.current_state.transform.translation.y += y;
     }
 
     pub fn scale(&mut self, x: f32, y: f32) {
+        self.stage_changes();
         self.current_state.transform.scale.x *= x;
         self.current_state.transform.scale.y *= y;
     }
 
     pub fn rotate(&mut self, angle_rad: f32) {
+        self.stage_changes();
         self.current_state.transform.rotation += angle_rad;
     }
 
@@ -348,36 +364,82 @@ impl Canvas {
         self.screen = self.renderer.size();
     }
 
+    /// Resizes the surface and paints to it
+    pub fn render<Output>(
+        &mut self,
+        surface: &mut impl CanvasSurface<PaintOutput = Output>,
+    ) -> Result<Output> {
+        surface.resize(self.renderer.gpu(), self.width(), self.height());
+        surface.paint(self)
+    }
+
+    /// Renders and presets to the screen
+    pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
+        self.prepare_for_render();
+        let mut encoder = self.renderer.create_command_encoder();
+
+        {
+            let mut pass = encoder.begin_render_pass(
+                &(wgpu::RenderPassDescriptor {
+                    label: Some("RenderTarget Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: output_texture,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(self.current_state.clear_color.into()),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                }),
+            );
+
+            self.renderer.prepare(&self.cached_renderables);
+            self.renderer.render(&mut pass, &self.cached_renderables);
+        }
+
+        self.renderer
+            .gpu()
+            .queue
+            .submit(std::iter::once(encoder.finish()));
+    }
+
+    fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
+        self.stage
+            .iter()
+            .flat_map(|staged| staged.instructions.iter())
+            .map(|instruction| instruction.texture_id.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+    }
+
     fn prepare_for_render(&mut self) {
         // stage the remaining
         self.stage_changes();
 
-        let mut info_map: AtlasTextureInfoMap<AtlasKey> = Default::default();
+        let required_textures =
+            self.get_required_textures()
+                .filter_map(|tex| -> Option<AtlasKey> {
+                    if let TextureId::AtlasKey(key) = tex {
+                        Some(key)
+                    } else {
+                        None
+                    }
+                });
+
+        let info_map = self.texture_atlas.get_texture_infos(required_textures);
 
         for staged in &self.stage {
-            let required_textures =
-                staged
-                    .get_required_textures()
-                    .filter_map(|tex| -> Option<AtlasKey> {
-                        if let TextureId::AtlasKey(key) = tex {
-                            Some(key)
-                        } else {
-                            None
-                        }
-                    });
-
-            self.texture_atlas
-                .get_texture_infos(required_textures, &mut info_map);
-
             let batcher = InstructionBatcher::new(&staged.instructions, &info_map);
             for batch in batcher {
                 let texture = batch.render_texture();
 
-                if let Some(mesh) = self.build_batched_mesh(batch, &texture, &info_map) {
-                    self.cached_renderables.push(Renderable {
-                        clip_rect: staged.state.clip_rect.clone(),
-                        mesh,
-                    })
+                if let Some(renderable) =
+                    self.build_renderable(batch, &texture, &info_map, &staged.state)
+                {
+                    self.cached_renderables.push(renderable)
                 }
             }
         }
@@ -385,12 +447,13 @@ impl Canvas {
         self.stage.clear();
     }
 
-    fn build_batched_mesh<'a>(
+    fn build_renderable<'a>(
         &self,
         instructions: impl Iterator<Item = &'a GraphicsInstruction>,
         texture: &TextureId,
         tex_info: &GraphicsTextureInfoMap,
-    ) -> Option<Mesh> {
+        canvas_state: &CanvasState,
+    ) -> Option<Renderable> {
         let mut drawlist = DrawList::default();
         for instruction in instructions {
             let primitive = &instruction.primitive;
@@ -443,18 +506,26 @@ impl Canvas {
                 }
             };
 
-            if let Some(info) = info {
-                // Convert to atlas space if the texture belongs to the atlas
+            let noop_transform = canvas_state.transform.is_noop();
+
+            if noop_transform && info.is_none() {
+                build(&mut drawlist)
+            } else {
+                let transform = (!noop_transform).then(|| Mat3::from(&canvas_state.transform));
+
                 drawlist.capture(build).map(|vertex| {
-                    if is_white_texture {
-                        vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
-                    } else {
-                        vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
+                    if let Some(info) = info {
+                        if is_white_texture {
+                            vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
+                        } else {
+                            vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
+                        }
+                    }
+                    if let Some(transform) = transform {
+                        let pos = transform * vec2(vertex.position[0], vertex.position[1]);
+                        vertex.position = [pos.x, pos.y];
                     }
                 });
-            } else {
-                // Non atlas texture
-                build(&mut drawlist)
             }
         }
 
@@ -464,48 +535,10 @@ impl Canvas {
         }
 
         mesh.texture = texture.clone();
-        Some(mesh)
-    }
 
-    /// Resizes the surface and paints to it
-    pub fn render<Output>(
-        &mut self,
-        surface: &mut impl CanvasSurface<PaintOutput = Output>,
-    ) -> Result<Output> {
-        surface.resize(self.renderer.gpu(), self.width(), self.height());
-        surface.paint(self)
-    }
-
-    /// Renders and presets to the screen
-    pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
-        self.prepare_for_render();
-        let mut encoder = self.renderer.create_command_encoder();
-
-        {
-            let mut pass = encoder.begin_render_pass(
-                &(wgpu::RenderPassDescriptor {
-                    label: Some("RenderTarget Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: output_texture,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(self.current_state.clear_color.into()),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    occlusion_query_set: None,
-                    timestamp_writes: None,
-                }),
-            );
-
-            self.renderer.prepare(&self.cached_renderables);
-            self.renderer.render(&mut pass, &self.cached_renderables);
-        }
-
-        self.renderer
-            .gpu()
-            .queue
-            .submit(std::iter::once(encoder.finish()));
+        Some(Renderable {
+            clip_rect: canvas_state.clip_rect.clone(),
+            mesh,
+        })
     }
 }

@@ -5,8 +5,6 @@ use crate::{
     Brush, TextureId,
 };
 
-use ahash::HashSet;
-
 use super::Color;
 
 #[derive(Debug, Clone)]
@@ -65,14 +63,7 @@ impl RenderList {
         old
     }
 
-    pub fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
-        self.instructions
-            .iter()
-            .map(|instruction| instruction.texture_id.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
-    }
-
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.instructions.is_empty()
     }
@@ -142,15 +133,11 @@ impl<'a> Iterator for InstructionBatcher<'a> {
     type Item = InstructionBatch<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(group) = self.groups.pop_front() {
-            Some(InstructionBatch::<'a> {
-                instructions: self.instructions,
-                group,
-                idx: 0,
-            })
-        } else {
-            None
-        }
+        self.groups.pop_front().map(|group| InstructionBatch::<'a> {
+            instructions: self.instructions,
+            group,
+            idx: 0,
+        })
     }
 }
 
