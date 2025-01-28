@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use skie_math::{Mat3, Rect};
+use skie_math::Rect;
 
 use crate::{
     renderer::create_skie_renderer, Color, GpuContext, Size, SkieAtlas, TextSystem,
@@ -49,20 +49,19 @@ impl CanvasBuilder {
             text_system,
 
             state_stack: Default::default(),
+
             current_state: CanvasState {
-                transform: Mat3::identity(),
-                clip: Rect::xywh(0.0, 0.0, screen.width as f32, screen.height as f32),
+                transform: Default::default(),
+                clip_rect: Rect::EVERYTHING,
                 clear_color: Color::WHITE,
             },
 
             stage: Default::default(),
 
             screen,
-            antialias: self.antialias,
 
             list: Default::default(),
             cached_renderables: Default::default(),
-            clip_rects: Default::default(),
         }
     }
 

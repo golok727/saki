@@ -355,10 +355,10 @@ impl Window {
             canvas.draw_path(path, &brush);
         }
 
-        // {
-        //     let state = self.state.read();
-        //     self.scroller.render(canvas, state.mouse_pos());
-        // }
+        {
+            let state = self.state.read();
+            self.scroller.render(canvas, state.mouse_pos());
+        }
 
         canvas.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
@@ -675,7 +675,7 @@ impl Scroller {
         // paint children overflow hidden
         canvas.save();
         canvas.clip(&clip);
-        for _ in 0..10 {
+        for _ in 0..4 {
             for i in 0..10 {
                 brush.fill_color(colors[i % colors.len()]);
 

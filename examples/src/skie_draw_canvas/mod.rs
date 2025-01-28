@@ -35,9 +35,6 @@ pub fn run() {
     let text = Text::new("✨ Hello ✨").pos(pos.x, pos.y).size_px(64.0);
     canvas.fill_text(&text, Color::BLACK);
 
-    // TODO auto flush
-    canvas.flush();
-
     canvas.clear_color(Color::THAMAR_BLACK);
 
     canvas.render(&mut surface).expect("error painting");

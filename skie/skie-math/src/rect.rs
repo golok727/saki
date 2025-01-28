@@ -1,3 +1,4 @@
+use core::f32;
 use std::{
     cmp::PartialOrd,
     fmt::Debug,
@@ -252,8 +253,8 @@ where
 impl Rect<f32> {
     pub const EVERYTHING: Self = Self {
         origin: Vec2 {
-            x: -f32::INFINITY,
-            y: -f32::INFINITY,
+            x: f32::MIN,
+            y: f32::MIN,
         },
         size: Size {
             width: f32::INFINITY,

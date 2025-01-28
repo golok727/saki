@@ -23,12 +23,38 @@ pub mod surface;
 
 pub use builder::CanvasBuilder;
 
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Transform {
+    translation: Vec2<f32>,
+    scale: Vec2<f32>,
+    rotation: f32,
+}
+
+impl From<&Transform> for Mat3 {
+    fn from(transform: &Transform) -> Self {
+        let mut mat = Mat3::identity();
+        mat.translate(transform.translation.x, transform.translation.y);
+        mat.scale(transform.scale.x, transform.scale.y);
+        if transform.rotation != 0.0 {
+            mat.rotate(transform.rotation);
+        }
+
+        mat
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CanvasState {
-    pub transform: Mat3,
-    pub clip: Rect<f32>,
+    pub transform: Transform,
+    pub clip_rect: Rect<f32>,
     pub clear_color: Color,
 }
+
+/*
+ Todo
+Update cacahe renderables clip_rect
+
+*/
 
 // The instructions sharing the same state
 struct StagedInstructions {
@@ -66,9 +92,7 @@ pub struct Canvas {
     stage: Vec<StagedInstructions>,
     cached_renderables: Vec<Renderable>,
 
-    clip_rects: Vec<Rect<f32>>,
     screen: Size<u32>,
-    antialias: bool,
     // TODO msaa
 }
 
@@ -114,8 +138,12 @@ impl Canvas {
         &self.text_system
     }
 
+    pub fn get_clip_rect(&self) -> Rect<f32> {
+        self.current_state.clip_rect.clone()
+    }
+
     pub fn save(&mut self) {
-        self.stage_changes();
+        self.flush();
         self.state_stack.push(self.current_state.clone());
     }
 
@@ -124,9 +152,20 @@ impl Canvas {
             let restored = state;
 
             if restored != self.current_state {
-                self.stage_changes();
+                self.flush();
             }
+            self.current_state = restored;
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.current_state = CanvasState {
+            transform: Transform::default(),
+            clear_color: Color::WHITE,
+            clip_rect: Rect::EVERYTHING,
+        };
+
+        self.state_stack.clear();
     }
 
     pub fn clear_color(&mut self, clear_color: Color) {
@@ -134,16 +173,30 @@ impl Canvas {
     }
 
     pub fn clip(&mut self, rect: &Rect<f32>) {
-        self.current_state.clip = rect.clone();
+        self.current_state.clip_rect = self.current_state.clip_rect.intersect(rect);
     }
 
-    pub fn translate(&mut self, _x: f32, _y: f32) {}
+    pub fn translate(&mut self, x: f32, y: f32) {
+        self.current_state.transform.translation.x += x;
+        self.current_state.transform.translation.y += y;
+    }
 
-    pub fn scale(&mut self, _x: f32, _y: f32) {}
+    pub fn scale(&mut self, x: f32, y: f32) {
+        self.current_state.transform.scale.x *= x;
+        self.current_state.transform.scale.y *= y;
+    }
 
-    pub fn rotate(&mut self, _x: f32, _y: f32) {}
+    pub fn rotate(&mut self, angle_rad: f32) {
+        self.current_state.transform.rotation += angle_rad;
+    }
 
-    fn stage_changes(&mut self) {
+    pub fn clear(&mut self) {
+        self.stage.clear();
+        self.list.clear();
+        self.cached_renderables.clear();
+    }
+
+    pub fn flush(&mut self) {
         if self.list.is_empty() {
             return;
         }
@@ -154,21 +207,6 @@ impl Canvas {
             instructions,
             state: self.current_state.clone(),
         });
-    }
-
-    pub fn get_clip_rect(&self) -> Rect<f32> {
-        self.clip_rects
-            .last()
-            .cloned()
-            .unwrap_or(Rect::from_origin_size(
-                Vec2::zero(),
-                self.screen.map_cloned(|v| v as f32),
-            ))
-    }
-
-    pub fn clear(&mut self) {
-        self.cached_renderables.clear();
-        self.list.clear();
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
@@ -214,7 +252,7 @@ impl Canvas {
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
-        self.stage_changes();
+        self.flush();
         self.text_system.write(|state| {
             let line_height_em = 1.4;
             let metrics = Metrics::new(text.size, text.size * line_height_em);
@@ -301,34 +339,17 @@ impl Canvas {
             }
             // end run
         });
-        self.stage_changes();
-    }
-
-    pub fn antialias(&mut self, v: bool) -> bool {
-        let old = self.antialias;
-        self.antialias = v;
-        old
+        self.flush();
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
         self.screen = self.renderer.size();
-        if self.state_stack.is_empty() {
-            self.current_state.clip = Rect::xywh(0.0, 0.0, width as f32, height as f32);
-        }
-    }
-
-    pub fn paint_with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
-        self.save();
-        self.clip(clip);
-
-        f(self);
-        self.restore();
     }
 
     fn prepare_for_render(&mut self) {
         // stage the remaining
-        self.stage_changes();
+        self.flush();
 
         for staged in &self.stage {
             // todo we will change it to the actual texture later;
@@ -348,15 +369,12 @@ impl Canvas {
             // todo we will build here instead and add transform and all
             let batches = InstructionBatcher::new(&staged.instructions, info_map);
 
-            let clip = Rect::xywh(0., 0., self.screen.width as f32, self.screen.height as f32)
-                .intersect(&self.current_state.clip);
-
             self.cached_renderables
                 .extend(
                     batches
                         .filter(|mesh| !mesh.is_empty())
                         .map(move |mesh| Renderable {
-                            clip_rect: clip.clone(),
+                            clip_rect: staged.state.clip_rect.clone(),
                             mesh,
                         }),
                 );
