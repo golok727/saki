@@ -16,7 +16,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     gpu::surface::BackendRenderTarget,
-    paint::{AtlasKey, Brush, SkieAtlas, SkieImage, TextureKind},
+    paint::{AtlasKey, Brush, SkieAtlas, SkieImage},
     quad, vec2, Canvas, Color, Corners, FontWeight, Half, LineCap, LineJoin, Path2D, Rect, Size,
     Text, TextureFilterMode, TextureId, TextureOptions, Vec2,
 };
@@ -363,7 +363,7 @@ impl Window {
 
         canvas.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
-                .pos((50.0, height - bar_height - margin_bottom).into())
+                .pos(50.0, height - bar_height - margin_bottom)
                 .size_px(32.0)
                 .font_weight(FontWeight::BOLD)
                 .font_family("Agave Nerd Font"),
@@ -372,7 +372,7 @@ impl Window {
 
         canvas.fill_text(
             &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh\nराधा कृष्ण")
-                .pos((width.half(), 100.0).into())
+                .pos(width.half(), 100.0)
                 .font_family("Segoe UI Emoji"),
             Color::WHITE,
         );

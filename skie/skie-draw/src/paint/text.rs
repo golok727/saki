@@ -67,8 +67,9 @@ impl Text {
         self
     }
 
-    pub fn pos(mut self, pos: Vec2<f32>) -> Self {
-        self.pos = pos;
+    pub fn pos(mut self, x: f32, y: f32) -> Self {
+        self.pos.x = x;
+        self.pos.y = y;
         self
     }
 

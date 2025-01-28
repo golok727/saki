@@ -110,7 +110,7 @@ impl SkieAppHandle for App {
         self.square.draw(cx, &self.keystate);
 
         let text = Text::new("Hello, Welcome to Skie! ✨")
-            .pos((101.0, 10.0).into())
+            .pos(101.0, 10.0)
             .font_weight(FontWeight::BOLD)
             .font_style(FontStyle::Italic)
             .size_px(33.0 * scale_factor as f32);

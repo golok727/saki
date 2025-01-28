@@ -48,7 +48,7 @@ impl Color {
 
     #[inline]
     pub fn is_transparent(&self) -> bool {
-        self == &Self::TRANSPARENT
+        self.a == 0
     }
 
     // Without alpha use 0xRRGGBB

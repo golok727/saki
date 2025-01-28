@@ -31,9 +31,8 @@ pub fn run() {
     canvas.draw_circle(center.x, center.y, 200.0, &brush);
 
     // Aligns wont work now :)
-    let text = Text::new("✨ Hello ✨")
-        .pos(center - vec2(170.0, 50.0))
-        .size_px(64.0);
+    let pos = center - vec2(170.0, 50.0);
+    let text = Text::new("✨ Hello ✨").pos(pos.x, pos.y).size_px(64.0);
     canvas.fill_text(&text, Color::BLACK);
 
     // TODO auto flush

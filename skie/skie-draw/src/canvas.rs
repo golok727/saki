@@ -111,19 +111,13 @@ impl Canvas {
     pub fn clip(&mut self, _rect: &Rect<f32>) {}
 
     #[cfg(feature = "experimental")]
-    pub fn translate(&mut self, x: f32, y: f32) {
-        dbg!(x, y);
-    }
+    pub fn translate(&mut self, x: f32, y: f32) {}
 
     #[cfg(feature = "experimental")]
-    pub fn scale(&mut self, x: f32, y: f32) {
-        dbg!(x, y);
-    }
+    pub fn scale(&mut self, x: f32, y: f32) {}
 
     #[cfg(feature = "experimental")]
-    pub fn rotate(&mut self, x: f32, y: f32) {
-        dbg!(x, y);
-    }
+    pub fn rotate(&mut self, x: f32, y: f32) {}
 
     pub fn get_clip_rect(&self) -> Rect<f32> {
         self.clip_rects
