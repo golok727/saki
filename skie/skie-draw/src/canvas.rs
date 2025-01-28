@@ -56,10 +56,13 @@ impl Default for Transform {
 impl From<&Transform> for Mat3 {
     fn from(transform: &Transform) -> Self {
         let mut mat = Mat3::identity();
+
         mat.scale(transform.scale.x, transform.scale.y);
+
         if transform.rotation != 0.0 {
             mat.rotate(transform.rotation);
         }
+
         mat.translate(transform.translation.x, transform.translation.y);
 
         mat
@@ -67,19 +70,12 @@ impl From<&Transform> for Mat3 {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CanvasState {
-    pub transform: Transform,
+pub struct CanvasState {
+    pub transform: Mat3,
     pub clip_rect: Rect<f32>,
-    pub clear_color: Color,
 }
 
-/*
- Todo
-Update cacahe renderables clip_rect
-
-*/
-
-// The instructions sharing the same state
+#[derive(Debug)]
 struct StagedInstructions {
     instructions: Vec<GraphicsInstruction>,
     state: CanvasState,
@@ -88,8 +84,6 @@ struct StagedInstructions {
 /*
  TODO
  - [ ] Shared path
- - [ ] transforms and cliprect saves instead of using with_clip_rect
- - [ ] use new brush api to paint
 */
 pub struct Canvas {
     // TODO pub(crate)
@@ -100,11 +94,12 @@ pub struct Canvas {
     pub(crate) text_system: Arc<TextSystem>,
 
     state_stack: Vec<CanvasState>,
-    current_state: CanvasState,
+    pub current_state: CanvasState,
 
     stage: Vec<StagedInstructions>,
     cached_renderables: Vec<Renderable>,
 
+    clear_color: Color,
     screen: Size<u32>,
     // TODO msaa
 }
@@ -160,6 +155,10 @@ impl Canvas {
         self.state_stack.push(self.current_state.clone());
     }
 
+    pub fn clear_color(&mut self, clear_color: Color) {
+        self.clear_color = clear_color;
+    }
+
     pub fn restore(&mut self) {
         if let Some(state) = self.state_stack.pop() {
             let restored = state;
@@ -167,22 +166,21 @@ impl Canvas {
             if restored != self.current_state {
                 self.stage_changes();
             }
+
             self.current_state = restored;
         }
     }
 
     pub fn reset(&mut self) {
+        self.stage_changes();
+
+        self.clear_color = Color::WHITE;
         self.current_state = CanvasState {
-            transform: Transform::default(),
-            clear_color: Color::WHITE,
+            transform: Mat3::identity(),
             clip_rect: Rect::EVERYTHING,
         };
 
         self.state_stack.clear();
-    }
-
-    pub fn clear_color(&mut self, clear_color: Color) {
-        self.current_state.clear_color = clear_color;
     }
 
     pub fn clip(&mut self, rect: &Rect<f32>) {
@@ -190,21 +188,19 @@ impl Canvas {
         self.current_state.clip_rect = self.current_state.clip_rect.intersect(rect);
     }
 
-    pub fn translate(&mut self, x: f32, y: f32) {
+    pub fn translate(&mut self, dx: f32, dy: f32) {
         self.stage_changes();
-        self.current_state.transform.translation.x += x;
-        self.current_state.transform.translation.y += y;
+        self.current_state.transform.translate(dx, dy);
     }
 
-    pub fn scale(&mut self, x: f32, y: f32) {
+    pub fn scale(&mut self, sx: f32, sy: f32) {
         self.stage_changes();
-        self.current_state.transform.scale.x *= x;
-        self.current_state.transform.scale.y *= y;
+        self.current_state.transform.scale(sx, sy);
     }
 
     pub fn rotate(&mut self, angle_rad: f32) {
         self.stage_changes();
-        self.current_state.transform.rotation += angle_rad;
+        self.current_state.transform.rotate(angle_rad);
     }
 
     pub fn clear(&mut self) {
@@ -376,6 +372,7 @@ impl Canvas {
     /// Renders and presets to the screen
     pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
         self.prepare_for_render();
+
         let mut encoder = self.renderer.create_command_encoder();
 
         {
@@ -386,7 +383,7 @@ impl Canvas {
                         view: output_texture,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(self.current_state.clear_color.into()),
+                            load: wgpu::LoadOp::Clear(self.clear_color.into()),
                             store: wgpu::StoreOp::Store,
                         },
                     })],
@@ -416,7 +413,7 @@ impl Canvas {
     }
 
     fn prepare_for_render(&mut self) {
-        // stage the remaining
+        // stage the any remaining ones
         self.stage_changes();
 
         let required_textures =
@@ -506,13 +503,11 @@ impl Canvas {
                 }
             };
 
-            let noop_transform = canvas_state.transform.is_noop();
+            let identity_transform = canvas_state.transform.is_identity();
 
-            if noop_transform && info.is_none() {
+            if identity_transform && info.is_none() {
                 build(&mut drawlist)
             } else {
-                let transform = (!noop_transform).then(|| Mat3::from(&canvas_state.transform));
-
                 drawlist.capture(build).map(|vertex| {
                     if let Some(info) = info {
                         if is_white_texture {
@@ -521,8 +516,10 @@ impl Canvas {
                             vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
                         }
                     }
-                    if let Some(transform) = transform {
-                        let pos = transform * vec2(vertex.position[0], vertex.position[1]);
+
+                    if !identity_transform {
+                        let pos =
+                            canvas_state.transform * vec2(vertex.position[0], vertex.position[1]);
                         vertex.position = [pos.x, pos.y];
                     }
                 });

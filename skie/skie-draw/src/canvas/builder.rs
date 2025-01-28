@@ -50,10 +50,10 @@ impl CanvasBuilder {
 
             state_stack: Default::default(),
 
+            clear_color: Color::WHITE,
             current_state: CanvasState {
                 transform: Default::default(),
                 clip_rect: Rect::EVERYTHING,
-                clear_color: Color::WHITE,
             },
 
             stage: Default::default(),

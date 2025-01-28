@@ -1,6 +1,6 @@
 use skie_draw::{
     app::{self, LogicalSize, SkieAppHandle, WindowAttributes},
-    Canvas, Color,
+    Canvas, Color, Half, Size,
 };
 
 use skie_draw::{Brush, Rect};
@@ -19,22 +19,40 @@ impl SkieAppHandle for SandboxApp {
 
     fn draw(&mut self, cx: &mut Canvas, window: &app::Window) {
         let scale_factor = window.scale_factor() as f32;
+        let size: LogicalSize<f32> = window.inner_size().to_logical(window.scale_factor());
+        let size = Size::new(size.width, size.height);
+
         cx.clear_color(Color::THAMAR_BLACK);
-        // fixme scale is getting reset
+
         cx.save();
 
         cx.scale(scale_factor, scale_factor);
-        let mut rect = Rect::xywh(10.0, 10.0, 100.0, 100.0);
-        rect.size = rect.size.map(|v| *v * scale_factor);
+        let rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
 
         let mut brush = Brush::default();
         brush.fill_color(Color::TORCH_RED);
         cx.draw_rect(&rect, &brush);
 
-        cx.translate(100.0, 100.0);
-        cx.rotate(45f32.to_radians());
+        let center = rect.center();
+        brush.fill_color(Color::BLUE);
+        cx.draw_circle(center.x, center.y, 10.0, &brush);
+
+        // draw rotated square
+        cx.save();
+        cx.translate(center.x, center.y);
+        cx.scale(0.5, 0.5);
+        cx.rotate(60f32.to_radians());
         brush.fill_color(Color::WHITE);
-        cx.draw_rect(&Rect::xywh(0.0, 0.0, 100.0, 100.0), &brush);
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 200.0, 200.0), &brush);
+        cx.restore();
+
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 50.0, 50.0), &brush);
+
+        cx.save();
+        cx.translate(size.width.half(), size.height.half());
+        brush.fill_color(Color::WHITE);
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 200.0, 200.0).centered(), &brush);
+        cx.restore();
 
         cx.restore();
     }

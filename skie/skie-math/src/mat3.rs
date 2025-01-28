@@ -8,11 +8,12 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
+    pub const IDENTITY: Self = Self::identity();
     /**
     constructs a identity matrix
     */
     #[inline]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             #[rustfmt::skip]
             data: [
@@ -24,8 +25,15 @@ impl Mat3 {
     }
 
     #[inline]
-    pub fn identity() -> Self {
-        Self::new()
+    pub const fn identity() -> Self {
+        Self {
+            #[rustfmt::skip]
+            data: [
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0
+            ],
+        }
     }
 
     #[inline]
@@ -44,8 +52,15 @@ impl Mat3 {
 
     #[inline]
     pub fn translate(&mut self, dx: f32, dy: f32) -> &mut Self {
-        self.data[2] += dx;
-        self.data[5] += dy;
+        let translation = Self {
+            #[rustfmt::skip]
+            data: [
+                1.0, 0.0, dx,
+                0.0, 1.0, dy,
+                0.0, 0.0, 1.0
+            ],
+        };
+        *self = translation * *self;
         self
     }
 
@@ -62,26 +77,26 @@ impl Mat3 {
     pub fn rotate(&mut self, angle: f32) -> &mut Self {
         let cos = angle.cos();
         let sin = angle.sin();
-
         let rotation = Self {
             data: [cos, -sin, 0.0, sin, cos, 0.0, 0.0, 0.0, 1.0],
         };
 
-        *self = *self * rotation;
+        *self = rotation * *self;
 
         self
     }
 
     #[inline]
     pub fn scale(&mut self, sx: f32, sy: f32) -> &mut Self {
-        self.data[0] *= sx;
-        self.data[4] *= sy;
-
-        self.data[1] *= sx;
-        self.data[3] *= sy;
-
-        self.data[2] *= sx;
-        self.data[5] *= sy;
+        let scale = Self {
+            #[rustfmt::skip]
+            data: [
+                sx, 0.0, 0.0,
+                0.0, sy, 0.0,
+                0.0, 0.0, 1.0
+            ],
+        };
+        *self = scale * *self;
 
         self
     }
@@ -143,16 +158,7 @@ impl Mat3 {
     }
 
     pub fn is_identity(&self) -> bool {
-        let m = &self.data;
-        m[0] == 1.
-            && m[4] == 1.
-            && m[8] == 1.
-            && m[1] == 0.
-            && m[2] == 0.
-            && m[3] == 0.
-            && m[5] == 0.
-            && m[6] == 0.
-            && m[7] == 0.
+        self == &Self::IDENTITY
     }
 
     /// Constructs an orthographic projection matrix
@@ -221,7 +227,7 @@ impl Mul for Mat3 {
         let m32 = a[6] * b[1] + a[7] * b[4] + a[8] * b[7];
         let m33 = a[6] * b[2] + a[7] * b[5] + a[8] * b[8];
 
-        Self {
+        Mat3 {
             data: [m11, m12, m13, m21, m22, m23, m31, m32, m33],
         }
     }
