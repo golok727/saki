@@ -488,7 +488,6 @@ pub(crate) fn create_skie_renderer(
     // add white texture to the atlas
     atlas.get_or_insert(&AtlasKey::WhiteTexture, || {
         (
-            TextureKind::Color,
             Size {
                 width: 1,
                 height: 1,

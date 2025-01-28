@@ -217,9 +217,10 @@ impl Canvas {
                         let kind = match image.content {
                             cosmic_text::SwashContent::Color => TextureKind::Color,
                             cosmic_text::SwashContent::Mask => TextureKind::Mask,
-                            // we dont support it
+                            // we dont support it for now
                             cosmic_text::SwashContent::SubpixelMask => TextureKind::Mask,
                         };
+
                         let glyph_key = AtlasKey::from(GlyphImage {
                             key: physical_glyph.cache_key,
                             is_emoji: kind.is_color(),
@@ -233,7 +234,7 @@ impl Canvas {
                         };
 
                         self.texture_atlas
-                            .get_or_insert(&glyph_key, || (kind, size, Cow::Borrowed(&image.data)));
+                            .get_or_insert(&glyph_key, || (size, Cow::Borrowed(&image.data)));
 
                         self.renderer.set_texture_from_atlas(
                             &self.texture_atlas,
@@ -246,13 +247,21 @@ impl Canvas {
                         let x = physical_glyph.x + image.placement.left;
                         let y = line_y as i32 + physical_glyph.y - image.placement.top;
 
+                        let color = if kind.is_color() {
+                            let mut c = Color::WHITE;
+                            c.a = fill_color.a;
+                            c
+                        } else {
+                            fill_color
+                        };
+
                         self.list.add(GraphicsInstruction::textured_brush(
                             quad().rect(Rect::from_origin_size(
                                 (x as f32, y as f32).into(),
                                 size.map(|v| *v as f32),
                             )),
                             TextureId::AtlasKey(glyph_key),
-                            Brush::filled(fill_color),
+                            Brush::filled(color),
                         ));
                     }
                 }

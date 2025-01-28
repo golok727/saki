@@ -159,7 +159,6 @@ impl Window {
 
         texture_atlas.get_or_insert(&checker_texture_key, || {
             (
-                TextureKind::Color,
                 Size {
                     width: 250,
                     height: 250,
@@ -171,7 +170,6 @@ impl Window {
         let thing_data = load_thing();
         texture_atlas.get_or_insert(&yellow_thing_texture_key, || {
             (
-                TextureKind::Color,
                 Size {
                     width: thing_data.width() as _,
                     height: thing_data.height() as _,
@@ -529,7 +527,6 @@ impl<'a> WindowContext<'a> {
         let key = AtlasKey::from(SkieImage::new(self.window.get_next_tex_id()));
         self.window.texture_atlas.get_or_insert(&key, || {
             (
-                TextureKind::Color,
                 Size {
                     width: width as _,
                     height: height as _,

@@ -84,7 +84,7 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
     pub fn get_or_insert<'a>(
         &'a self,
         key: &'a Key,
-        insert: impl FnOnce() -> (TextureKind, Size<i32>, Cow<'a, [u8]>),
+        insert: impl FnOnce() -> (Size<i32>, Cow<'a, [u8]>),
     ) -> AtlasTile {
         let mut lock = self.0.lock();
         let tile = lock.key_to_tile.get(key);
@@ -92,9 +92,9 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
         if let Some(tile) = tile {
             return tile.clone();
         }
-        let (kind, size, data) = insert();
+        let (size, data) = insert();
 
-        let tile = lock.create_texture(size, kind, key.clone());
+        let tile = lock.create_texture(size, key.clone());
         lock.upload_texture(&tile, &data);
         tile
     }
@@ -102,7 +102,7 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
     /// Combination of `create_texture` and `upload_texture`
     pub fn create_texture_init(&self, key: &Key, size: Size<i32>, data: &[u8]) -> AtlasTile {
         let mut lock = self.0.lock();
-        let tile = lock.create_texture(size, key.texture_kind(), key.clone());
+        let tile = lock.create_texture(size, key.clone());
         lock.upload_texture(&tile, data);
         tile
     }
@@ -111,7 +111,7 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
     /// use the `upload_texture` method to upload data into tile
     pub fn create_texture(&self, key: &Key, size: Size<i32>) -> AtlasTile {
         let mut lock = self.0.lock();
-        lock.create_texture(size, key.texture_kind(), key.clone())
+        lock.create_texture(size, key.clone())
     }
 
     pub fn upload_texture(&self, tile: &AtlasTile, data: &[u8]) {
@@ -160,7 +160,8 @@ impl<Key: AtlasKeySource> AtlasStorage<Key> {
         Some(info)
     }
 
-    fn create_texture(&mut self, size: Size<i32>, kind: TextureKind, key: Key) -> AtlasTile {
+    fn create_texture(&mut self, size: Size<i32>, key: Key) -> AtlasTile {
+        let kind = key.texture_kind();
         let storage = self.get_storage_write(&kind);
 
         let tile = {
