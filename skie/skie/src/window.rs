@@ -679,11 +679,8 @@ impl Scroller {
             for i in 0..10 {
                 brush.fill_color(colors[i % colors.len()]);
 
-                canvas.draw_primitive(
-                    quad().rect(Rect::from_origin_size(
-                        cursor + vec2(-self.scroll_x, 0.0),
-                        size,
-                    )),
+                canvas.draw_rect(
+                    &Rect::from_origin_size(cursor + vec2(-self.scroll_x, 0.0), size),
                     &brush,
                 );
                 cursor.x += margin + size.width;
