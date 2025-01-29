@@ -9,12 +9,12 @@ use crate::{
     quad,
     renderer::Renderable,
     AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Size, Text, TextSystem,
-    TextureId, TextureOptions, Vec2, WgpuRenderer,
+    TextureId, TextureOptions, WgpuRenderer,
 };
 use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-use skie_math::{vec2, Corners, Mat3, One, Zero};
+use skie_math::{vec2, Corners, Mat3};
 use surface::{CanvasSurface, CanvasSurfaceConfig};
 use wgpu::FilterMode;
 
@@ -25,51 +25,6 @@ pub mod snapshot;
 pub mod surface;
 
 pub use builder::CanvasBuilder;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Transform {
-    translation: Vec2<f32>,
-    scale: Vec2<f32>,
-    rotation: f32,
-}
-
-impl Transform {
-    const NOOP: Self = Self {
-        translation: Vec2 { x: 0.0, y: 0.0 },
-        scale: Vec2 { x: 1.0, y: 1.0 },
-        rotation: 0.0,
-    };
-
-    pub fn is_noop(&self) -> bool {
-        self == &Self::NOOP
-    }
-}
-
-impl Default for Transform {
-    fn default() -> Self {
-        Self {
-            translation: Vec2::zero(),
-            scale: Vec2::one(),
-            rotation: 0.0,
-        }
-    }
-}
-
-impl From<&Transform> for Mat3 {
-    fn from(transform: &Transform) -> Self {
-        let mut mat = Mat3::identity();
-
-        mat.scale(transform.scale.x, transform.scale.y);
-
-        if transform.rotation != 0.0 {
-            mat.rotate(transform.rotation);
-        }
-
-        mat.translate(transform.translation.x, transform.translation.y);
-
-        mat
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CanvasState {
