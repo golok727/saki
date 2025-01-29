@@ -251,7 +251,13 @@ impl AppContext {
         callback: OpenWindowCallback,
     ) {
         log::trace!("Creating window. \n Spec: {:#?}", &specs);
-        match Window::new(self, event_loop, &specs) {
+        match Window::new(
+            event_loop,
+            &specs,
+            self.gpu.clone(),
+            self.texture_atlas.clone(),
+            self.text_system.clone(),
+        ) {
             Ok(mut window) => {
                 let mut context = WindowContext::new(self, &mut window);
                 callback(&mut context);

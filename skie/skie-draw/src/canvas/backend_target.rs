@@ -1,12 +1,11 @@
 use std::ops::Deref;
 
 use crate::canvas::surface::CanvasSurface;
-use crate::Canvas;
+use crate::{Canvas, GpuContext};
 use anyhow::Result;
 use wgpu::SurfaceTexture;
 
-use super::error::GpuSurfaceCreateError;
-use super::GpuContext;
+use super::surface::CanvasSurfaceConfig;
 
 #[derive(Debug, Clone)]
 pub struct GpuSurfaceSpecification {
@@ -58,60 +57,48 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
         Ok(PaintedSurface(surface_texture))
     }
 
-    fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {
-        if self.config.width == new_width && self.config.height == new_height {
-            return;
-        }
-
-        self.config.width = new_width.max(1);
-        self.config.height = new_height.max(1);
+    fn configure(&mut self, gpu: &GpuContext, config: &CanvasSurfaceConfig) {
+        self.config.width = config.width;
+        self.config.height = config.height;
+        self.config.usage = config.usage | wgpu::TextureUsages::RENDER_ATTACHMENT;
+        self.config.format = config.format;
 
         self.surface.configure(&gpu.device, &self.config);
+    }
 
-        log::trace!(
-            "Surface target resize: width = {} height = {}",
-            self.config.width,
-            self.config.height
-        );
+    fn get_config(&self) -> CanvasSurfaceConfig {
+        CanvasSurfaceConfig {
+            width: self.config.width,
+            height: self.config.height,
+            format: self.config.format,
+            usage: self.config.usage,
+        }
     }
 }
 
-impl GpuContext {
-    pub fn create_surface<'a, 'surface>(
-        &'a self,
-        screen: impl Into<wgpu::SurfaceTarget<'surface>>,
-        specs: &GpuSurfaceSpecification,
-    ) -> Result<BackendRenderTarget<'surface>, GpuSurfaceCreateError> {
-        let width = specs.width.max(1);
-        let height = specs.height.max(1);
+impl Canvas {
+    pub fn create_backend_target<'window>(
+        &self,
+        into_surface_target: impl Into<wgpu::SurfaceTarget<'window>>,
+    ) -> Result<BackendRenderTarget<'window>> {
+        let gpu = self.renderer.gpu();
 
-        let surface = self
-            .instance
-            .create_surface(screen)
-            .map_err(GpuSurfaceCreateError)?;
+        let surface = gpu.instance.create_surface(into_surface_target)?;
 
-        let capabilities = surface.get_capabilities(&self.adapter);
+        let capabilities = surface.get_capabilities(&gpu.adapter);
 
-        // let surface_format = capabilities
-        //     .formats
-        //     .iter()
-        //     .find(|f| f.is_srgb())
-        //     .copied()
-        //     .unwrap_or(capabilities.formats[0]);
-
-        // TODO: make format configurable
         let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            width,
-            height,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | self.surface_config.usage,
+            format: self.surface_config.format,
+            width: self.surface_config.width,
+            height: self.surface_config.height,
             present_mode: capabilities.present_modes[0],
             alpha_mode: capabilities.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
 
-        surface.configure(&self.device, &surface_config);
+        surface.configure(&gpu.device, &surface_config);
 
         Ok(BackendRenderTarget::new(surface, surface_config))
     }

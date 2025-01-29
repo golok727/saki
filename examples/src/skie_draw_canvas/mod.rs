@@ -1,14 +1,19 @@
 use std::{fs, path::Path};
 
 use pollster::FutureExt;
-use skie_draw::{vec2, Brush, Canvas, Color, Corners, GpuContext, Half, Rect, Size, Text};
+use skie_draw::{gpu, vec2, Brush, Canvas, Color, Corners, GpuContext, Half, Rect, Text};
 
 pub fn run() {
     let gpu = GpuContext::new()
         .block_on()
         .expect("Error creating gpu context");
 
-    let mut canvas = Canvas::create(Size::new(1024, 1024)).build(gpu.clone());
+    let mut canvas = Canvas::create()
+        .width(1024)
+        .height(1024)
+        .add_surface_usage(gpu::TextureUsages::COPY_SRC)
+        .build(gpu.clone());
+
     let mut surface = canvas.create_offscreen_target();
 
     let size = canvas.screen().map(|v| *v as f32);
@@ -36,8 +41,7 @@ pub fn run() {
     canvas.render(&mut surface).expect("error painting");
 
     let snapshot = canvas
-        .snapshot(&surface)
-        .block_on()
+        .snapshot_sync(&surface)
         .expect("error taking snapshot");
 
     let image_buffer = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(

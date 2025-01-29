@@ -7,7 +7,7 @@ pub use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 pub use winit::window::{Window, WindowAttributes};
 
-use crate::{BackendRenderTarget, Canvas, GpuContext, Size};
+use crate::{BackendRenderTarget, Canvas, GpuContext};
 pub use winit::dpi::{LogicalSize, PhysicalSize};
 
 pub trait SkieAppHandle: 'static {
@@ -32,7 +32,7 @@ impl<'a> App<'a> {
     async fn new(user_app: &'a mut dyn SkieAppHandle) -> anyhow::Result<Self> {
         let gpu = GpuContext::new().await?;
 
-        let canvas = Canvas::create(Size::default()).build(gpu.clone());
+        let canvas = Canvas::create().build(gpu.clone());
 
         Ok(Self {
             surface: None,
@@ -65,6 +65,7 @@ impl<'a> ApplicationHandler for App<'a> {
             self.app_handle.on_create_window(&window);
 
             let size = window.inner_size();
+
             self.canvas.resize(size.width, size.height);
 
             let surface = self
@@ -126,10 +127,13 @@ impl<'a> ApplicationHandler for App<'a> {
 
                     self.app_handle.draw(&mut self.canvas, window);
 
-                    if let Ok(surface_texture) = self.canvas.render(surface) {
-                        surface_texture.present()
-                    } else {
-                        eprintln!("Error painting");
+                    match self.canvas.render(surface) {
+                        Ok(surface) => {
+                            surface.present();
+                        }
+                        Err(err) => {
+                            eprintln!("Error painting: {:#?}", err);
+                        }
                     }
                 }
             }

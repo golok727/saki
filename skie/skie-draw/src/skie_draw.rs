@@ -8,11 +8,7 @@ pub mod text;
 pub use skie_math as math;
 
 pub use canvas::Canvas;
-pub use gpu::{
-    BackendRenderTarget, Extent3d, GpuContext, GpuContextCreateError, GpuSurfaceCreateError,
-    GpuSurfaceSpecification, GpuTextureDescriptor, GpuTextureDimension, GpuTextureFormat,
-    GpuTextureUsages,
-};
+pub use gpu::{GpuContext, GpuContextCreateError};
 
 pub use math::{mat3, vec2, Corners, Mat3, Rect, Size, Vec2};
 pub use paint::color::{Color, Rgba};
@@ -23,6 +19,12 @@ pub use paint::{
     TextBaseline, TextureAtlas,
 };
 
+pub use canvas::{
+    backend_target::BackendRenderTarget,
+    offscreen_target::OffscreenRenderTarget,
+    snapshot::{CanvasSnapshot, CanvasSnapshotResult, CanvasSnapshotSource},
+    surface::CanvasSurface,
+};
 pub use paint::{
     GpuTexture, GpuTextureView, GpuTextureViewDescriptor, Mesh, TextureAddressMode,
     TextureFilterMode, TextureFormat, TextureId, TextureKind, TextureOptions,

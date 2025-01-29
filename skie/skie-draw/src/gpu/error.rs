@@ -7,7 +7,3 @@ pub enum GpuContextCreateError {
     #[error("wgpu: request device error ({0})")]
     RequestDeviceError(wgpu::RequestDeviceError),
 }
-
-#[derive(Error, Debug)]
-#[error(transparent)]
-pub struct GpuSurfaceCreateError(#[from] pub wgpu::CreateSurfaceError);

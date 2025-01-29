@@ -8,19 +8,18 @@ use crate::{
     },
     quad,
     renderer::Renderable,
-    AtlasTextureInfo, BackendRenderTarget, Color, DrawList, GlyphImage, GpuSurfaceCreateError,
-    GpuSurfaceSpecification, IsZero, Path2D, Rect, Size, Text, TextSystem, TextureId,
-    TextureOptions, Vec2, WgpuRenderer,
+    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Size, Text, TextSystem,
+    TextureId, TextureOptions, Vec2, WgpuRenderer,
 };
 use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-use offscreen_target::OffscreenRenderTarget;
 use skie_math::{vec2, Corners, Mat3, One, Zero};
-use surface::CanvasSurface;
+use surface::{CanvasSurface, CanvasSurfaceConfig};
 use wgpu::FilterMode;
 
-mod builder;
+pub mod backend_target;
+pub mod builder;
 pub mod offscreen_target;
 pub mod snapshot;
 pub mod surface;
@@ -92,6 +91,7 @@ pub struct Canvas {
     // TODO pub(crate)
     pub renderer: WgpuRenderer,
 
+    pub(crate) surface_config: CanvasSurfaceConfig,
     pub(crate) list: RenderList,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
@@ -103,42 +103,52 @@ pub struct Canvas {
     cached_renderables: Vec<Renderable>,
 
     clear_color: Color,
-    screen: Size<u32>,
     // TODO msaa
 }
 
 impl Canvas {
-    pub fn create(size: Size<u32>) -> CanvasBuilder {
-        CanvasBuilder::new(size)
-    }
+    pub(super) fn new(
+        surface_config: CanvasSurfaceConfig,
+        renderer: WgpuRenderer,
+        texture_atlas: Arc<SkieAtlas>,
+        text_system: Arc<TextSystem>,
+    ) -> Self {
+        Canvas {
+            renderer,
 
-    pub fn create_offscreen_target(&self) -> OffscreenRenderTarget {
-        OffscreenRenderTarget::new(self.renderer.gpu(), self.width(), self.height())
-    }
+            texture_atlas,
+            text_system,
 
-    pub fn create_backend_target<'window>(
-        &self,
-        into_surface_target: impl Into<wgpu::SurfaceTarget<'window>>,
-    ) -> Result<BackendRenderTarget<'window>, GpuSurfaceCreateError> {
-        self.renderer.gpu().create_surface(
-            into_surface_target,
-            &GpuSurfaceSpecification {
-                width: self.width(),
-                height: self.height(),
+            state_stack: Default::default(),
+
+            clear_color: Color::WHITE,
+            current_state: CanvasState {
+                transform: Default::default(),
+                clip_rect: Rect::EVERYTHING,
             },
-        )
+
+            stage: Default::default(),
+
+            surface_config,
+
+            list: Default::default(),
+            cached_renderables: Default::default(),
+        }
+    }
+    pub fn create() -> CanvasBuilder {
+        CanvasBuilder::default()
     }
 
     pub fn screen(&self) -> Size<u32> {
-        self.screen
+        Size::new(self.surface_config.width, self.surface_config.height)
     }
 
     pub fn width(&self) -> u32 {
-        self.screen.width
+        self.surface_config.width
     }
 
     pub fn height(&self) -> u32 {
-        self.screen.height
+        self.surface_config.height
     }
 
     pub fn atlas(&self) -> &Arc<SkieAtlas> {
@@ -275,8 +285,8 @@ impl Canvas {
             let mut buffer = Buffer::new(&mut state.font_system, metrics);
             buffer.set_size(
                 &mut state.font_system,
-                Some(self.screen.width as f32),
-                Some(self.screen.height as f32),
+                Some(self.surface_config.width as f32),
+                Some(self.surface_config.height as f32),
             );
 
             let attrs = Attrs::new();
@@ -358,17 +368,23 @@ impl Canvas {
         self.stage_changes();
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, new_width: u32, new_height: u32) {
+        let width = new_width.max(1);
+        let height = new_height.max(1);
+
         self.renderer.resize(width, height);
-        self.screen = self.renderer.size();
+        self.surface_config.width = width;
+        self.surface_config.height = height;
     }
 
-    /// Configures the surface to the canvas and paints to it
-    pub fn render<Output>(
-        &mut self,
-        surface: &mut impl CanvasSurface<PaintOutput = Output>,
-    ) -> Result<Output> {
-        surface.resize(self.renderer.gpu(), self.width(), self.height());
+    pub fn render<Surface, Output>(&mut self, surface: &mut Surface) -> Result<Output>
+    where
+        Surface: CanvasSurface<PaintOutput = Output>,
+    {
+        if surface.get_config() != self.surface_config {
+            surface.configure(self.renderer.gpu(), &self.surface_config)
+        }
+
         surface.paint(self)
     }
 

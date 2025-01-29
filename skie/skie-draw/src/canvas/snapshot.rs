@@ -1,8 +1,8 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 use futures::channel::oneshot::{self};
 use skie_math::Size;
-use wgpu::{BufferAsyncError, Maintain};
+use wgpu::{BufferAsyncError, Maintain, TextureUsages};
 
 use crate::GpuContext;
 
@@ -14,10 +14,15 @@ pub type CanvasSnapshotResult = anyhow::Result<CanvasSnapshot>;
 
 // TODO: config
 pub trait CanvasSnapshotSource {
-    fn get_output_texture(&self) -> wgpu::Texture;
+    fn get_source_texture(&self) -> wgpu::Texture;
 
     fn read_texture_data_async(&self, canvas: &Canvas) -> Result<SnapshotReceiver> {
-        let source_texture = self.get_output_texture();
+        let source_texture = self.get_source_texture();
+
+        if !source_texture.usage().contains(TextureUsages::COPY_SRC) {
+            bail!("required TextureUsages::COPY_SRC in source texture")
+        }
+
         let size = Size {
             width: source_texture.width(),
             height: source_texture.height(),
