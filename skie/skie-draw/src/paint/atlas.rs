@@ -78,7 +78,7 @@ impl<Key: AtlasKeySource> TextureAtlas<Key> {
 
         ids.map(|id| (id.clone(), lock.get_texture_info(&id)))
             .filter_map(|(id, info)| info.map(|info| (id, info)))
-            .collect()
+            .collect::<_>()
     }
 
     pub fn get_or_insert<'a>(

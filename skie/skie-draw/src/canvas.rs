@@ -3,86 +3,152 @@ use std::{borrow::Cow, sync::Arc};
 use crate::{
     circle,
     paint::{
-        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, Primitive, RenderList, SkieAtlas,
-        TextureKind,
+        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, GraphicsTextureInfoMap,
+        InstructionBatcher, Primitive, RenderList, SkieAtlas, TextureKind,
     },
     quad,
     renderer::Renderable,
-    BackendRenderTarget, Color, GlyphImage, GpuSurfaceCreateError, GpuSurfaceSpecification, IsZero,
-    Path2D, Rect, Size, Text, TextSystem, TextureId, TextureOptions, Vec2, WgpuRenderer, Zero,
+    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Size, Text, TextSystem,
+    TextureId, TextureOptions, Vec2, WgpuRenderer,
 };
+use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-use skie_math::{Corners, Mat3};
-use surface::{CanvasSurface, OffscreenRenderTarget};
+use skie_math::{vec2, Corners, Mat3, One, Zero};
+use surface::{CanvasSurface, CanvasSurfaceConfig};
 use wgpu::FilterMode;
 
-mod builder;
+pub mod backend_target;
+pub mod builder;
+pub mod offscreen_target;
+pub mod snapshot;
 pub mod surface;
 
 pub use builder::CanvasBuilder;
 
-#[derive(Debug, Clone)]
-pub(crate) struct CanvasState {
+#[derive(Debug, Clone, PartialEq)]
+pub struct Transform {
+    translation: Vec2<f32>,
+    scale: Vec2<f32>,
+    rotation: f32,
+}
+
+impl Transform {
+    const NOOP: Self = Self {
+        translation: Vec2 { x: 0.0, y: 0.0 },
+        scale: Vec2 { x: 1.0, y: 1.0 },
+        rotation: 0.0,
+    };
+
+    pub fn is_noop(&self) -> bool {
+        self == &Self::NOOP
+    }
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            translation: Vec2::zero(),
+            scale: Vec2::one(),
+            rotation: 0.0,
+        }
+    }
+}
+
+impl From<&Transform> for Mat3 {
+    fn from(transform: &Transform) -> Self {
+        let mut mat = Mat3::identity();
+
+        mat.scale(transform.scale.x, transform.scale.y);
+
+        if transform.rotation != 0.0 {
+            mat.rotate(transform.rotation);
+        }
+
+        mat.translate(transform.translation.x, transform.translation.y);
+
+        mat
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CanvasState {
     pub transform: Mat3,
-    pub clip: Rect<f32>,
-    pub clear_color: Color,
+    pub clip_rect: Rect<f32>,
+}
+
+#[derive(Debug)]
+struct StagedInstructions {
+    instructions: Vec<GraphicsInstruction>,
+    state: CanvasState,
 }
 
 /*
  TODO
  - [ ] Shared path
- - [ ] transforms and cliprect saves instead of using with_clip_rect
- - [ ] use new brush api to paint
 */
 pub struct Canvas {
+    // TODO pub(crate)
     pub renderer: WgpuRenderer,
+
+    pub(crate) surface_config: CanvasSurfaceConfig,
     pub(crate) list: RenderList,
     pub(crate) texture_atlas: Arc<SkieAtlas>,
     pub(crate) text_system: Arc<TextSystem>,
 
     state_stack: Vec<CanvasState>,
-    current_state: CanvasState,
+    pub current_state: CanvasState,
 
-    renderables: Vec<Renderable>,
-    clip_rects: Vec<Rect<f32>>,
-    screen: Size<u32>,
-    antialias: bool,
+    stage: Vec<StagedInstructions>,
+    cached_renderables: Vec<Renderable>,
+
+    clear_color: Color,
     // TODO msaa
 }
 
 impl Canvas {
-    pub fn create(size: Size<u32>) -> CanvasBuilder {
-        CanvasBuilder::new(size)
-    }
+    pub(super) fn new(
+        surface_config: CanvasSurfaceConfig,
+        renderer: WgpuRenderer,
+        texture_atlas: Arc<SkieAtlas>,
+        text_system: Arc<TextSystem>,
+    ) -> Self {
+        Canvas {
+            renderer,
 
-    pub fn create_offscreen_target(&self) -> OffscreenRenderTarget {
-        OffscreenRenderTarget::new(self.renderer.gpu(), self.width(), self.height())
-    }
+            texture_atlas,
+            text_system,
 
-    pub fn create_backend_target<'window>(
-        &self,
-        into_surface_target: impl Into<wgpu::SurfaceTarget<'window>>,
-    ) -> Result<BackendRenderTarget<'window>, GpuSurfaceCreateError> {
-        self.renderer.gpu().create_surface(
-            into_surface_target,
-            &GpuSurfaceSpecification {
-                width: self.width(),
-                height: self.height(),
+            state_stack: Default::default(),
+
+            clear_color: Color::WHITE,
+            current_state: CanvasState {
+                transform: Default::default(),
+                clip_rect: Rect::EVERYTHING,
             },
-        )
+
+            stage: Default::default(),
+
+            surface_config,
+
+            list: Default::default(),
+            cached_renderables: Default::default(),
+        }
+    }
+    pub fn create() -> CanvasBuilder {
+        CanvasBuilder::default()
     }
 
     pub fn screen(&self) -> Size<u32> {
-        self.screen
+        Size::new(self.surface_config.width, self.surface_config.height)
     }
 
     pub fn width(&self) -> u32 {
-        self.screen.width
+        self.surface_config.width
     }
 
     pub fn height(&self) -> u32 {
-        self.screen.height
+        self.surface_config.height
     }
 
     pub fn atlas(&self) -> &Arc<SkieAtlas> {
@@ -93,45 +159,80 @@ impl Canvas {
         &self.text_system
     }
 
+    pub fn get_clip_rect(&self) -> Rect<f32> {
+        self.current_state.clip_rect.clone()
+    }
+
     pub fn save(&mut self) {
+        self.stage_changes();
         self.state_stack.push(self.current_state.clone());
+    }
+
+    pub fn clear_color(&mut self, clear_color: Color) {
+        self.clear_color = clear_color;
     }
 
     pub fn restore(&mut self) {
         if let Some(state) = self.state_stack.pop() {
-            self.current_state = state;
+            let restored = state;
+
+            if restored != self.current_state {
+                self.stage_changes();
+            }
+
+            self.current_state = restored;
         }
     }
 
-    pub fn clear_color(&mut self, clear_color: Color) {
-        self.current_state.clear_color = clear_color;
+    pub fn reset(&mut self) {
+        self.stage_changes();
+
+        self.clear_color = Color::WHITE;
+        self.current_state = CanvasState {
+            transform: Mat3::identity(),
+            clip_rect: Rect::EVERYTHING,
+        };
+
+        self.state_stack.clear();
     }
 
-    #[cfg(feature = "experimental")]
-    pub fn clip(&mut self, _rect: &Rect<f32>) {}
+    pub fn clip(&mut self, rect: &Rect<f32>) {
+        self.stage_changes();
+        self.current_state.clip_rect = self.current_state.clip_rect.intersect(rect);
+    }
 
-    #[cfg(feature = "experimental")]
-    pub fn translate(&mut self, x: f32, y: f32) {}
+    pub fn translate(&mut self, dx: f32, dy: f32) {
+        self.stage_changes();
+        self.current_state.transform.translate(dx, dy);
+    }
 
-    #[cfg(feature = "experimental")]
-    pub fn scale(&mut self, x: f32, y: f32) {}
+    pub fn scale(&mut self, sx: f32, sy: f32) {
+        self.stage_changes();
+        self.current_state.transform.scale(sx, sy);
+    }
 
-    #[cfg(feature = "experimental")]
-    pub fn rotate(&mut self, x: f32, y: f32) {}
-
-    pub fn get_clip_rect(&self) -> Rect<f32> {
-        self.clip_rects
-            .last()
-            .cloned()
-            .unwrap_or(Rect::from_origin_size(
-                Vec2::zero(),
-                self.screen.map_cloned(|v| v as f32),
-            ))
+    pub fn rotate(&mut self, angle_rad: f32) {
+        self.stage_changes();
+        self.current_state.transform.rotate(angle_rad);
     }
 
     pub fn clear(&mut self) {
-        self.renderables.clear();
+        self.stage.clear();
         self.list.clear();
+        self.cached_renderables.clear();
+    }
+
+    pub fn stage_changes(&mut self) {
+        if self.list.is_empty() {
+            return;
+        }
+
+        let instructions = self.list.clear();
+
+        self.stage.push(StagedInstructions {
+            instructions,
+            state: self.current_state.clone(),
+        });
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
@@ -177,14 +278,15 @@ impl Canvas {
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
+        self.stage_changes();
         self.text_system.write(|state| {
             let line_height_em = 1.4;
             let metrics = Metrics::new(text.size, text.size * line_height_em);
             let mut buffer = Buffer::new(&mut state.font_system, metrics);
             buffer.set_size(
                 &mut state.font_system,
-                Some(self.screen.width as f32),
-                Some(self.screen.height as f32),
+                Some(self.surface_config.width as f32),
+                Some(self.surface_config.height as f32),
             );
 
             let attrs = Attrs::new();
@@ -263,91 +365,33 @@ impl Canvas {
             }
             // end run
         });
-
-        let tmp = self.antialias(false);
-        self.flush();
-        self.antialias(tmp);
+        self.stage_changes();
     }
 
-    pub fn antialias(&mut self, v: bool) -> bool {
-        let old = self.antialias;
-        self.antialias = v;
-        old
-    }
+    pub fn resize(&mut self, new_width: u32, new_height: u32) {
+        let width = new_width.max(1);
+        let height = new_height.max(1);
 
-    fn build_renderables<'scene>(
-        texture_system: &SkieAtlas,
-        render_list: &'scene RenderList,
-        clip_rect: Rect<f32>,
-        antialias: bool,
-    ) -> impl Iterator<Item = Renderable> + 'scene {
-        let atlas_textures =
-            render_list
-                .get_required_textures()
-                .filter_map(|tex| -> Option<AtlasKey> {
-                    if let TextureId::AtlasKey(key) = tex {
-                        Some(key)
-                    } else {
-                        None
-                    }
-                });
-
-        let info_map = texture_system.get_texture_infos(atlas_textures);
-
-        render_list
-            .batches(info_map.clone(), antialias)
-            .filter(|mesh| !mesh.is_empty())
-            .map(move |mesh| Renderable {
-                clip_rect: clip_rect.clone(),
-                mesh,
-            })
-    }
-
-    pub fn with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
-        let cur_rect = self.get_clip_rect();
-        self.clip_rects.push(cur_rect.intersect(clip));
-        f(self);
-        self.clip_rects.pop();
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
-        self.screen = self.renderer.size();
+        self.surface_config.width = width;
+        self.surface_config.height = height;
     }
 
-    // builds the current render list into mesh
-    pub fn flush(&mut self) {
-        let renderables = Self::build_renderables(
-            &self.texture_atlas,
-            &self.list,
-            self.get_clip_rect(),
-            self.antialias,
-        );
+    pub fn render<Surface, Output>(&mut self, surface: &mut Surface) -> Result<Output>
+    where
+        Surface: CanvasSurface<PaintOutput = Output>,
+    {
+        if surface.get_config() != self.surface_config {
+            surface.configure(self.renderer.gpu(), &self.surface_config)
+        }
 
-        self.renderables.extend(renderables);
-        self.list.clear();
-    }
-
-    pub fn paint_with_clip_rect(&mut self, clip: &Rect<f32>, f: impl FnOnce(&mut Self)) {
-        let cur_rect = self.get_clip_rect();
-
-        self.clip_rects.push(cur_rect.intersect(clip));
-        f(self);
-        self.flush();
-        self.clip_rects.pop();
-    }
-
-    /// Resizes the surface and paints to it
-    pub fn render<Output>(
-        &mut self,
-        surface: &mut impl CanvasSurface<PaintOutput = Output>,
-    ) -> Result<Output> {
-        surface.resize(self.renderer.gpu(), self.width(), self.height());
         surface.paint(self)
     }
 
     /// Renders and presets to the screen
     pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
+        self.prepare_for_render();
+
         let mut encoder = self.renderer.create_command_encoder();
 
         {
@@ -358,7 +402,7 @@ impl Canvas {
                         view: output_texture,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(self.current_state.clear_color.into()),
+                            load: wgpu::LoadOp::Clear(self.clear_color.into()),
                             store: wgpu::StoreOp::Store,
                         },
                     })],
@@ -368,13 +412,149 @@ impl Canvas {
                 }),
             );
 
-            self.renderer.prepare(&self.renderables);
-            self.renderer.render(&mut pass, &self.renderables);
+            self.renderer.prepare(&self.cached_renderables);
+            self.renderer.render(&mut pass, &self.cached_renderables);
         }
 
         self.renderer
             .gpu()
             .queue
             .submit(std::iter::once(encoder.finish()));
+    }
+
+    fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
+        self.stage
+            .iter()
+            .flat_map(|staged| staged.instructions.iter())
+            .map(|instruction| instruction.texture_id.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+    }
+
+    fn prepare_for_render(&mut self) {
+        // stage the any remaining ones
+        self.stage_changes();
+
+        let required_textures =
+            self.get_required_textures()
+                .filter_map(|tex| -> Option<AtlasKey> {
+                    if let TextureId::AtlasKey(key) = tex {
+                        Some(key)
+                    } else {
+                        None
+                    }
+                });
+
+        let info_map = self.texture_atlas.get_texture_infos(required_textures);
+
+        for staged in &self.stage {
+            let batcher = InstructionBatcher::new(&staged.instructions, &info_map);
+            for batch in batcher {
+                let texture = batch.render_texture();
+
+                if let Some(renderable) =
+                    self.build_renderable(batch, &texture, &info_map, &staged.state)
+                {
+                    self.cached_renderables.push(renderable)
+                }
+            }
+        }
+
+        self.stage.clear();
+    }
+
+    fn build_renderable<'a>(
+        &self,
+        instructions: impl Iterator<Item = &'a GraphicsInstruction>,
+        texture: &TextureId,
+        tex_info: &GraphicsTextureInfoMap,
+        canvas_state: &CanvasState,
+    ) -> Option<Renderable> {
+        let mut drawlist = DrawList::default();
+        for instruction in instructions {
+            let primitive = &instruction.primitive;
+            let brush = &instruction.brush;
+
+            if instruction.nothing_to_draw() {
+                return None;
+            }
+
+            let tex_id = instruction.texture_id.clone();
+            let is_white_texture = tex_id == TextureId::WHITE_TEXTURE;
+
+            let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {
+                tex_info.get(key)
+            } else {
+                None
+            };
+
+            let build = |drawlist: &mut DrawList| match &primitive {
+                Primitive::Circle(circle) => {
+                    let fill_color = brush.fill_style.color;
+
+                    drawlist.path.clear();
+                    drawlist.path.circle(circle.center, circle.radius);
+
+                    drawlist.fill_path_convex(fill_color, !is_white_texture);
+                    drawlist.stroke_path(&brush.stroke_style.join())
+                }
+
+                Primitive::Quad(quad) => {
+                    let fill_color = brush.fill_style.color;
+
+                    drawlist.path.clear();
+                    drawlist.path.round_rect(&quad.bounds, &quad.corners);
+                    drawlist.fill_path_convex(fill_color, !is_white_texture);
+                    drawlist.stroke_path(&brush.stroke_style.join())
+                }
+
+                Primitive::Path(path) => {
+                    // TODO:
+                    // drawlist.fill_with_path(path, prim.fill.color);
+
+                    let stroke_style = if path.closed {
+                        brush.stroke_style.join()
+                    } else {
+                        brush.stroke_style
+                    };
+
+                    drawlist.stroke_with_path(path, &stroke_style);
+                }
+            };
+
+            let identity_transform = canvas_state.transform.is_identity();
+
+            if identity_transform && info.is_none() {
+                build(&mut drawlist)
+            } else {
+                drawlist.capture(build).map(|vertex| {
+                    if let Some(info) = info {
+                        if is_white_texture {
+                            vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
+                        } else {
+                            vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
+                        }
+                    }
+
+                    if !identity_transform {
+                        let pos =
+                            canvas_state.transform * vec2(vertex.position[0], vertex.position[1]);
+                        vertex.position = [pos.x, pos.y];
+                    }
+                });
+            }
+        }
+
+        let mut mesh = drawlist.build();
+        if mesh.is_empty() {
+            return None;
+        }
+
+        mesh.texture = texture.clone();
+
+        Some(Renderable {
+            clip_rect: canvas_state.clip_rect.clone(),
+            mesh,
+        })
     }
 }

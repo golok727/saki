@@ -1,31 +1,45 @@
 use std::sync::Arc;
 
-use skie_math::{Mat3, Rect};
+use wgpu::{TextureFormat, TextureUsages};
 
-use crate::{
-    renderer::create_skie_renderer, Color, GpuContext, Size, SkieAtlas, TextSystem,
-    WgpuRendererSpecs,
-};
+use crate::{renderer::create_skie_renderer, GpuContext, SkieAtlas, TextSystem, WgpuRendererSpecs};
 
-use super::{Canvas, CanvasState};
+use super::{surface::CanvasSurfaceConfig, Canvas};
 
 #[derive(Default)]
 pub struct CanvasBuilder {
-    pub texture_atlas: Option<Arc<SkieAtlas>>,
-    pub text_system: Option<Arc<TextSystem>>,
-    pub antialias: bool,
-    pub size: Size<u32>,
+    pub(super) texture_atlas: Option<Arc<SkieAtlas>>,
+    pub(super) text_system: Option<Arc<TextSystem>>,
+    pub(super) surface_config: CanvasSurfaceConfig,
 }
 
 impl CanvasBuilder {
-    pub fn new(size: Size<u32>) -> Self {
-        Self {
-            size,
-            ..Default::default()
-        }
+    pub fn width(mut self, width: u32) -> Self {
+        self.surface_config.width = width.max(1);
+        self
+    }
+
+    pub fn height(mut self, height: u32) -> Self {
+        self.surface_config.height = height.max(1);
+        self
+    }
+
+    pub fn add_surface_usage(mut self, usage: TextureUsages) -> Self {
+        self.surface_config.usage |= usage;
+        self
+    }
+
+    pub fn surface_format(mut self, format: TextureFormat) -> Self {
+        self.surface_config.format = format;
+        self
     }
 
     pub fn build(self, gpu: GpuContext) -> Canvas {
+        log::info!(
+            "Creating canvas with surface_config: {:#?}",
+            self.surface_config
+        );
+
         let texture_atlas = self
             .texture_atlas
             .unwrap_or(Arc::new(SkieAtlas::new(gpu.clone())));
@@ -36,37 +50,12 @@ impl CanvasBuilder {
             gpu,
             &texture_atlas,
             &WgpuRendererSpecs {
-                width: self.size.width,
-                height: self.size.height,
+                width: self.surface_config.width,
+                height: self.surface_config.height,
             },
         );
 
-        let screen = self.size;
-        Canvas {
-            renderer,
-
-            texture_atlas,
-            text_system,
-
-            state_stack: Default::default(),
-            current_state: CanvasState {
-                transform: Mat3::identity(),
-                clip: Rect::xywh(0.0, 0.0, screen.width as f32, screen.height as f32),
-                clear_color: Color::WHITE,
-            },
-
-            screen,
-            antialias: self.antialias,
-
-            list: Default::default(),
-            renderables: Default::default(),
-            clip_rects: Default::default(),
-        }
-    }
-
-    pub fn with_size(mut self, size: Size<u32>) -> Self {
-        self.size = size;
-        self
+        Canvas::new(self.surface_config, renderer, texture_atlas, text_system)
     }
 
     pub fn with_texture_atlas(mut self, atlas: Arc<SkieAtlas>) -> Self {
@@ -76,11 +65,6 @@ impl CanvasBuilder {
 
     pub fn with_text_system(mut self, text_system: Arc<TextSystem>) -> Self {
         self.text_system = Some(text_system);
-        self
-    }
-
-    pub fn antialias(mut self, val: bool) -> Self {
-        self.antialias = val;
         self
     }
 }

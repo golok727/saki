@@ -82,7 +82,7 @@ impl MovingSquare {
 impl SkieAppHandle for App {
     fn init(&mut self) -> WindowAttributes {
         WindowAttributes::default()
-            .with_inner_size(LogicalSize::new(701, 500))
+            .with_inner_size(LogicalSize::new(700, 500))
             .with_title("Skie")
             .with_resizable(false)
     }
@@ -136,8 +136,6 @@ impl SkieAppHandle for App {
 
         let height = cx.height() as f32;
         cx.draw_circle(51.0, height - 50.0, 20.0, &brush);
-
-        cx.flush();
     }
 
     fn on_keyup(&mut self, keycode: KeyCode) {

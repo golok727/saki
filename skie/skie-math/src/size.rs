@@ -1,6 +1,6 @@
 use std::{
     fmt::{Debug, Display},
-    ops::Add,
+    ops::{Add, Mul},
 };
 
 use crate::traits::{Half, IsZero, Zero};
@@ -190,6 +190,25 @@ where
         Size {
             width: self.width.clone() + rhs.clone(),
             height: self.height.clone() + rhs.clone(),
+        }
+    }
+}
+
+impl<T> Size<T>
+where
+    T: Mul<T, Output = T> + Clone,
+{
+    pub fn scale(&self, scalar: T) -> Self {
+        Self {
+            width: self.width.clone() * scalar.clone(),
+            height: self.height.clone() * scalar.clone(),
+        }
+    }
+
+    pub fn scale_wh(&self, sw: T, sh: T) -> Self {
+        Self {
+            width: self.width.clone() * sw.clone(),
+            height: self.height.clone() * sh.clone(),
         }
     }
 }

@@ -15,10 +15,11 @@ use image::{ImageBuffer, RgbaImage};
 pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
-    gpu::surface::BackendRenderTarget,
+    gpu,
     paint::{AtlasKey, Brush, SkieAtlas, SkieImage},
-    quad, vec2, Canvas, Color, Corners, FontWeight, Half, LineCap, LineJoin, Path2D, Rect, Size,
-    Text, TextureFilterMode, TextureId, TextureOptions, Vec2,
+    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, LineCap,
+    LineJoin, Path2D, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId, TextureOptions,
+    Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -128,9 +129,11 @@ pub struct Window {
 
 impl Window {
     pub(crate) fn new(
-        app: &AppContext,
         event_loop: &winit::event_loop::ActiveEventLoop,
         specs: &WindowSpecification,
+        gpu: GpuContext,
+        texture_atlas: Arc<SkieAtlas>,
+        text_system: Arc<TextSystem>,
     ) -> Result<Self> {
         let width = specs.width;
         let height = specs.height;
@@ -142,13 +145,13 @@ impl Window {
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
         let handle = Arc::new(winit_window);
 
-        let texture_atlas = app.texture_atlas.clone();
-
-        let mut canvas = Canvas::create(Size { width, height })
-            .with_text_system(app.text_system.clone())
+        let mut canvas = Canvas::create()
+            .width(width)
+            .height(height)
+            .surface_format(gpu::TextureFormat::Rgba8Unorm)
+            .with_text_system(text_system.clone())
             .with_texture_atlas(texture_atlas.clone())
-            .antialias(true)
-            .build(app.gpu.clone());
+            .build(gpu);
 
         let surface = canvas.create_backend_target(Arc::clone(&handle))?;
 
@@ -355,7 +358,6 @@ impl Window {
             canvas.draw_path(path, &brush);
         }
 
-        canvas.flush();
         {
             let state = self.state.read();
             self.scroller.render(canvas, state.mouse_pos());
@@ -647,7 +649,6 @@ impl Scroller {
                 .corners(Corners::with_all(10.0)),
             &brush,
         );
-        canvas.flush();
 
         // paint children clipped to this rect
         let mut clip = container.clone();
@@ -675,24 +676,22 @@ impl Scroller {
 
         brush.reset();
         // paint children overflow hidden
-        canvas.paint_with_clip_rect(&clip, |canvas| {
-            for _ in 0..10 {
-                for i in 0..10 {
-                    brush.fill_color(colors[i % colors.len()]);
+        canvas.save();
+        canvas.clip(&clip);
+        for _ in 0..4 {
+            for i in 0..10 {
+                brush.fill_color(colors[i % colors.len()]);
 
-                    canvas.draw_primitive(
-                        quad().rect(Rect::from_origin_size(
-                            cursor + vec2(-self.scroll_x, 0.0),
-                            size,
-                        )),
-                        &brush,
-                    );
-                    cursor.x += margin + size.width;
-                }
-                cursor.y += 30.0 + margin + size.height;
-                cursor.x = container.origin.x + 10.0;
+                canvas.draw_rect(
+                    &Rect::from_origin_size(cursor + vec2(-self.scroll_x, 0.0), size),
+                    &brush,
+                );
+                cursor.x += margin + size.width;
             }
-        });
+            cursor.y += 30.0 + margin + size.height;
+            cursor.x = container.origin.x + 10.0;
+        }
+        canvas.restore();
     }
 }
 

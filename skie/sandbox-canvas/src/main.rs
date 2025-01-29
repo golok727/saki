@@ -1,6 +1,6 @@
 use skie_draw::{
     app::{self, LogicalSize, SkieAppHandle, WindowAttributes},
-    Canvas, Color, Text,
+    Canvas, Color, Half, Size,
 };
 
 use skie_draw::{Brush, Rect};
@@ -12,25 +12,53 @@ impl SkieAppHandle for SandboxApp {
     fn init(&mut self) -> WindowAttributes {
         WindowAttributes::default()
             .with_inner_size(LogicalSize::new(700, 500))
-            .with_title("SandBox")
-            .with_resizable(false)
+            .with_title("Sandbox App")
     }
 
     fn update(&mut self, _window: &app::Window) {}
 
     fn draw(&mut self, cx: &mut Canvas, window: &app::Window) {
-        let scale_factor = window.scale_factor();
+        let scale_factor = window.scale_factor() as f32;
+        let size = window.inner_size();
+        let size = Size::new(size.width as f32, size.height as f32).scale(1.0 / scale_factor);
+
         cx.clear_color(Color::THAMAR_BLACK);
 
-        let mut rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
-        rect.size = rect.size.map(|v| *v * scale_factor as f32);
-        cx.translate(10.0, 10.0);
+        cx.save();
+        cx.scale(scale_factor, scale_factor);
+
+        let rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
 
         let mut brush = Brush::default();
+
+        brush.fill_color(Color::KHAKI);
+        cx.draw_rect(&Rect::from_origin_size(Default::default(), size), &brush);
+
         brush.fill_color(Color::TORCH_RED);
         cx.draw_rect(&rect, &brush);
 
-        cx.flush();
+        let center = rect.center();
+        brush.fill_color(Color::BLUE);
+        cx.draw_circle(center.x, center.y, 10.0, &brush);
+
+        // draw rotated square
+        cx.save();
+        cx.translate(center.x, center.y);
+        cx.scale(0.5, 0.5);
+        cx.rotate(60f32.to_radians());
+        brush.fill_color(Color::WHITE);
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 200.0, 200.0), &brush);
+        cx.restore();
+
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 50.0, 50.0), &brush);
+
+        cx.save();
+        cx.translate(size.width.half(), size.height.half());
+        brush.fill_color(Color::WHITE);
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 200.0, 200.0).centered(), &brush);
+        cx.restore();
+
+        cx.restore();
     }
 }
 

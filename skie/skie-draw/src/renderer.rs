@@ -109,7 +109,6 @@ pub struct RendererTexture {
     pub kind: TextureKind,
 }
 
-// TODO more surface configuration
 #[derive(Debug, Clone)]
 pub struct WgpuRendererSpecs {
     pub width: u32,
@@ -226,7 +225,6 @@ impl WgpuRenderer {
         view: &GpuTextureView,
         options: &TextureOptions,
     ) -> wgpu::BindGroup {
-        // TODO allow configuration
         let sampler = gpu.device.create_sampler(
             &(wgpu::SamplerDescriptor {
                 label: Some("skie_draw texture sampler"),
@@ -329,8 +327,6 @@ impl WgpuRenderer {
         if let Some((atlas_tex_id, kind, bindgroup)) = need_to_add {
             self.textures
                 .insert(atlas_tex_id, RendererTexture { bindgroup, kind });
-        } else {
-            log::trace!("set_atlas_texture: BindGroup exists. skipping",)
         }
     }
 

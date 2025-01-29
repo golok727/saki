@@ -1,5 +1,6 @@
 use crate::{Corners, IsZero, Mat3, Rect, Vec2};
 
+// TODO contours
 #[derive(Debug, Clone)]
 pub struct Path2D {
     pub points: Vec<Vec2<f32>>,
