@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-path = "src/draw.rs"
+path = "src/skie_draw.rs"
 
 [dependencies]
+# Workspace 
 wgpu.workspace = true
 log.workspace = true
 thiserror.workspace = true
@@ -15,17 +16,17 @@ parking_lot.workspace = true
 derive_more.workspace = true
 anyhow.workspace = true
 smallvec.workspace = true
+futures.workspace = true
 
 # Optional
-winit = { workspace = true, optional = true }
-
+winit = { workspace = true, optional = true } # if using application feature
 
 skie-math = { path = "../skie-math" }
-bytemuck = { version = "1.20.0", features = ["derive"] }
 
+bytemuck = { version = "1.20.0", features = ["derive"] }
+# atlas allocation
 etagere = "0.2.13"
 cosmic-text = "0.12.1"
-
 
 [features]
 default = []

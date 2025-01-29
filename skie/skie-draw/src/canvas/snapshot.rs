@@ -1,15 +1,6 @@
-use std::{
-    future::Future,
-    sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
-    task::Waker,
-};
-
 use anyhow::Result;
 
-use parking_lot::Mutex;
+use futures::channel::oneshot::{self};
 use skie_math::Size;
 use wgpu::{BufferAsyncError, Maintain};
 
@@ -17,17 +8,15 @@ use crate::GpuContext;
 
 use super::Canvas;
 
-pub type CanvasSnapshotResult = Result<CanvasSnapshot, BufferAsyncError>;
+pub type SnapshotReceiver = oneshot::Receiver<CanvasSnapshotResult>;
 
-// TODO: allow config
+pub type CanvasSnapshotResult = anyhow::Result<CanvasSnapshot>;
+
+// TODO: config
 pub trait CanvasSnapshotSource {
     fn get_output_texture(&self) -> wgpu::Texture;
 
-    fn read_texture_data_async(
-        &self,
-        canvas: &Canvas,
-        on_data: impl FnOnce() + Send + 'static,
-    ) -> Receiver<CanvasSnapshotResult> {
+    fn read_texture_data_async(&self, canvas: &Canvas) -> Result<SnapshotReceiver> {
         let source_texture = self.get_output_texture();
         let size = Size {
             width: source_texture.width(),
@@ -36,78 +25,26 @@ pub trait CanvasSnapshotSource {
 
         let gpu = canvas.renderer.gpu();
 
-        let (sender, receiver) = mpsc::channel::<CanvasSnapshotResult>();
+        let (sender, receiver) = oneshot::channel::<CanvasSnapshotResult>();
 
         read_texels_async(gpu, &source_texture, move |res| {
-            if sender
-                .send(res.map(|data| CanvasSnapshot { size, data }))
-                .is_ok()
-            {
-                on_data()
+            let res = match res {
+                Ok(data) => anyhow::Result::Ok(CanvasSnapshot { data, size }),
+                Err(err) => anyhow::Result::Err(anyhow::anyhow!("Error reading texels {:#?}", err)),
+            };
+
+            if sender.send(res).is_err() {
+                log::error!("Error reading texels: failed at sending async data");
             }
-        });
+        })?;
 
-        receiver
-    }
-
-    fn snapshot_sync(&self, canvas: &Canvas) -> CanvasSnapshotResult {
-        let receiver = self.read_texture_data_async(canvas, || {});
-
-        canvas.renderer.gpu().device.poll(Maintain::Wait);
-
-        if let Ok(res) = receiver.recv() {
-            res
-        } else {
-            Err(BufferAsyncError)
-        }
-    }
-
-    fn snapshot(&self, canvas: &Canvas) -> CanvasSnapshotAsync {
-        let waker: Arc<Mutex<Option<Waker>>> = Arc::new(Mutex::new(None));
-
-        let gpu = canvas.renderer.gpu();
-
-        let receiver = self.read_texture_data_async(canvas, {
-            let waker = waker.clone();
-            move || {
-                if let Some(waker) = waker.lock().take() {
-                    waker.wake()
-                }
-            }
-        });
-
-        while !gpu.device.poll(wgpu::Maintain::Poll).is_queue_empty() {}
-
-        CanvasSnapshotAsync { waker, receiver }
+        Ok(receiver)
     }
 }
 
-// TODO use Image instead
 pub struct CanvasSnapshot {
     pub size: Size<u32>,
     pub data: Vec<u8>,
-}
-
-pub struct CanvasSnapshotAsync {
-    waker: Arc<Mutex<Option<Waker>>>,
-    receiver: Receiver<CanvasSnapshotResult>,
-}
-
-impl Future for CanvasSnapshotAsync {
-    type Output = CanvasSnapshotResult;
-
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        if let Ok(snapshot) = self.receiver.try_recv() {
-            std::task::Poll::Ready(snapshot)
-        } else {
-            let mut thing = self.waker.lock();
-            *thing = Some(cx.waker().clone());
-            std::task::Poll::Pending
-        }
-    }
 }
 
 impl Canvas {
@@ -115,23 +52,43 @@ impl Canvas {
         &self,
         source: &Source,
     ) -> CanvasSnapshotResult {
-        source.snapshot_sync(self)
+        let receiver = source.read_texture_data_async(self)?;
+
+        self.renderer.gpu().device.poll(Maintain::Wait);
+
+        futures::executor::block_on(receiver)?
     }
+
+    // asyncronously receive a snapshot
     pub async fn snapshot<Source: CanvasSnapshotSource>(
         &self,
         source: &Source,
     ) -> CanvasSnapshotResult {
-        source.snapshot(self).await
+        let gpu = self.renderer.gpu();
+
+        let receiver = source.read_texture_data_async(self)?;
+
+        while !gpu.device.poll(wgpu::Maintain::Poll).is_queue_empty() {}
+
+        receiver.await?
     }
 }
 
-fn read_texels_async(
+// FIXME: Alignment for copy buffer
+pub fn read_texels_async(
     gpu: &GpuContext,
     src: &wgpu::Texture,
     read: impl FnOnce(Result<Vec<u8>, BufferAsyncError>) + Send + 'static,
-) {
-    let buffer_size = (src.width() * src.height() * 4) as u64; // 4 bytes per pixel (RGBA8
-                                                               //
+) -> Result<()> {
+    let bytes_per_texel = src
+        .format()
+        .block_copy_size(
+            None, /* Sorry I wont read any depth or stencil textures */
+        )
+        .ok_or(anyhow::anyhow!("Invalid format unable to get texel size"))?;
+
+    let buffer_size = (src.width() * src.height() * bytes_per_texel) as u64;
+
     let output_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Output Buffer"),
         size: buffer_size,
@@ -152,7 +109,7 @@ fn read_texels_async(
             buffer: &output_buffer,
             layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(src.width() * 4),
+                bytes_per_row: Some(src.width() * bytes_per_texel),
                 rows_per_image: Some(src.height()),
             },
         },
@@ -175,4 +132,6 @@ fn read_texels_async(
             read(res)
         }
     });
+
+    Ok(())
 }

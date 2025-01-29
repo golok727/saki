@@ -34,8 +34,17 @@ impl<'a> BackendRenderTarget<'a> {
     }
 }
 
+#[derive(Debug)]
+pub struct PaintedSurface(SurfaceTexture);
+
+impl PaintedSurface {
+    pub fn present(self) {
+        self.0.present()
+    }
+}
+
 impl<'a> CanvasSurface for BackendRenderTarget<'a> {
-    type PaintOutput = SurfaceTexture;
+    type PaintOutput = PaintedSurface;
 
     fn paint(&mut self, canvas: &mut Canvas) -> Result<Self::PaintOutput> {
         let surface_texture = self.surface.get_current_texture()?;
@@ -46,7 +55,7 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
 
         canvas.render_to_texture(&view);
 
-        Ok(surface_texture)
+        Ok(PaintedSurface(surface_texture))
     }
 
     fn resize(&mut self, gpu: &GpuContext, new_width: u32, new_height: u32) {
@@ -90,9 +99,9 @@ impl GpuContext {
         //     .copied()
         //     .unwrap_or(capabilities.formats[0]);
 
+        // TODO: make format configurable
         let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
-            // TODO: make format configurable
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Rgba8Unorm,
             width,
             height,

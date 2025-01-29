@@ -7,7 +7,7 @@ mod system;
 mod textarea;
 
 pub use system::*;
-pub use textarea::*;
+// pub use textarea::*;
 
 use crate::arc_string::ArcString;
 

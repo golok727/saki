@@ -66,6 +66,7 @@ impl<'a> ApplicationHandler for App<'a> {
 
             let size = window.inner_size();
             self.canvas.resize(size.width, size.height);
+
             let surface = self
                 .canvas
                 .create_backend_target(window.clone())

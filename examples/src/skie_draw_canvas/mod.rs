@@ -36,7 +36,8 @@ pub fn run() {
     canvas.render(&mut surface).expect("error painting");
 
     let snapshot = canvas
-        .snapshot_sync(&surface)
+        .snapshot(&surface)
+        .block_on()
         .expect("error taking snapshot");
 
     let image_buffer = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(

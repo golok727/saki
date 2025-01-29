@@ -82,7 +82,7 @@ impl MovingSquare {
 impl SkieAppHandle for App {
     fn init(&mut self) -> WindowAttributes {
         WindowAttributes::default()
-            .with_inner_size(LogicalSize::new(701, 500))
+            .with_inner_size(LogicalSize::new(700, 500))
             .with_title("Skie")
             .with_resizable(false)
     }

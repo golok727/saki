@@ -15,11 +15,13 @@ use crate::{
 use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
+use offscreen_target::OffscreenRenderTarget;
 use skie_math::{vec2, Corners, Mat3, One, Zero};
-use surface::{CanvasSurface, OffscreenRenderTarget};
+use surface::CanvasSurface;
 use wgpu::FilterMode;
 
 mod builder;
+pub mod offscreen_target;
 pub mod snapshot;
 pub mod surface;
 
@@ -361,7 +363,7 @@ impl Canvas {
         self.screen = self.renderer.size();
     }
 
-    /// Resizes the surface and paints to it
+    /// Configures the surface to the canvas and paints to it
     pub fn render<Output>(
         &mut self,
         surface: &mut impl CanvasSurface<PaintOutput = Output>,
