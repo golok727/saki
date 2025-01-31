@@ -5,6 +5,8 @@ use super::Canvas;
 
 pub trait CanvasSurface {
     type PaintOutput;
+    const LABEL: &'static str;
+
     fn paint(&mut self, canvas: &mut Canvas) -> Result<Self::PaintOutput>;
     fn configure(&mut self, gpu: &GpuContext, config: &CanvasSurfaceConfig);
     fn get_config(&self) -> CanvasSurfaceConfig;

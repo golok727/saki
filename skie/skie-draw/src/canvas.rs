@@ -1,10 +1,10 @@
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, sync::Arc, time::Instant};
 
 use crate::{
     circle,
     paint::{
-        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, GraphicsTextureInfoMap,
-        InstructionBatcher, Primitive, RenderList, SkieAtlas, TextureKind,
+        AtlasKey, Brush, GpuTextureView, GraphicsInstruction, GraphicsInstructionBatcher,
+        Primitive, SkieAtlas, SkieAtlasTextureInfoMap, TextureKind,
     },
     quad,
     renderer::Renderable,
@@ -21,8 +21,11 @@ use wgpu::FilterMode;
 pub mod backend_target;
 pub mod builder;
 pub mod offscreen_target;
+pub mod render_list;
 pub mod snapshot;
 pub mod surface;
+
+use render_list::RenderList;
 
 pub use builder::CanvasBuilder;
 
@@ -32,29 +35,32 @@ pub struct CanvasState {
     pub clip_rect: Rect<f32>,
 }
 
-#[derive(Debug)]
-struct StagedInstructions {
-    instructions: Vec<GraphicsInstruction>,
-    state: CanvasState,
+impl Default for CanvasState {
+    fn default() -> Self {
+        Self {
+            transform: Mat3::identity(),
+            clip_rect: Rect::EVERYTHING,
+        }
+    }
 }
 
-/*
- TODO
- - [ ] Shared path
-*/
 pub struct Canvas {
-    // TODO pub(crate)
+    // TODO
+    // - pub(crate)
+    // - allow rendering in another thread
     pub renderer: WgpuRenderer,
 
     pub(crate) surface_config: CanvasSurfaceConfig,
-    pub(crate) list: RenderList,
-    pub(crate) texture_atlas: Arc<SkieAtlas>,
-    pub(crate) text_system: Arc<TextSystem>,
+
+    list: RenderList,
+    texture_atlas: Arc<SkieAtlas>,
+    text_system: Arc<TextSystem>,
+
+    atlas_info_map: SkieAtlasTextureInfoMap,
 
     state_stack: Vec<CanvasState>,
-    pub current_state: CanvasState,
+    current_state: CanvasState,
 
-    stage: Vec<StagedInstructions>,
     cached_renderables: Vec<Renderable>,
 
     clear_color: Color,
@@ -74,15 +80,12 @@ impl Canvas {
             texture_atlas,
             text_system,
 
+            atlas_info_map: Default::default(),
+
             state_stack: Default::default(),
 
             clear_color: Color::WHITE,
-            current_state: CanvasState {
-                transform: Default::default(),
-                clip_rect: Rect::EVERYTHING,
-            },
-
-            stage: Default::default(),
+            current_state: CanvasState::default(),
 
             surface_config,
 
@@ -172,22 +175,13 @@ impl Canvas {
     }
 
     pub fn clear(&mut self) {
-        self.stage.clear();
         self.list.clear();
         self.cached_renderables.clear();
     }
 
+    #[inline]
     pub fn stage_changes(&mut self) {
-        if self.list.is_empty() {
-            return;
-        }
-
-        let instructions = self.list.clear();
-
-        self.stage.push(StagedInstructions {
-            instructions,
-            state: self.current_state.clone(),
-        });
+        self.list.stage_changes(self.current_state.clone());
     }
 
     /// adds a primitive to th current scene does nothing until paint is called!
@@ -337,6 +331,7 @@ impl Canvas {
         Surface: CanvasSurface<PaintOutput = Output>,
     {
         if surface.get_config() != self.surface_config {
+            log::trace!("{}: surface.configure() ran", Surface::LABEL);
             surface.configure(self.renderer.gpu(), &self.surface_config)
         }
 
@@ -377,52 +372,77 @@ impl Canvas {
             .submit(std::iter::once(encoder.finish()));
     }
 
-    fn get_required_textures(&self) -> impl Iterator<Item = TextureId> + '_ {
-        self.stage
-            .iter()
+    fn get_required_textures(&self) -> HashSet<TextureId> {
+        // todo make this better
+        self.list
+            .into_iter()
             .flat_map(|staged| staged.instructions.iter())
             .map(|instruction| instruction.texture_id.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
+            .collect::<_>()
     }
 
     fn prepare_for_render(&mut self) {
+        let now = Instant::now();
+
         // stage the any remaining ones
         self.stage_changes();
 
-        let required_textures =
+        // prepare atlas texture infos
+        let atlas_keys =
             self.get_required_textures()
+                .into_iter()
                 .filter_map(|tex| -> Option<AtlasKey> {
                     if let TextureId::AtlasKey(key) = tex {
-                        Some(key)
+                        Some(key.clone())
                     } else {
                         None
                     }
                 });
 
-        let info_map = self.texture_atlas.get_texture_infos(required_textures);
+        for key in atlas_keys {
+            if self.atlas_info_map.contains_key(&key) {
+                continue;
+            }
+            let info = self.texture_atlas.get_texture_info(&key);
 
-        for staged in &self.stage {
-            let batcher = InstructionBatcher::new(&staged.instructions, &info_map);
+            if let Some(info) = info {
+                self.atlas_info_map.insert(key.clone(), info);
+            } else {
+                log::error!("Cannot find info for key in atlas : {:#?}", key);
+            }
+        }
+
+        let get_renderer_texture = |texture_id: &TextureId| match texture_id {
+            TextureId::AtlasKey(key) => self
+                .atlas_info_map
+                .get(key)
+                .map(|info| TextureId::Atlas(info.tile.texture)),
+            other => Some(other.clone()),
+        };
+
+        for staged in &self.list {
+            // batch instructions with the same texture together
+            let batcher =
+                GraphicsInstructionBatcher::new(staged.instructions, get_renderer_texture);
+
             for batch in batcher {
                 let texture = batch.render_texture();
-
-                if let Some(renderable) =
-                    self.build_renderable(batch, &texture, &info_map, &staged.state)
-                {
+                if let Some(renderable) = self.build_renderable(batch, &texture, staged.state) {
                     self.cached_renderables.push(renderable)
                 }
             }
         }
 
-        self.stage.clear();
+        log::trace!(
+            "prepare_for_render took: {}ms",
+            Instant::now().saturating_duration_since(now).as_millis()
+        );
     }
 
     fn build_renderable<'a>(
         &self,
         instructions: impl Iterator<Item = &'a GraphicsInstruction>,
         texture: &TextureId,
-        tex_info: &GraphicsTextureInfoMap,
         canvas_state: &CanvasState,
     ) -> Option<Renderable> {
         let mut drawlist = DrawList::default();
@@ -438,7 +458,7 @@ impl Canvas {
             let is_white_texture = tex_id == TextureId::WHITE_TEXTURE;
 
             let info: Option<&AtlasTextureInfo> = if let TextureId::AtlasKey(key) = &tex_id {
-                tex_info.get(key)
+                self.atlas_info_map.get(key)
             } else {
                 None
             };
@@ -485,6 +505,7 @@ impl Canvas {
                 drawlist.capture(build).map(|vertex| {
                     if let Some(info) = info {
                         if is_white_texture {
+                            // FIXME: we should cache this
                             vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
                         } else {
                             vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();

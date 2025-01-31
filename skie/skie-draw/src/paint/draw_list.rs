@@ -12,7 +12,6 @@ use crate::paint::WHITE_UV;
 pub struct DrawList {
     pub(crate) antialias: bool,
     pub(crate) feathering: f32,
-
     pub(crate) mesh: Mesh,
     pub(crate) path: Path2D,
 }
