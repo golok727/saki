@@ -1,6 +1,7 @@
 # skie
-A UI library for Saki.
+A GUI library for Saki.
 This will be moved to its own project 
 
-`skie` -> Ui library
-`skie-draw` -> Custom Renderer for skie
+`skie` -> GUI library
+`skie-draw` -> 2D Renderer 
+`skie-math` -> Math library
