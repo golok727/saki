@@ -54,7 +54,6 @@ struct Group {
 // A simple batcher for now in future we will expand this.
 pub(crate) struct GraphicsInstructionBatcher<'a> {
     instructions: &'a [GraphicsInstruction],
-    // (Actual RenderTexture bind to renderer, GroupEntry)
     groups: VecDeque<Group>,
 }
 
