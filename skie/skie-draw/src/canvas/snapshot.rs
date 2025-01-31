@@ -12,6 +12,8 @@ pub type SnapshotReceiver = oneshot::Receiver<CanvasSnapshotResult>;
 
 pub type CanvasSnapshotResult = anyhow::Result<CanvasSnapshot>;
 
+// This will only work with textures with usage COPY_SRC. Surface textures in some platform does
+// not allow to add that flag; we need to render it to seperate texture instead
 // TODO: config
 pub trait CanvasSnapshotSource {
     fn get_source_texture(&self) -> wgpu::Texture;
