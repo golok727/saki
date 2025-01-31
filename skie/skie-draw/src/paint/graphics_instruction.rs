@@ -1,9 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{
-    paint::{AtlasKey, AtlasTextureInfoMap, Primitive},
-    Brush, TextureId,
-};
+use crate::{paint::Primitive, Brush, TextureId};
 
 use super::Color;
 
@@ -48,60 +45,31 @@ impl GraphicsInstruction {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct RenderList {
-    pub(crate) instructions: Vec<GraphicsInstruction>,
-}
-
-impl RenderList {
-    pub fn add(&mut self, instruction: GraphicsInstruction) {
-        self.instructions.push(instruction)
-    }
-
-    pub fn clear(&mut self) -> Vec<GraphicsInstruction> {
-        let old: Vec<GraphicsInstruction> = std::mem::take(&mut self.instructions);
-        old
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.instructions.is_empty()
-    }
-}
-
 type GroupEntry = usize;
 struct Group {
     render_texture: TextureId,
     entries: Vec<GroupEntry>,
 }
 
-pub type GraphicsTextureInfoMap = AtlasTextureInfoMap<AtlasKey>;
-
 // A simple batcher for now in future we will expand this.
-pub(crate) struct InstructionBatcher<'a> {
+pub(crate) struct GraphicsInstructionBatcher<'a> {
     instructions: &'a [GraphicsInstruction],
     // (Actual RenderTexture bind to renderer, GroupEntry)
     groups: VecDeque<Group>,
 }
 
-impl<'a> InstructionBatcher<'a> {
+impl<'a> GraphicsInstructionBatcher<'a> {
     pub fn new(
         instructions: &'a [GraphicsInstruction],
-        tex_info: &'a GraphicsTextureInfoMap,
+        get_renderer_texture_id: impl Fn(&TextureId) -> Option<TextureId>,
     ) -> Self {
         let mut render_tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> =
             Default::default();
 
         for (i, instruction) in instructions.iter().enumerate() {
-            let render_texture = match &instruction.texture_id {
-                TextureId::AtlasKey(key) => {
-                    let info = tex_info.get(key);
-                    info.map(|info| TextureId::Atlas(info.tile.texture))
-                }
-                other => Some(other.clone()),
-            };
+            let renderer_texture = get_renderer_texture_id(&instruction.texture_id);
 
-            if let Some(render_texture) = render_texture {
+            if let Some(render_texture) = renderer_texture {
                 render_tex_to_item_idx
                     .entry(render_texture)
                     .or_default()
@@ -129,7 +97,7 @@ impl<'a> InstructionBatcher<'a> {
     }
 }
 
-impl<'a> Iterator for InstructionBatcher<'a> {
+impl<'a> Iterator for GraphicsInstructionBatcher<'a> {
     type Item = InstructionBatch<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {

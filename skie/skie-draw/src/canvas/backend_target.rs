@@ -44,6 +44,7 @@ impl PaintedSurface {
 
 impl<'a> CanvasSurface for BackendRenderTarget<'a> {
     type PaintOutput = PaintedSurface;
+    const LABEL: &'static str = "BackendRenderTarget";
 
     fn paint(&mut self, canvas: &mut Canvas) -> Result<Self::PaintOutput> {
         let surface_texture = self.surface.get_current_texture()?;

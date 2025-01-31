@@ -23,6 +23,7 @@ impl OffscreenRenderTarget {
 
 impl CanvasSurface for OffscreenRenderTarget {
     type PaintOutput = ();
+    const LABEL: &'static str = "OffscreenRenderTarget";
 
     fn configure(&mut self, gpu: &GpuContext, config: &CanvasSurfaceConfig) {
         debug_assert!(config.width != 0, "Got zero width");
