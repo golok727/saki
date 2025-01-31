@@ -338,7 +338,6 @@ impl Canvas {
         surface.paint(self)
     }
 
-    /// Renders and presets to the screen
     pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
         self.prepare_for_render();
 
@@ -373,7 +372,6 @@ impl Canvas {
     }
 
     fn get_required_textures(&self) -> HashSet<TextureId> {
-        // todo make this better
         self.list
             .into_iter()
             .flat_map(|staged| staged.instructions.iter())
@@ -384,7 +382,7 @@ impl Canvas {
     fn prepare_for_render(&mut self) {
         let now = Instant::now();
 
-        // stage the any remaining ones
+        // stage the any remaining changes
         self.stage_changes();
 
         // prepare atlas texture infos
