@@ -14,7 +14,7 @@ use crate::{
 use ahash::HashSet;
 use anyhow::Result;
 use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-use skie_math::{vec2, Corners, Mat3};
+use skie_math::{vec2, Corners, Mat3, Vec2};
 use surface::{CanvasSurface, CanvasSurfaceConfig};
 use wgpu::FilterMode;
 
@@ -63,6 +63,8 @@ pub struct Canvas {
 
     cached_renderables: Vec<Renderable>,
 
+    white_texture_uv: Vec2<f32>,
+
     clear_color: Color,
     // TODO msaa
 }
@@ -74,6 +76,12 @@ impl Canvas {
         texture_atlas: Arc<SkieAtlas>,
         text_system: Arc<TextSystem>,
     ) -> Self {
+        // hoping it wont change
+        let white_texture_uv = texture_atlas
+            .get_texture_info(&AtlasKey::WhiteTexture)
+            .map(|info| info.uv_to_atlas_space(0.0, 0.0))
+            .expect("unable to get white_texture_uv");
+
         Canvas {
             renderer,
 
@@ -88,6 +96,8 @@ impl Canvas {
             current_state: CanvasState::default(),
 
             surface_config,
+
+            white_texture_uv,
 
             list: Default::default(),
             cached_renderables: Default::default(),
@@ -464,8 +474,7 @@ impl Canvas {
                 drawlist.capture(build).map(|vertex| {
                     if let Some(info) = info {
                         if is_white_texture {
-                            // FIXME: we should cache this
-                            vertex.uv = info.uv_to_atlas_space(0.0, 0.0).into();
+                            vertex.uv = self.white_texture_uv.into();
                         } else {
                             vertex.uv = info.uv_to_atlas_space(vertex.uv[0], vertex.uv[1]).into();
                         }
