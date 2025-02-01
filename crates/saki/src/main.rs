@@ -1,9 +1,10 @@
 use std::io::Write;
 
 use skie::{
+    app::AppContext,
     math::Rect,
     px,
-    window::{WindowContext, WindowSpecification},
+    window::{Window, WindowSpecification},
     Color, Pixels,
 };
 
@@ -30,55 +31,59 @@ fn main() {
             ..Default::default()
         };
 
-        cx.open_window(window_specs.clone(), |cx| {
-            cx.set_timeout(
-                |cx| {
-                    cx.window.set_bg_color(Color::YELLOW);
+        cx.open_window(window_specs.clone(), |window, app| {
+            window.set_timeout(
+                app,
+                |window, _| {
+                    window.set_bg_color(Color::YELLOW);
                 },
                 std::time::Duration::from_secs(3),
             );
 
-            cx.set_timeout(
-                |cx| {
-                    cx.window.set_bg_color(Color::from_rgb(0x181818));
+            window.set_timeout(
+                app,
+                |window, _| {
+                    window.set_bg_color(Color::from_rgb(0x181818));
                 },
                 std::time::Duration::from_secs(5),
             );
 
-            cx.window.set_bg_color(Color::from_rgb(0x181818));
+            window.set_bg_color(Color::from_rgb(0x181818));
 
-            load_images_from_args(cx);
+            load_images_from_args(window, app);
         });
     });
 }
 
-fn load_images_from_args(cx: &mut WindowContext) {
+fn load_images_from_args(window: &mut Window, app: &mut AppContext) {
     // TODO: Add Assets system to preload assets and pass in the asset handle
     let mut args = std::env::args();
     args.next(); // Skip the program name
 
     // Helper function to load an image from a file argument
-    fn load_image(cx: &mut WindowContext, file: String, rect: Rect<Pixels>) {
+    fn load_image(window: &mut Window, app: &mut AppContext, file: String, rect: Rect<Pixels>) {
         let file_clone = file.clone();
         if let Some(file) = Some(file).filter(|f| {
             std::fs::metadata(f)
                 .map(|data| data.is_file())
                 .unwrap_or(false)
         }) {
-            cx.spawn(|cx| async move {
-                let idx = cx.load_image_from_file(rect, file).await;
-                if let Ok(idx) = idx {
-                    if idx == 0 {
-                        cx.with(|cx| {
-                            let obj = cx.get_object_mut(idx).unwrap().as_image_mut().unwrap();
-                            obj.bbox.origin.x = obj.bbox.origin.x - px(100);
-                            obj.bbox.origin.y = obj.bbox.origin.x + px(100);
-                            cx.window.refresh();
-                        });
+            window
+                .spawn(app, |cx| async move {
+                    let idx = cx.load_image_from_file(rect, file).await;
+                    if let Ok(idx) = idx {
+                        if idx == 0 {
+                            let _ = cx.update_window(|window, _| {
+                                let obj =
+                                    window.get_object_mut(idx).unwrap().as_image_mut().unwrap();
+                                obj.bbox.origin.x = obj.bbox.origin.x - px(100);
+                                obj.bbox.origin.y = obj.bbox.origin.x + px(100);
+                                window.refresh();
+                            });
+                        }
                     }
-                }
-            })
-            .detach();
+                })
+                .detach();
         } else {
             log::error!("Unable to load file {}", file_clone);
         }
@@ -94,7 +99,7 @@ fn load_images_from_args(cx: &mut WindowContext) {
     for rect in rects.iter() {
         let file = args.next();
         if let Some(file) = file {
-            load_image(cx, file, rect.clone());
+            load_image(window, app, file, rect.clone());
         } else {
             break;
         }

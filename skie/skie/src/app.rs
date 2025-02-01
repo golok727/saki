@@ -5,7 +5,8 @@ use skie_draw::paint::SkieAtlas;
 use skie_draw::{TextSystem, Vec2};
 mod handle;
 
-use crate::window::{Window, WindowContext, WindowId, WindowSpecification};
+use crate::window::{Window, WindowId, WindowSpecification};
+use anyhow::Result;
 use events::AppEvents;
 use handle::AppHandle;
 use skie_draw::gpu::GpuContext;
@@ -31,13 +32,6 @@ pub(crate) enum AppUpdateEvent {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
     },
-    // AppContextCallback {
-    //     callback: Box<dyn FnOnce(&mut AppContext) + 'static>,
-    // },
-    // WindowContextCallback {
-    //     callback: Box<dyn FnOnce(&mut WindowContext) + 'static>,
-    //     window_id: WindowId,
-    // },
 }
 
 pub(crate) enum Effect {
@@ -88,7 +82,7 @@ pub(crate) type AppContextCell = RefCell<AppContext>;
 pub(crate) type AppContextRef = Rc<AppContextCell>;
 
 type AppInitCallback = Box<dyn FnOnce(&mut AppContext) + 'static>;
-pub type OpenWindowCallback = Box<dyn FnOnce(&mut WindowContext) + 'static>;
+pub type OpenWindowCallback = Box<dyn FnOnce(&mut Window, &mut AppContext) + 'static>;
 
 pub struct AppContext {
     pub(crate) this: Weak<AppContextCell>,
@@ -106,7 +100,7 @@ pub struct AppContext {
 
     pub(crate) texture_atlas: Arc<SkieAtlas>,
 
-    pub(crate) windows: ahash::AHashMap<WindowId, Window>,
+    pub(crate) windows: ahash::AHashMap<WindowId, Option<Window>>,
 
     pub(crate) gpu: GpuContext,
 }
@@ -202,7 +196,7 @@ impl AppContext {
         self.flushing_effects = false;
     }
 
-    pub fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
+    pub(crate) fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
         self.pending_updates += 1;
         let res = cb(self);
 
@@ -234,7 +228,7 @@ impl AppContext {
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
     where
-        F: Fn(&mut WindowContext) + 'static,
+        F: Fn(&mut Window, &mut AppContext) + 'static,
     {
         self.update(|app| {
             app.push_app_event(AppUpdateEvent::CreateWindow {
@@ -259,9 +253,8 @@ impl AppContext {
             self.text_system.clone(),
         ) {
             Ok(mut window) => {
-                let mut context = WindowContext::new(self, &mut window);
-                callback(&mut context);
-                self.windows.insert(window.id(), window);
+                callback(&mut window, self);
+                self.windows.insert(window.id(), Some(window));
             }
             Err(err) => log::error!("Error creating window\n{:#?}", err),
         };
@@ -270,7 +263,7 @@ impl AppContext {
     pub fn quit(&mut self) {
         self.update(|app| {
             app.push_effect(Effect::UserEvent(AppAction::Quit));
-        })
+        });
     }
 
     pub fn spawn<Fut, R>(&self, f: impl FnOnce(AsyncAppContext) -> Fut) -> Job<R>
@@ -293,6 +286,29 @@ impl AppContext {
             f(&mut lock);
         })
         .detach();
+    }
+
+    pub fn update_window<R, Update>(&mut self, id: &WindowId, update: Update) -> Result<R>
+    where
+        Update: FnOnce(&mut Window, &mut Self) -> R,
+    {
+        self.update(|cx| {
+            let mut window = cx
+                .windows
+                .get_mut(id)
+                .ok_or(anyhow::anyhow!("window not found"))?
+                .take()
+                .ok_or(anyhow::anyhow!("window not found"))?;
+
+            let res = update(&mut window, cx);
+
+            cx.windows
+                .get_mut(id)
+                .ok_or(anyhow::anyhow!("window not found"))?
+                .replace(window);
+
+            Ok(res)
+        })
     }
 
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
@@ -338,28 +354,32 @@ impl AppContext {
             WindowEvent::Resized(size) => {
                 let width = size.width;
                 let height = size.height;
-                let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.handle_resize(width, height);
+                let _ = self.update_window(&window_id, |window, _| {
+                    window.handle_resize(width, height);
+                });
             }
             WindowEvent::RedrawRequested => {
-                let window = self.windows.get_mut(&window_id).expect("expected a window");
-                if let Err(error) = window.paint() {
-                    log::error!("Error rendering {:#?}", error);
-                }
+                let _ = self.update_window(&window_id, |window, _| {
+                    if let Err(error) = window.paint() {
+                        log::error!("Error rendering {:#?}", error);
+                    }
+                });
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let window = self.windows.get(&window_id).expect("expected a window");
-                let mut lock = window.state.write();
-                lock.set_mouse_pos(Vec2::new(position.x as f32, position.y as f32));
-                // FIXME:
-                window.refresh();
+                let _ = self.update_window(&window_id, |window, _| {
+                    let mut lock = window.state.write();
+                    lock.set_mouse_pos(Vec2::new(position.x as f32, position.y as f32));
+                    // FIXME:
+                    window.refresh();
+                });
             }
             WindowEvent::MouseWheel {
                 delta: MouseScrollDelta::LineDelta(dx, dy),
                 ..
             } => {
-                let window = self.windows.get_mut(&window_id).expect("expected a window");
-                window.handle_scroll_wheel(dx, dy);
+                let _ = self.update_window(&window_id, |window, _| {
+                    window.handle_scroll_wheel(dx, dy);
+                });
             }
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
@@ -370,7 +390,9 @@ impl AppContext {
                     },
                 ..
             } => {
+                // TODO: do this in window update
                 self.windows.remove(&window_id);
+
                 if self.windows.is_empty() {
                     self.quit();
                 }

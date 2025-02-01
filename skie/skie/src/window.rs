@@ -1,4 +1,5 @@
 pub mod error;
+use derive_more::derive::{Deref, DerefMut};
 use parking_lot::RwLock;
 
 use core::f32;
@@ -381,6 +382,43 @@ impl Window {
         );
     }
 
+    fn add_image_from_data(
+        &mut self,
+        image: &[u8],
+        natutal_size: Size<u32>,
+        bounds: Rect<Pixels>,
+    ) -> usize {
+        let width = natutal_size.width;
+        let height = natutal_size.height;
+        let key = AtlasKey::from(SkieImage::new(self.get_next_tex_id()));
+        self.texture_atlas.get_or_insert(&key, || {
+            (
+                Size {
+                    width: width as _,
+                    height: height as _,
+                },
+                Cow::Borrowed(image),
+            )
+        });
+
+        self.canvas.renderer.set_texture_from_atlas(
+            &self.texture_atlas,
+            &key,
+            &TextureOptions::default()
+                .min_filter(TextureFilterMode::Linear)
+                .mag_filter(TextureFilterMode::Linear),
+        );
+
+        let idx = self.objects.len();
+        self.objects.push(Object::Image(ImageObject {
+            bbox: bounds,
+            natural_width: width as f32,
+            natural_height: height as f32,
+            texture: key.into(),
+        }));
+        idx
+    }
+
     pub(crate) fn handle_scroll_wheel(&mut self, _dx: f32, dy: f32) {
         {
             let state = self.state.read();
@@ -414,34 +452,67 @@ impl Window {
         id
     }
 
-    // TODO: pub(crate)
     pub fn refresh(&self) {
         self.handle.request_redraw();
     }
+
+    pub fn spawn<Fut, R>(
+        &self,
+        app: &mut AppContext,
+        f: impl FnOnce(AsyncWindowContext) -> Fut,
+    ) -> Job<R>
+    where
+        Fut: Future<Output = R> + 'static,
+        R: 'static,
+    {
+        app.spawn(|app| {
+            f(AsyncWindowContext {
+                app,
+                window_id: self.id(),
+            })
+        })
+    }
+
+    pub fn set_timeout(
+        &self,
+        app: &mut AppContext,
+        f: impl FnOnce(&mut Window, &mut AppContext) + 'static,
+        timeout: std::time::Duration,
+    ) {
+        let window_id = self.id();
+
+        app.set_timeout(
+            move |app| {
+                let _ = app.update_window(&window_id, |window, app| f(window, app));
+            },
+            timeout,
+        )
+    }
+
+    pub fn get_object(&self, index: usize) -> Option<&Object> {
+        self.objects.get(index)
+    }
+
+    pub fn get_object_mut(&mut self, index: usize) -> Option<&mut Object> {
+        self.objects.get_mut(index)
+    }
 }
 
+#[derive(Deref, DerefMut)]
 pub struct AsyncWindowContext {
+    #[deref]
+    #[deref_mut]
     app: AsyncAppContext,
     window_id: WindowId,
 }
 
 impl AsyncWindowContext {
-    pub fn with<R>(&self, reader: impl FnOnce(&mut WindowContext) -> R) -> Option<R> {
-        let app = self.app.app.upgrade().expect("app released");
-        let mut lock = app.borrow_mut();
-        let window = lock.windows.remove(&self.window_id);
-
-        if let Some(mut window) = window {
-            let mut cx = WindowContext::new(&mut lock, &mut window);
-            let res = reader(&mut cx);
-            lock.windows.insert(window.id(), window);
-            Some(res)
-        } else {
-            log::info!("Window was released");
-            None
-        }
+    pub fn update_window<R, Update>(&self, update: Update) -> Result<R>
+    where
+        Update: FnOnce(&mut Window, &mut AppContext) -> R,
+    {
+        self.app.update_window(&self.window_id, update)
     }
-
     #[inline]
     pub fn spawn<Fut, R>(&self, f: impl FnOnce(AsyncWindowContext) -> Fut) -> Job<R>
     where
@@ -462,7 +533,6 @@ impl AsyncWindowContext {
         self.app.jobs.spawn_blocking(future)
     }
 
-    // TODO: replace with assets
     pub async fn load_image_from_file(
         &self,
         bounds: Rect<Pixels>,
@@ -473,108 +543,15 @@ impl AsyncWindowContext {
 
         self.spawn(|cx| async move {
             let img = img_job.await?;
-            cx.with(|cx| {
+            cx.update_window(|window, _| {
                 let idx =
-                    cx.add_image_from_data(&img, Size::new(img.width(), img.height()), bounds);
-
+                    window.add_image_from_data(&img, Size::new(img.width(), img.height()), bounds);
                 // FIXME: mark window as dirty and notify app to redraw instead
-                cx.window.refresh();
-                idx
+                window.refresh();
+                Ok(idx)
             })
-            .ok_or(anyhow!("Window was released"))
         })
-        .await
-    }
-}
-
-pub struct WindowContext<'a> {
-    pub app: &'a mut AppContext,
-    pub window: &'a mut Window,
-}
-
-impl<'a> WindowContext<'a> {
-    pub fn new(app: &'a mut AppContext, window: &'a mut Window) -> Self {
-        Self { app, window }
-    }
-
-    pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
-    where
-        F: Fn(&mut WindowContext) + 'static,
-    {
-        self.app.open_window(specs, f)
-    }
-
-    pub fn to_async(&self) -> AsyncWindowContext {
-        AsyncWindowContext {
-            app: self.app.to_async(),
-            window_id: self.window.id(),
-        }
-    }
-
-    pub fn get_object(&self, index: usize) -> Option<&Object> {
-        self.window.objects.get(index)
-    }
-
-    pub fn get_object_mut(&mut self, index: usize) -> Option<&mut Object> {
-        self.window.objects.get_mut(index)
-    }
-
-    fn add_image_from_data(
-        &mut self,
-        image: &[u8],
-        natutal_size: Size<u32>,
-        bounds: Rect<Pixels>,
-    ) -> usize {
-        let width = natutal_size.width;
-        let height = natutal_size.height;
-        let key = AtlasKey::from(SkieImage::new(self.window.get_next_tex_id()));
-        self.window.texture_atlas.get_or_insert(&key, || {
-            (
-                Size {
-                    width: width as _,
-                    height: height as _,
-                },
-                Cow::Borrowed(image),
-            )
-        });
-
-        self.window.canvas.renderer.set_texture_from_atlas(
-            &self.window.texture_atlas,
-            &key,
-            &TextureOptions::default()
-                .min_filter(TextureFilterMode::Linear)
-                .mag_filter(TextureFilterMode::Linear),
-        );
-
-        let idx = self.window.objects.len();
-        self.window.objects.push(Object::Image(ImageObject {
-            bbox: bounds,
-            natural_width: width as f32,
-            natural_height: height as f32,
-            texture: key.into(),
-        }));
-        idx
-    }
-
-    pub fn spawn<Fut, R>(&self, f: impl FnOnce(AsyncWindowContext) -> Fut) -> Job<R>
-    where
-        Fut: Future<Output = R> + 'static,
-        R: 'static,
-    {
-        let cx = self.to_async();
-        self.app.jobs.spawn(f(cx))
-    }
-
-    pub fn set_timeout(
-        &mut self,
-        f: impl FnOnce(&mut WindowContext) + 'static,
-        timeout: std::time::Duration,
-    ) {
-        self.spawn(|cx| async move {
-            cx.app.jobs.timer(timeout).await;
-            cx.with(|cx| f(cx));
-        })
-        .detach();
+        .await?
     }
 }
 
