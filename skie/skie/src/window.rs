@@ -276,15 +276,6 @@ impl Window {
         brush.fill_color(Color::KHAKI);
         canvas.draw_circle(400.0, 500.0, 300.0, &brush);
 
-        let bar_height: f32 = 50.0;
-        let margin_bottom: f32 = 30.0;
-
-        brush.fill_color(Color::from_rgb(0x0A0A11));
-        canvas.draw_rect(
-            &Rect::xywh(0.0, height - bar_height - margin_bottom, width, bar_height),
-            &brush,
-        );
-
         for object in &self.objects {
             match object {
                 Object::Image(ImageObject {
@@ -362,6 +353,16 @@ impl Window {
             let state = self.state.read();
             self.scroller.render(canvas, state.mouse_pos());
         }
+
+        let bar_height: f32 = 50.0;
+        let margin_bottom: f32 = 30.0;
+
+        brush.reset();
+        brush.fill_color(Color::from_rgb(0x0A0A11));
+        canvas.draw_rect(
+            &Rect::xywh(0.0, height - bar_height - margin_bottom, width, bar_height),
+            &brush,
+        );
 
         canvas.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")

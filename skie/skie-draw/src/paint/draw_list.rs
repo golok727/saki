@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::ops::Range;
 
 use super::path::Path2D;
-use super::{Color, Mesh, Polyline, StrokeStyle, Vertex};
+use super::{Brush, Circle, Color, Mesh, Polyline, Primitive, Quad, StrokeStyle, Vertex};
 
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
@@ -34,6 +34,8 @@ impl DrawList {
         self.path.clear();
     }
 
+    /// captures any drawlist operations done inside the function `f` and returns a
+    /// `DrawListCapture` allowing to modify the added vertex data
     pub fn capture(&mut self, f: impl FnOnce(&mut Self)) -> DrawListCapture<'_> {
         let start = self.mesh.vertices.len();
         f(self);
@@ -96,6 +98,49 @@ impl DrawList {
     ) {
         self.path
             .arc(center, radius, start_angle, end_angle, clockwise);
+    }
+
+    pub fn add_quad(&mut self, quad: &Quad, brush: &Brush, textured: bool) {
+        let fill_color = brush.fill_style.color;
+
+        self.path.clear();
+        self.path.round_rect(&quad.bounds, &quad.corners);
+        self.fill_path_convex(fill_color, textured);
+        self.stroke_path(&brush.stroke_style.join())
+    }
+
+    pub fn add_circle(&mut self, circle: &Circle, brush: &Brush, textured: bool) {
+        let fill_color = brush.fill_style.color;
+
+        self.path.clear();
+        self.path.circle(circle.center, circle.radius);
+
+        self.fill_path_convex(fill_color, textured);
+
+        self.stroke_path(&brush.stroke_style.join())
+    }
+
+    pub fn add_path(&mut self, path: &Path2D, brush: &Brush) {
+        // TODO: earcut
+        // drawlist.fill_with_path(path, prim.fill.color);
+
+        let stroke_style = if path.closed {
+            brush.stroke_style.join()
+        } else {
+            brush.stroke_style
+        };
+
+        self.stroke_with_path(path, &stroke_style);
+    }
+
+    pub fn add_primitive(&mut self, primitive: &Primitive, brush: &Brush, textured: bool) {
+        match primitive {
+            Primitive::Circle(circle) => self.add_circle(circle, brush, textured),
+
+            Primitive::Quad(quad) => self.add_quad(quad, brush, textured),
+
+            Primitive::Path(path) => self.add_path(path, brush),
+        };
     }
 
     pub(crate) fn fill_path_convex(&mut self, color: Color, textured: bool) {
