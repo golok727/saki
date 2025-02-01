@@ -370,11 +370,17 @@ impl Canvas {
             .submit(std::iter::once(encoder.finish()));
     }
 
-    fn get_required_textures(&self) -> HashSet<TextureId> {
+    fn get_required_atlas_keys(&self) -> HashSet<AtlasKey> {
         self.list
             .into_iter()
             .flat_map(|staged| staged.instructions.iter())
-            .map(|instruction| instruction.texture_id.clone())
+            .filter_map(|instruction| {
+                if let TextureId::AtlasKey(key) = &instruction.texture_id {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
             .collect::<_>()
     }
 
@@ -383,16 +389,7 @@ impl Canvas {
         self.stage_changes();
 
         // prepare atlas texture infos
-        let atlas_keys =
-            self.get_required_textures()
-                .into_iter()
-                .filter_map(|tex| -> Option<AtlasKey> {
-                    if let TextureId::AtlasKey(key) = tex {
-                        Some(key.clone())
-                    } else {
-                        None
-                    }
-                });
+        let atlas_keys = self.get_required_atlas_keys();
 
         for key in atlas_keys {
             if self.atlas_info_map.contains_key(&key) {
@@ -415,6 +412,7 @@ impl Canvas {
             _ => None, // the batcher will use the instruction.texture
         };
 
+        // TODO batch ops in stages too
         for staged in &self.list {
             // batch instructions with the same texture together
             let batcher =
