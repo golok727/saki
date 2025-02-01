@@ -1,6 +1,5 @@
-use std::collections::VecDeque;
-
 use crate::{paint::Primitive, Brush, TextureId};
+use std::{iter::Peekable, slice};
 
 use super::Color;
 
@@ -45,91 +44,86 @@ impl GraphicsInstruction {
     }
 }
 
-type GroupEntry = usize;
-struct Group {
-    render_texture: TextureId,
-    entries: Vec<GroupEntry>,
-}
-
-// A simple batcher for now in future we will expand this.
-pub(crate) struct GraphicsInstructionBatcher<'a> {
+// we dont support ordering for instructions for now
+pub(crate) struct GraphicsInstructionBatcher<'a, TexMap>
+where
+    TexMap: Fn(&'a TextureId) -> Option<TextureId> + 'a,
+{
+    instruction_start: usize,
     instructions: &'a [GraphicsInstruction],
-    groups: VecDeque<Group>,
+    instructions_iter: Peekable<slice::Iter<'a, GraphicsInstruction>>,
+    get_renderer_texture: TexMap,
 }
 
-impl<'a> GraphicsInstructionBatcher<'a> {
-    pub fn new(
-        instructions: &'a [GraphicsInstruction],
-        get_renderer_texture_id: impl Fn(&TextureId) -> Option<TextureId>,
-    ) -> Self {
-        let mut render_tex_to_item_idx: ahash::AHashMap<TextureId, Vec<GroupEntry>> =
-            Default::default();
-
-        for (i, instruction) in instructions.iter().enumerate() {
-            let renderer_texture = get_renderer_texture_id(&instruction.texture_id);
-
-            if let Some(render_texture) = renderer_texture {
-                render_tex_to_item_idx
-                    .entry(render_texture)
-                    .or_default()
-                    .push(i);
-            }
-        }
-
-        let mut groups: Vec<_> = render_tex_to_item_idx
-            .into_iter()
-            .map(|(render_texture, entries)| Group {
-                render_texture,
-                entries,
-            })
-            .collect();
-
-        // FIXME
-        groups.sort_by_key(|group| group.entries.first().copied().unwrap_or(0));
-
-        let groups: VecDeque<_> = groups.into();
+impl<'a, TexMap> GraphicsInstructionBatcher<'a, TexMap>
+where
+    TexMap: Fn(&'a TextureId) -> Option<TextureId> + 'a,
+{
+    /// # Arguments
+    /// - `instructions` - A list of instructions to batch.
+    /// - `get_renderer_texture` - A function that maps `instruction.texture` to the actual `texture_id`
+    ///   bound to the renderer. Returns `None` if `instruction.texture` is already the actual texture ID
+    ///   used in the renderer. Primarily used for atlas keys.
+    pub fn new(instructions: &'a [GraphicsInstruction], get_renderer_texture: TexMap) -> Self {
+        let instructions_iter = instructions.iter().peekable();
 
         Self {
+            instruction_start: 0,
             instructions,
-            groups,
+            instructions_iter,
+            get_renderer_texture,
         }
     }
 }
 
-impl<'a> Iterator for GraphicsInstructionBatcher<'a> {
+impl<'a, TexMap> Iterator for GraphicsInstructionBatcher<'a, TexMap>
+where
+    TexMap: Fn(&'a TextureId) -> Option<TextureId> + 'a,
+{
     type Item = InstructionBatch<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.groups.pop_front().map(|group| InstructionBatch::<'a> {
-            instructions: self.instructions,
-            group,
-            idx: 0,
-        })
+        if self.instruction_start >= self.instructions.len() {
+            return None;
+        }
+
+        let first_instr = &self.instructions[self.instruction_start];
+        let render_texture = (self.get_renderer_texture)(&first_instr.texture_id)
+            .unwrap_or(first_instr.texture_id.clone());
+
+        let mut end = self.instruction_start;
+
+        while let Some(next_instr) = self.instructions_iter.peek() {
+            let next_render_texture = (self.get_renderer_texture)(&next_instr.texture_id)
+                .unwrap_or(next_instr.texture_id.clone());
+
+            if next_render_texture != render_texture {
+                break;
+            }
+
+            self.instructions_iter.next();
+            end += 1;
+        }
+
+        let batch = InstructionBatch {
+            instructions_iter: self.instructions[self.instruction_start..end].iter(),
+            renderer_texture: render_texture,
+        };
+
+        self.instruction_start = end;
+        Some(batch)
     }
 }
 
 pub struct InstructionBatch<'a> {
-    instructions: &'a [GraphicsInstruction],
-    group: Group,
-    idx: usize,
-}
-
-impl<'a> InstructionBatch<'a> {
-    pub fn render_texture(&self) -> TextureId {
-        self.group.render_texture.clone()
-    }
+    instructions_iter: std::slice::Iter<'a, GraphicsInstruction>,
+    pub renderer_texture: TextureId,
 }
 
 impl<'a> Iterator for InstructionBatch<'a> {
     type Item = &'a GraphicsInstruction;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.idx >= self.group.entries.len() {
-            return None;
-        }
-
-        let entry = &self.instructions[self.group.entries[self.idx]];
-        self.idx += 1;
-        Some(entry)
+        self.instructions_iter.next()
     }
 }
