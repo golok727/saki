@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::Arc, time::Instant};
+use std::{borrow::Cow, sync::Arc};
 
 use crate::{
     circle,
@@ -380,8 +380,6 @@ impl Canvas {
     }
 
     fn prepare_for_render(&mut self) {
-        let now = Instant::now();
-
         // stage the any remaining changes
         self.stage_changes();
 
@@ -415,7 +413,7 @@ impl Canvas {
                 .atlas_info_map
                 .get(key)
                 .map(|info| TextureId::Atlas(info.tile.texture)),
-            other => Some(other.clone()),
+            _ => None, // the batcher will use the instruction.texture
         };
 
         for staged in &self.list {
@@ -424,23 +422,19 @@ impl Canvas {
                 GraphicsInstructionBatcher::new(staged.instructions, get_renderer_texture);
 
             for batch in batcher {
-                let texture = batch.render_texture();
-                if let Some(renderable) = self.build_renderable(batch, &texture, staged.state) {
+                let render_texture = batch.renderer_texture.clone();
+                if let Some(renderable) = self.build_renderable(batch, render_texture, staged.state)
+                {
                     self.cached_renderables.push(renderable)
                 }
             }
         }
-
-        log::trace!(
-            "prepare_for_render took: {}ms",
-            Instant::now().saturating_duration_since(now).as_millis()
-        );
     }
 
     fn build_renderable<'a>(
         &self,
         instructions: impl Iterator<Item = &'a GraphicsInstruction>,
-        texture: &TextureId,
+        render_texture: TextureId,
         canvas_state: &CanvasState,
     ) -> Option<Renderable> {
         let mut drawlist = DrawList::default();
@@ -462,6 +456,7 @@ impl Canvas {
             };
 
             let build = |drawlist: &mut DrawList| match &primitive {
+                // TODO: This can be handled by drawlist
                 Primitive::Circle(circle) => {
                     let fill_color = brush.fill_style.color;
 
@@ -524,7 +519,7 @@ impl Canvas {
             return None;
         }
 
-        mesh.texture = texture.clone();
+        mesh.texture = render_texture.clone();
 
         Some(Renderable {
             clip_rect: canvas_state.clip_rect.clone(),

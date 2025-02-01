@@ -98,7 +98,7 @@ impl DrawList {
             .arc(center, radius, start_angle, end_angle, clockwise);
     }
 
-    pub(crate) fn fill_path_convex(&mut self, color: Color, calc_uv: bool) {
+    pub(crate) fn fill_path_convex(&mut self, color: Color, textured: bool) {
         let feathering = self.feathering;
         let points_count = self.path.points.len();
 
@@ -106,7 +106,7 @@ impl DrawList {
             return;
         }
 
-        let bounds = if calc_uv {
+        let bounds = if textured {
             self.path.bounds()
         } else {
             Default::default()
@@ -116,7 +116,7 @@ impl DrawList {
         let max = bounds.max();
 
         let get_uv = |point: &Vec2<f32>| {
-            if calc_uv {
+            if textured {
                 let uv_x = (point.x - min.x) / (max.x - min.x);
                 let uv_y = (point.y - min.y) / (max.y - min.y);
                 (uv_x, uv_y)
