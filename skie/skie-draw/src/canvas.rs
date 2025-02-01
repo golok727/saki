@@ -184,7 +184,6 @@ impl Canvas {
         self.list.stage_changes(self.current_state.clone());
     }
 
-    /// adds a primitive to th current scene does nothing until paint is called!
     #[inline]
     pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: &Brush) {
         self.list
@@ -371,11 +370,17 @@ impl Canvas {
             .submit(std::iter::once(encoder.finish()));
     }
 
-    fn get_required_textures(&self) -> HashSet<TextureId> {
+    fn get_required_atlas_keys(&self) -> HashSet<AtlasKey> {
         self.list
             .into_iter()
             .flat_map(|staged| staged.instructions.iter())
-            .map(|instruction| instruction.texture_id.clone())
+            .filter_map(|instruction| {
+                if let TextureId::AtlasKey(key) = &instruction.texture_id {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
             .collect::<_>()
     }
 
@@ -384,16 +389,7 @@ impl Canvas {
         self.stage_changes();
 
         // prepare atlas texture infos
-        let atlas_keys =
-            self.get_required_textures()
-                .into_iter()
-                .filter_map(|tex| -> Option<AtlasKey> {
-                    if let TextureId::AtlasKey(key) = tex {
-                        Some(key.clone())
-                    } else {
-                        None
-                    }
-                });
+        let atlas_keys = self.get_required_atlas_keys();
 
         for key in atlas_keys {
             if self.atlas_info_map.contains_key(&key) {
@@ -416,6 +412,7 @@ impl Canvas {
             _ => None, // the batcher will use the instruction.texture
         };
 
+        // TODO batch ops in stages too
         for staged in &self.list {
             // batch instructions with the same texture together
             let batcher =
@@ -455,39 +452,8 @@ impl Canvas {
                 None
             };
 
-            let build = |drawlist: &mut DrawList| match &primitive {
-                // TODO: This can be handled by drawlist
-                Primitive::Circle(circle) => {
-                    let fill_color = brush.fill_style.color;
-
-                    drawlist.path.clear();
-                    drawlist.path.circle(circle.center, circle.radius);
-
-                    drawlist.fill_path_convex(fill_color, !is_white_texture);
-                    drawlist.stroke_path(&brush.stroke_style.join())
-                }
-
-                Primitive::Quad(quad) => {
-                    let fill_color = brush.fill_style.color;
-
-                    drawlist.path.clear();
-                    drawlist.path.round_rect(&quad.bounds, &quad.corners);
-                    drawlist.fill_path_convex(fill_color, !is_white_texture);
-                    drawlist.stroke_path(&brush.stroke_style.join())
-                }
-
-                Primitive::Path(path) => {
-                    // TODO:
-                    // drawlist.fill_with_path(path, prim.fill.color);
-
-                    let stroke_style = if path.closed {
-                        brush.stroke_style.join()
-                    } else {
-                        brush.stroke_style
-                    };
-
-                    drawlist.stroke_with_path(path, &stroke_style);
-                }
+            let build = |drawlist: &mut DrawList| {
+                drawlist.add_primitive(primitive, brush, !is_white_texture)
             };
 
             let identity_transform = canvas_state.transform.is_identity();
