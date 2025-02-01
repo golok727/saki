@@ -1,6 +1,6 @@
 use crate::math::Size;
 
-use super::{atlas::AtlasTextureId, AtlasKey, SkieImage};
+use super::{atlas::AtlasTextureId, AtlasImage, AtlasKey};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TextureId {
@@ -14,8 +14,8 @@ pub enum TextureId {
     Atlas(AtlasTextureId),
 }
 
-impl From<SkieImage> for TextureId {
-    fn from(image: SkieImage) -> Self {
+impl From<AtlasImage> for TextureId {
+    fn from(image: AtlasImage) -> Self {
         Self::AtlasKey(image.into())
     }
 }

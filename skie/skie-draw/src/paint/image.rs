@@ -1,25 +1,25 @@
 use super::TextureKind;
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
-pub struct SkieImageId(pub usize);
+pub struct AtlasImageId(pub usize);
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
-pub struct SkieImage {
-    pub(crate) image_id: SkieImageId,
+pub struct AtlasImage {
+    pub(crate) image_id: AtlasImageId,
     pub(crate) texture_kind: TextureKind,
 }
 
-impl SkieImage {}
+impl AtlasImage {}
 
-impl SkieImage {
+impl AtlasImage {
     pub fn new(id: usize) -> Self {
         Self {
-            image_id: SkieImageId(id),
+            image_id: AtlasImageId(id),
             texture_kind: TextureKind::Color,
         }
     }
 
-    pub fn id(&self) -> &SkieImageId {
+    pub fn id(&self) -> &AtlasImageId {
         &self.image_id
     }
 

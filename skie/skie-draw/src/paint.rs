@@ -32,7 +32,7 @@ pub const DEFAULT_UV_COORD: Vec2<f32> = Vec2 { x: 0.0, y: 0.0 };
 pub type SkieAtlas = TextureAtlas<AtlasKey>;
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum AtlasKey {
-    Image(SkieImage),
+    Image(AtlasImage),
     Glyf(GlyphImage),
     WhiteTexture,
 }
@@ -59,8 +59,8 @@ impl From<GlyphImage> for AtlasKey {
     }
 }
 
-impl From<SkieImage> for AtlasKey {
-    fn from(image: SkieImage) -> Self {
+impl From<AtlasImage> for AtlasKey {
+    fn from(image: AtlasImage) -> Self {
         Self::Image(image)
     }
 }

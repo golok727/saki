@@ -24,14 +24,14 @@ fn main() {
 
     log::info!("Welcome to saki!");
 
-    app.run(|cx| {
+    app.run(|app| {
         let window_specs = WindowSpecification {
             width: 1875,
             height: 1023,
             ..Default::default()
         };
 
-        cx.open_window(window_specs.clone(), |window, app| {
+        app.open_window(window_specs.clone(), move |window, app| {
             window.set_timeout(
                 app,
                 |window, _| {
@@ -43,9 +43,17 @@ fn main() {
             window.set_timeout(
                 app,
                 |window, _| {
-                    window.set_bg_color(Color::from_rgb(0x181818));
+                    window.set_bg_color(Color::KHAKI);
                 },
                 std::time::Duration::from_secs(5),
+            );
+
+            window.set_timeout(
+                app,
+                |window, _| {
+                    window.set_bg_color(Color::from_rgb(0x181818));
+                },
+                std::time::Duration::from_secs(7),
             );
 
             window.set_bg_color(Color::from_rgb(0x181818));

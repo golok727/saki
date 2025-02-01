@@ -17,7 +17,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     gpu,
-    paint::{AtlasKey, Brush, SkieAtlas, SkieImage},
+    paint::{AtlasImage, AtlasKey, Brush, SkieAtlas},
     quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, LineCap,
     LineJoin, Path2D, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId, TextureOptions,
     Vec2,
@@ -156,8 +156,8 @@ impl Window {
 
         let surface = canvas.create_backend_target(Arc::clone(&handle))?;
 
-        let checker_texture_key = AtlasKey::from(SkieImage::new(1));
-        let yellow_thing_texture_key = AtlasKey::from(SkieImage::new(2));
+        let checker_texture_key = AtlasKey::from(AtlasImage::new(1));
+        let yellow_thing_texture_key = AtlasKey::from(AtlasImage::new(2));
 
         let checker_data = Cow::Owned(create_checker_texture(250, 250, 25));
 
@@ -243,39 +243,72 @@ impl Window {
         &self.handle
     }
 
+    pub fn spawn<Fut, R>(
+        &self,
+        app: &mut AppContext,
+        f: impl FnOnce(AsyncWindowContext) -> Fut,
+    ) -> Job<R>
+    where
+        Fut: Future<Output = R> + 'static,
+        R: 'static,
+    {
+        app.spawn(|app| {
+            f(AsyncWindowContext {
+                app,
+                window_id: self.id(),
+            })
+        })
+    }
+
+    pub fn set_timeout(
+        &self,
+        app: &mut AppContext,
+        f: impl FnOnce(&mut Window, &mut AppContext) + 'static,
+        timeout: std::time::Duration,
+    ) {
+        let window_id = self.id();
+
+        app.set_timeout(
+            move |app| {
+                let _ = app.update_window(&window_id, |window, app| f(window, app));
+            },
+            timeout,
+        )
+    }
+
     pub fn _add_basic_scene(&mut self) {
         let size = self.winit_handle().inner_size();
         let width = size.width as f32;
         let height = size.height as f32;
-        let canvas = &mut self.canvas;
+        let cx = &mut self.canvas;
 
         let mut brush = Brush::default();
 
-        canvas.draw_image(
+        cx.draw_image(
             &Rect::xywh(width / 2.0 - 350.0, height / 2.0 - 350.0, 700.0, 700.0),
             &self.yellow_thing_texture_id,
         );
 
-        canvas.draw_image(
+        cx.draw_image(
             &Rect::xywh(100.0, height - 400.0, 300.0, 300.0),
             &self.yellow_thing_texture_id,
         );
 
-        canvas.draw_image(
+        cx.draw_image(
             &Rect::xywh(100.0, 200.0, 250.0, 250.0),
             &self.checker_texture_id,
         );
 
-        canvas.draw_image(
+        cx.draw_image(
             &Rect::xywh(width - 300.0, height - 300.0, 200.0, 200.0),
             &self.yellow_thing_texture_id,
         );
 
         brush.fill_color(Color::from_rgb(0x55a09e));
-        canvas.draw_rect(&Rect::xywh(100.0, 500.0, 300.0, 100.0), &brush);
+        cx.draw_rect(&Rect::xywh(100.0, 500.0, 300.0, 100.0), &brush);
 
         brush.fill_color(Color::KHAKI);
-        canvas.draw_circle(400.0, 500.0, 300.0, &brush);
+        cx.draw_circle(400.0, 500.0, 300.0, &brush);
 
         for object in &self.objects {
             match object {
@@ -291,7 +324,7 @@ impl Window {
                     let width: f32 = (bbox.size.width * aspect).into();
                     let height: f32 = (bbox.size.height).into();
 
-                    canvas.draw_image_rounded(
+                    cx.draw_image_rounded(
                         &Rect::xywh(x, y, width, height),
                         &Corners::with_all(width.half() * 0.2),
                         texture,
@@ -304,7 +337,7 @@ impl Window {
         brush.stroke_width(20);
         brush.stroke_color(Color::TORCH_RED);
 
-        canvas.draw_round_rect(
+        cx.draw_round_rect(
             &Rect::xywh(800.0, 200.0, 200.0, 500.0),
             &Corners::with_all(100.0).with_top_left(50.0),
             &brush,
@@ -316,7 +349,7 @@ impl Window {
         brush.stroke_width(20);
         brush.stroke_color(Color::WHITE);
 
-        canvas.draw_round_rect(
+        cx.draw_round_rect(
             &Rect::xywh(800.0, 200.0, 200.0, 500.0),
             &Corners::with_all(100.0).with_top_left(50.0),
             &brush,
@@ -335,7 +368,7 @@ impl Window {
             brush.stroke_width(20);
             brush.stroke_color(Color::WHITE);
             brush.stroke_join(LineJoin::Bevel);
-            canvas.draw_path(path, &brush);
+            cx.draw_path(path, &brush);
         }
 
         {
@@ -347,12 +380,12 @@ impl Window {
             brush.stroke_color(Color::WHITE);
             brush.stroke_join(LineJoin::Miter);
             brush.stroke_cap(LineCap::Round);
-            canvas.draw_path(path, &brush);
+            cx.draw_path(path, &brush);
         }
 
         {
             let state = self.state.read();
-            self.scroller.render(canvas, state.mouse_pos());
+            self.scroller.render(cx, state.mouse_pos());
         }
 
         let bar_height: f32 = 50.0;
@@ -360,12 +393,12 @@ impl Window {
 
         brush.reset();
         brush.fill_color(Color::from_rgb(0x0A0A11));
-        canvas.draw_rect(
+        cx.draw_rect(
             &Rect::xywh(0.0, height - bar_height - margin_bottom, width, bar_height),
             &brush,
         );
 
-        canvas.fill_text(
+        cx.fill_text(
             &Text::new("NORMAL ✨ feat/font-system")
                 .pos(50.0, height - bar_height - margin_bottom)
                 .size_px(32.0)
@@ -374,7 +407,7 @@ impl Window {
             Color::GRAY,
         );
 
-        canvas.fill_text(
+        cx.fill_text(
             &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh\nराधा कृष्ण")
                 .pos(width.half(), 100.0)
                 .font_family("Segoe UI Emoji"),
@@ -390,7 +423,7 @@ impl Window {
     ) -> usize {
         let width = natutal_size.width;
         let height = natutal_size.height;
-        let key = AtlasKey::from(SkieImage::new(self.get_next_tex_id()));
+        let key = AtlasKey::from(AtlasImage::new(self.get_next_tex_id()));
         self.texture_atlas.get_or_insert(&key, || {
             (
                 Size {
@@ -454,39 +487,6 @@ impl Window {
 
     pub fn refresh(&self) {
         self.handle.request_redraw();
-    }
-
-    pub fn spawn<Fut, R>(
-        &self,
-        app: &mut AppContext,
-        f: impl FnOnce(AsyncWindowContext) -> Fut,
-    ) -> Job<R>
-    where
-        Fut: Future<Output = R> + 'static,
-        R: 'static,
-    {
-        app.spawn(|app| {
-            f(AsyncWindowContext {
-                app,
-                window_id: self.id(),
-            })
-        })
-    }
-
-    pub fn set_timeout(
-        &self,
-        app: &mut AppContext,
-        f: impl FnOnce(&mut Window, &mut AppContext) + 'static,
-        timeout: std::time::Duration,
-    ) {
-        let window_id = self.id();
-
-        app.set_timeout(
-            move |app| {
-                let _ = app.update_window(&window_id, |window, app| f(window, app));
-            },
-            timeout,
-        )
     }
 
     pub fn get_object(&self, index: usize) -> Option<&Object> {
