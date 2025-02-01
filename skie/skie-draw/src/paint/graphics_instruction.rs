@@ -127,3 +127,80 @@ impl<'a> Iterator for InstructionBatch<'a> {
         self.instructions_iter.next()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{quad, TextureId};
+
+    use super::{GraphicsInstruction, GraphicsInstructionBatcher};
+
+    fn get_instructions() -> [GraphicsInstruction; 12] {
+        [
+            GraphicsInstruction::textured(quad(), TextureId::User(1)),
+            GraphicsInstruction::textured(quad(), TextureId::User(1)),
+            GraphicsInstruction::textured(quad(), TextureId::User(1)),
+            GraphicsInstruction::textured(quad(), TextureId::WHITE_TEXTURE),
+            GraphicsInstruction::textured(quad(), TextureId::User(2)),
+            GraphicsInstruction::textured(quad(), TextureId::WHITE_TEXTURE),
+            GraphicsInstruction::textured(quad(), TextureId::WHITE_TEXTURE),
+            GraphicsInstruction::textured(quad(), TextureId::WHITE_TEXTURE),
+            GraphicsInstruction::textured(quad(), TextureId::User(2)),
+            GraphicsInstruction::textured(quad(), TextureId::User(2)),
+            GraphicsInstruction::textured(quad(), TextureId::User(2)),
+            GraphicsInstruction::textured(quad(), TextureId::WHITE_TEXTURE),
+        ]
+    }
+
+    #[test]
+    fn test_batcher() {
+        let instructions = get_instructions();
+        let batcher = GraphicsInstructionBatcher::new(&instructions, |_| None);
+        let mut iter = batcher.into_iter();
+
+        let mut test_next_exists = |id: TextureId, len: usize| {
+            let next = iter.next().expect("batch not found");
+            assert_eq!(next.renderer_texture, id);
+            let vec: Vec<_> = next.collect();
+            assert_eq!(vec.len(), len);
+        };
+
+        test_next_exists(TextureId::User(1), 3);
+        test_next_exists(TextureId::WHITE_TEXTURE, 1);
+        test_next_exists(TextureId::User(2), 1);
+        test_next_exists(TextureId::WHITE_TEXTURE, 3);
+        test_next_exists(TextureId::User(2), 3);
+        test_next_exists(TextureId::WHITE_TEXTURE, 1);
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_render_texture() {
+        let instructions = get_instructions();
+        let batcher = GraphicsInstructionBatcher::new(&instructions, |tex| {
+            if tex == &TextureId::User(1) {
+                Some(TextureId::Internal(1))
+            } else {
+                None
+            }
+        });
+
+        let mut iter = batcher.into_iter();
+
+        let mut test_next_exists = |id: TextureId, len: usize| {
+            let next = iter.next().expect("batch not found");
+            assert_eq!(next.renderer_texture, id);
+            let vec: Vec<_> = next.collect();
+            assert_eq!(vec.len(), len);
+        };
+
+        test_next_exists(TextureId::Internal(1), 3);
+        test_next_exists(TextureId::WHITE_TEXTURE, 1);
+        test_next_exists(TextureId::User(2), 1);
+        test_next_exists(TextureId::WHITE_TEXTURE, 3);
+        test_next_exists(TextureId::User(2), 3);
+        test_next_exists(TextureId::WHITE_TEXTURE, 1);
+
+        assert!(iter.next().is_none());
+    }
+}
