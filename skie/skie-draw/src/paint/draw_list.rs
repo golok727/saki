@@ -1,20 +1,22 @@
 use core::f32;
-use std::fmt::Debug;
 use std::ops::Range;
 
 use super::path::Path2D;
-use super::{Brush, Circle, Color, Mesh, Polyline, Primitive, Quad, StrokeStyle, Vertex};
+use super::{
+    Brush, Circle, Color, FillStyle, Mesh, Polyline, Primitive, Quad, StrokeStyle, Vertex,
+};
 
-use crate::earcut;
+use crate::earcut::Earcut;
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct DrawList {
     pub(crate) antialias: bool,
     pub(crate) feathering: f32,
     pub(crate) mesh: Mesh,
     pub(crate) path: Path2D,
+    earcut: Earcut<f32>,
 }
 
 impl DrawList {
@@ -122,7 +124,7 @@ impl DrawList {
     }
 
     pub fn add_path(&mut self, path: &Path2D, brush: &Brush) {
-        self.fill_with_path(path, brush.fill_style.color);
+        self.fill_with_path(path, &brush.fill_style);
 
         let stroke_style = if path.closed {
             brush.stroke_style.join()
@@ -150,6 +152,8 @@ impl DrawList {
         if points_count <= 2 || color.is_transparent() {
             return;
         }
+        let mut color_out = color;
+        color_out.a = 0;
 
         let bounds = if textured {
             self.path.bounds()
@@ -170,6 +174,7 @@ impl DrawList {
             }
         };
 
+        // FIXME:
         if self.antialias && self.feathering > 0.0 {
             // AA fill
             let idx_count = (points_count - 2) * 3 + points_count * 6;
@@ -196,7 +201,8 @@ impl DrawList {
                 let pos_outer = p1 + dm;
 
                 self.mesh.add_vertex(pos_inner, color, get_uv(&pos_inner));
-                self.mesh.add_vertex(pos_outer, color, get_uv(&pos_outer));
+                self.mesh
+                    .add_vertex(pos_outer, color_out, get_uv(&pos_outer));
 
                 self.mesh.add_triangle(
                     vtx_inner_idx + (i1 << 1) as u32,
@@ -240,7 +246,6 @@ impl DrawList {
         if stroke_style.color.is_transparent() {
             return;
         }
-
         Polyline::add_to_mesh(&mut self.mesh, &self.path.points, stroke_style);
     }
 
@@ -249,30 +254,52 @@ impl DrawList {
         Polyline::add_to_mesh(&mut self.mesh, &path.points, stroke_style);
     }
 
-    // TODO: earcut
-    //
-    /// /// pub fn fill_path(&mut self, color: Color) {
-    /// // }
+    // fills the current path with the given fill_style
+    pub fn fill_path(&mut self, fill_style: &FillStyle) {
+        Self::fill_impl(
+            &self.path.points,
+            &mut self.mesh,
+            &mut self.earcut,
+            fill_style,
+        );
+    }
 
-    pub fn fill_with_path(&mut self, path: &Path2D, color: Color) {
-        if color.is_transparent() {
+    pub fn fill_with_path(&mut self, path: &Path2D, fill_style: &FillStyle) {
+        Self::fill_impl(&path.points, &mut self.mesh, &mut self.earcut, fill_style);
+    }
+
+    fn fill_impl(
+        points: &[Vec2<f32>],
+        mesh: &mut Mesh,
+        earcut: &mut Earcut<f32>,
+        fill_style: &FillStyle,
+    ) {
+        if fill_style.color.is_transparent() {
             return;
         }
 
+        // TODO: AA fill
         let mut indices: Vec<u32> = vec![];
-        let mut earcut = earcut::Earcut::<f32>::new();
-        earcut.earcut(path.points.iter().map(|p| [p.x, p.y]), &[], &mut indices);
-        let offset = self.mesh.indices.len() as u32;
+        // TODO: support holes ?
+        earcut.earcut(points.iter().map(|p| [p.x, p.y]), &[], &mut indices);
 
-        self.mesh
-            .vertices
-            .extend(path.points.iter().map(|p| Vertex::new(*p, color, WHITE_UV)));
+        let offset = mesh.vertices.len() as u32;
+
+        if indices.is_empty() {
+            return;
+        }
+
+        for point in points {
+            mesh.add_vertex(*point, fill_style.color, WHITE_UV);
+        }
+
+        mesh.reserve_prim(points.len(), indices.len());
 
         for i in &mut indices {
             *i += offset;
         }
 
-        self.mesh.indices.extend(indices)
+        mesh.indices.extend(indices)
     }
 
     pub fn fill_rect(&mut self, rect: &Rect<f32>, color: Color) {

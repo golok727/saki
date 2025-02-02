@@ -36,6 +36,7 @@ impl Mesh {
         self.vertices = Default::default();
     }
 
+    #[inline]
     pub fn add_vertex(&mut self, pos: Vec2<f32>, color: Color, uv: (f32, f32)) {
         self.vertices.push(Vertex::new(pos, color, uv));
     }
