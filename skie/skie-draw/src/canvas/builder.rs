@@ -14,6 +14,11 @@ pub struct CanvasBuilder {
 }
 
 impl CanvasBuilder {
+    pub fn msaa_samples(mut self, sample_count: u32) -> Self {
+        self.surface_config.msaa_sample_count = sample_count;
+        self
+    }
+
     pub fn width(mut self, width: u32) -> Self {
         self.surface_config.width = width.max(1);
         self
@@ -52,6 +57,7 @@ impl CanvasBuilder {
             &Renderer2DSpecs {
                 width: self.surface_config.width,
                 height: self.surface_config.height,
+                msaa_sample_count: self.surface_config.msaa_sample_count,
             },
         );
 

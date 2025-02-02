@@ -1,4 +1,4 @@
-use crate::GpuContext;
+use crate::{canvas::surface::create_mssa_view, GpuContext};
 
 use super::{
     snapshot::CanvasSnapshotSource,
@@ -10,6 +10,8 @@ use anyhow::Result;
 pub struct OffscreenRenderTarget {
     texture: wgpu::Texture,
     view: wgpu::TextureView,
+    msaa_sample_count: u32,
+    mssa_view: Option<wgpu::TextureView>,
 }
 
 impl OffscreenRenderTarget {
@@ -17,7 +19,12 @@ impl OffscreenRenderTarget {
         let texture = create_fb_texture(gpu, config);
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        Self { texture, view }
+        Self {
+            texture,
+            view,
+            msaa_sample_count: config.msaa_sample_count,
+            mssa_view: create_mssa_view(gpu, config),
+        }
     }
 }
 
@@ -31,6 +38,7 @@ impl CanvasSurface for OffscreenRenderTarget {
 
         let texture = create_fb_texture(gpu, config);
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.mssa_view = create_mssa_view(gpu, config);
         self.texture = texture;
         self.view = view;
     }
@@ -41,11 +49,19 @@ impl CanvasSurface for OffscreenRenderTarget {
             height: self.texture.height(),
             format: self.texture.format(),
             usage: self.texture.usage(),
+            msaa_sample_count: self.msaa_sample_count,
         }
     }
 
     fn paint(&mut self, canvas: &mut Canvas) -> Result<Self::PaintOutput> {
-        canvas.render_to_texture(&self.view);
+        let (view, resolve_target) = (self.msaa_sample_count > 1)
+            .then_some(self.mssa_view.as_ref())
+            .flatten()
+            .map_or((&self.view, None), |texture_view| {
+                (texture_view, Some(&self.view))
+            });
+
+        canvas.render_to_texture(view, resolve_target);
         Ok(())
     }
 }
@@ -75,6 +91,6 @@ fn create_fb_texture(gpu: &GpuContext, config: &CanvasSurfaceConfig) -> wgpu::Te
         dimension: wgpu::TextureDimension::D2,
         format: config.format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | config.usage,
-        view_formats: &[],
+        view_formats: &[config.format],
     })
 }

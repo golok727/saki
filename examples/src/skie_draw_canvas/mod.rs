@@ -11,6 +11,7 @@ pub fn run() {
     let mut canvas = Canvas::create()
         .width(1024)
         .height(1024)
+        .msaa_samples(4)
         .add_surface_usage(gpu::TextureUsages::COPY_SRC)
         .build(gpu.clone());
 

@@ -5,7 +5,7 @@ use crate::{Canvas, GpuContext};
 use anyhow::Result;
 use wgpu::SurfaceTexture;
 
-use super::surface::CanvasSurfaceConfig;
+use super::surface::{create_mssa_view, CanvasSurfaceConfig};
 
 #[derive(Debug, Clone)]
 pub struct GpuSurfaceSpecification {
@@ -15,8 +15,10 @@ pub struct GpuSurfaceSpecification {
 
 #[derive(Debug)]
 pub struct BackendRenderTarget<'a> {
-    pub surface: wgpu::Surface<'a>,
-    pub config: wgpu::SurfaceConfiguration,
+    surface: wgpu::Surface<'a>,
+    config: wgpu::SurfaceConfiguration,
+    msaa_sample_count: u32,
+    msaa_view: Option<wgpu::TextureView>,
 }
 
 impl<'a> Deref for BackendRenderTarget<'a> {
@@ -28,8 +30,34 @@ impl<'a> Deref for BackendRenderTarget<'a> {
 }
 
 impl<'a> BackendRenderTarget<'a> {
-    pub(super) fn new(surface: wgpu::Surface<'a>, config: wgpu::SurfaceConfiguration) -> Self {
-        Self { surface, config }
+    fn new(
+        gpu: &GpuContext,
+        surface_target: impl Into<wgpu::SurfaceTarget<'a>>,
+        config: &CanvasSurfaceConfig,
+    ) -> Result<Self> {
+        let surface = gpu.instance.create_surface(surface_target)?;
+
+        let capabilities = surface.get_capabilities(&gpu.adapter);
+
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | config.usage,
+            format: config.format,
+            width: config.width,
+            height: config.height,
+            present_mode: capabilities.present_modes[0],
+            alpha_mode: capabilities.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+
+        surface.configure(&gpu.device, &surface_config);
+
+        Ok(Self {
+            surface,
+            config: surface_config,
+            msaa_sample_count: config.msaa_sample_count,
+            msaa_view: create_mssa_view(gpu, config),
+        })
     }
 }
 
@@ -53,7 +81,12 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        canvas.render_to_texture(&view);
+        let (view, resolve_target) = (self.msaa_sample_count > 1)
+            .then_some(self.msaa_view.as_ref())
+            .flatten()
+            .map_or((&view, None), |texture_view| (texture_view, Some(&view)));
+
+        canvas.render_to_texture(view, resolve_target);
 
         Ok(PaintedSurface(surface_texture))
     }
@@ -64,6 +97,7 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
         self.config.usage = config.usage | wgpu::TextureUsages::RENDER_ATTACHMENT;
         self.config.format = config.format;
 
+        self.msaa_view = create_mssa_view(gpu, config);
         self.surface.configure(&gpu.device, &self.config);
     }
 
@@ -73,6 +107,7 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
             height: self.config.height,
             format: self.config.format,
             usage: self.config.usage,
+            msaa_sample_count: self.msaa_sample_count,
         }
     }
 }
@@ -80,27 +115,8 @@ impl<'a> CanvasSurface for BackendRenderTarget<'a> {
 impl Canvas {
     pub fn create_backend_target<'window>(
         &self,
-        into_surface_target: impl Into<wgpu::SurfaceTarget<'window>>,
+        surface_target: impl Into<wgpu::SurfaceTarget<'window>>,
     ) -> Result<BackendRenderTarget<'window>> {
-        let gpu = self.renderer.gpu();
-
-        let surface = gpu.instance.create_surface(into_surface_target)?;
-
-        let capabilities = surface.get_capabilities(&gpu.adapter);
-
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | self.surface_config.usage,
-            format: self.surface_config.format,
-            width: self.surface_config.width,
-            height: self.surface_config.height,
-            present_mode: capabilities.present_modes[0],
-            alpha_mode: capabilities.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-
-        surface.configure(&gpu.device, &surface_config);
-
-        Ok(BackendRenderTarget::new(surface, surface_config))
+        BackendRenderTarget::new(self.renderer.gpu(), surface_target, &self.surface_config)
     }
 }

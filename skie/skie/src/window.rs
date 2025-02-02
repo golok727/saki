@@ -149,6 +149,7 @@ impl Window {
         let mut canvas = Canvas::create()
             .width(width)
             .height(height)
+            .msaa_samples(4)
             .surface_format(gpu::TextureFormat::Rgba8Unorm)
             .with_text_system(text_system.clone())
             .with_texture_atlas(texture_atlas.clone())

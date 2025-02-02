@@ -32,7 +32,7 @@ impl<'a> App<'a> {
     async fn new(user_app: &'a mut dyn SkieAppHandle) -> anyhow::Result<Self> {
         let gpu = GpuContext::new().await?;
 
-        let canvas = Canvas::create().build(gpu.clone());
+        let canvas = Canvas::create().msaa_samples(4).build(gpu.clone());
 
         Ok(Self {
             surface: None,

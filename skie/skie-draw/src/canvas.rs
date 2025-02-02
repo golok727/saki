@@ -103,6 +103,7 @@ impl Canvas {
             cached_renderables: Default::default(),
         }
     }
+
     pub fn create() -> CanvasBuilder {
         CanvasBuilder::default()
     }
@@ -347,7 +348,11 @@ impl Canvas {
         surface.paint(self)
     }
 
-    pub(crate) fn render_to_texture(&mut self, output_texture: &GpuTextureView) {
+    pub(crate) fn render_to_texture(
+        &mut self,
+        view: &GpuTextureView,
+        resolve_target: Option<&wgpu::TextureView>,
+    ) {
         self.prepare_for_render();
 
         let mut encoder = self.renderer.create_command_encoder();
@@ -357,8 +362,8 @@ impl Canvas {
                 &(wgpu::RenderPassDescriptor {
                     label: Some("RenderTarget Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: output_texture,
-                        resolve_target: None,
+                        view,
+                        resolve_target,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(self.clear_color.into()),
                             store: wgpu::StoreOp::Store,

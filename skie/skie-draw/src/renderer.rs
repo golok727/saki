@@ -113,6 +113,7 @@ pub struct RendererTexture {
 pub struct Renderer2DSpecs {
     pub width: u32,
     pub height: u32,
+    pub msaa_sample_count: u32,
 }
 
 #[derive(Debug)]
@@ -125,7 +126,7 @@ pub struct Renderer2D {
 
     textures: ahash::AHashMap<TextureId, RendererTexture>,
 
-    scene_pipes: ScenePipes,
+    scene_pipes: GeometryPipes,
 
     vertex_buffer: BatchBuffer,
 
@@ -165,8 +166,9 @@ impl Renderer2D {
             }),
         );
 
-        let scene_pipe = ScenePipes::new(
+        let scene_pipe = GeometryPipes::new(
             &gpu,
+            specs.msaa_sample_count,
             &[
                 &global_uniforms.bing_group_layout,
                 &texture_bindgroup_layout,
@@ -504,13 +506,17 @@ struct BatchBuffer {
 }
 
 #[derive(Debug)]
-struct ScenePipes {
+struct GeometryPipes {
     polychrome: wgpu::RenderPipeline,
     monochrome: wgpu::RenderPipeline,
 }
 
-impl ScenePipes {
-    pub fn new(gpu: &GpuContext, bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self {
+impl GeometryPipes {
+    pub fn new(
+        gpu: &GpuContext,
+        msaa_sample_count: u32,
+        bind_group_layouts: &[&wgpu::BindGroupLayout],
+    ) -> Self {
         let shader =
             gpu.create_shader_labeled(include_str!("./resources/shader.wgsl"), "Scene Shader");
 
@@ -572,7 +578,7 @@ impl ScenePipes {
                 },
                 depth_stencil: None,
                 multisample: wgpu::MultisampleState {
-                    count: 1,
+                    count: msaa_sample_count,
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
@@ -612,7 +618,7 @@ impl ScenePipes {
                 },
                 depth_stencil: None,
                 multisample: wgpu::MultisampleState {
-                    count: 1,
+                    count: msaa_sample_count,
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
