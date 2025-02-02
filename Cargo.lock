@@ -2361,6 +2361,7 @@ dependencies = [
  "etagere",
  "futures",
  "log",
+ "num-traits",
  "parking_lot",
  "skie-math",
  "smallvec",

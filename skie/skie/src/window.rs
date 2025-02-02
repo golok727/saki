@@ -365,6 +365,7 @@ impl Window {
             path.close();
 
             brush.reset();
+            brush.fill_color(Color::TORCH_RED);
             brush.stroke_width(20);
             brush.stroke_color(Color::WHITE);
             brush.stroke_join(LineJoin::Bevel);
@@ -377,6 +378,7 @@ impl Window {
             path.line_to((600.0, 500.0).into());
             path.line_to((400.0, 700.0).into());
 
+            brush.fill_color(Color::TRANSPARENT);
             brush.stroke_color(Color::WHITE);
             brush.stroke_join(LineJoin::Miter);
             brush.stroke_cap(LineCap::Round);

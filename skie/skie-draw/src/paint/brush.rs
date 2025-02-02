@@ -59,6 +59,22 @@ impl Brush {
         self.fill_style.color = color;
     }
 
+    pub fn reset_fill(&mut self) {
+        self.fill_style = Default::default();
+    }
+
+    pub fn reset_stroke(&mut self) {
+        self.stroke_style = Default::default();
+    }
+
+    pub fn no_fill(&mut self) {
+        self.fill_style.color = Color::TRANSPARENT;
+    }
+
+    pub fn no_stroke(&mut self) {
+        self.stroke_style.color = Color::TRANSPARENT;
+    }
+
     /// Sets the fill style of the brush.
     ///
     /// # Arguments

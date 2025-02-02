@@ -422,15 +422,16 @@ impl Canvas {
             _ => None, // the batcher will use the instruction.texture
         };
 
+        let mut drawlist = DrawList::default();
         // TODO batch ops in stages too
         for staged in &self.list {
-            // batch instructions with the same texture together
             let batcher =
                 GraphicsInstructionBatcher::new(staged.instructions, get_renderer_texture);
 
             for batch in batcher {
                 let render_texture = batch.renderer_texture.clone();
-                if let Some(renderable) = self.build_renderable(batch, render_texture, staged.state)
+                if let Some(renderable) =
+                    self.build_renderable(&mut drawlist, batch, render_texture, staged.state)
                 {
                     self.cached_renderables.push(renderable)
                 }
@@ -440,11 +441,11 @@ impl Canvas {
 
     fn build_renderable<'a>(
         &self,
+        drawlist: &mut DrawList,
         instructions: impl Iterator<Item = &'a GraphicsInstruction>,
         render_texture: TextureId,
         canvas_state: &CanvasState,
     ) -> Option<Renderable> {
-        let mut drawlist = DrawList::default();
         for instruction in instructions {
             let primitive = &instruction.primitive;
             let brush = &instruction.brush;
@@ -469,7 +470,7 @@ impl Canvas {
             let identity_transform = canvas_state.transform.is_identity();
 
             if identity_transform && info.is_none() {
-                build(&mut drawlist)
+                build(drawlist)
             } else {
                 drawlist.capture(build).map(|vertex| {
                     if let Some(info) = info {

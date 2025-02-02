@@ -44,7 +44,7 @@ impl GraphicsInstruction {
     }
 }
 
-// we dont support ordering for instructions for now
+// batches instructions with the same texture
 pub(crate) struct GraphicsInstructionBatcher<'a, TexMap>
 where
     TexMap: Fn(&'a TextureId) -> Option<TextureId> + 'a,
