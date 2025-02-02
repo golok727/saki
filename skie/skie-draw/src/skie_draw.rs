@@ -6,6 +6,8 @@ pub mod paint;
 pub mod renderer;
 pub mod text;
 
+pub mod path;
+
 pub use skie_math as math;
 
 pub use canvas::Canvas;
