@@ -5,6 +5,7 @@ use std::ops::Range;
 use super::path::Path2D;
 use super::{Brush, Circle, Color, Mesh, Polyline, Primitive, Quad, StrokeStyle, Vertex};
 
+use crate::earcut;
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
 
@@ -121,8 +122,7 @@ impl DrawList {
     }
 
     pub fn add_path(&mut self, path: &Path2D, brush: &Brush) {
-        // TODO: earcut
-        // drawlist.fill_with_path(path, prim.fill.color);
+        self.fill_with_path(path, brush.fill_style.color);
 
         let stroke_style = if path.closed {
             brush.stroke_style.join()
@@ -251,11 +251,29 @@ impl DrawList {
 
     // TODO: earcut
     //
-    /// pub fn fill_path(&mut self, color: Color) {
-    // }
+    /// /// pub fn fill_path(&mut self, color: Color) {
+    /// // }
 
-    // pub fn fill_with_path(&mut self, _path: &Path2D, _color: Color) {
-    // }
+    pub fn fill_with_path(&mut self, path: &Path2D, color: Color) {
+        if color.is_transparent() {
+            return;
+        }
+
+        let mut indices: Vec<u32> = vec![];
+        let mut earcut = earcut::Earcut::<f32>::new();
+        earcut.earcut(path.points.iter().map(|p| [p.x, p.y]), &[], &mut indices);
+        let offset = self.mesh.indices.len() as u32;
+
+        self.mesh
+            .vertices
+            .extend(path.points.iter().map(|p| Vertex::new(*p, color, WHITE_UV)));
+
+        for i in &mut indices {
+            *i += offset;
+        }
+
+        self.mesh.indices.extend(indices)
+    }
 
     pub fn fill_rect(&mut self, rect: &Rect<f32>, color: Color) {
         if color.is_transparent() {
