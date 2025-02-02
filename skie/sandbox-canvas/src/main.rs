@@ -1,6 +1,6 @@
 use skie_draw::{
     app::{self, LogicalSize, SkieAppHandle, WindowAttributes},
-    Canvas, Color, Half, LineCap, Path2D, Size,
+    Canvas, Color, Half, Path2D, Size, StrokeCap,
 };
 
 use skie_draw::{Brush, Rect};
@@ -69,8 +69,8 @@ impl SkieAppHandle for SandboxApp {
         brush.fill_color(Color::ORANGE);
         brush.stroke_color(Color::THAMAR_BLACK);
         brush.stroke_width(7);
-        brush.stroke_join(skie_draw::LineJoin::Round);
-        brush.stroke_cap(LineCap::Round);
+        brush.stroke_join(skie_draw::StrokeJoin::Round);
+        brush.stroke_cap(StrokeCap::Round);
         cx.draw_path(path, &brush);
 
         cx.restore();

@@ -6,30 +6,54 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{LineJoin, Vec2};
+use crate::{Color, Vec2};
 
-use super::{LineCap, Mesh, StrokeStyle, WHITE_UV};
+use super::{Mesh, WHITE_UV};
 
 #[derive(Debug)]
 pub struct Polyline<'a> {
     mesh: PolyLineMesh<'a>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineJoin {
+    Miter,
+    Bevel,
+    Round,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineCap {
+    Round,
+    Square,
+    Butt,
+    Joint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PolylineOptions {
+    pub color: Color,
+    pub line_width: u32,
+    pub line_join: LineJoin,
+    pub line_cap: LineCap,
+    pub allow_overlap: bool,
+}
+
 impl<'a> Polyline<'a> {
-    pub fn add_to_mesh(mesh: &'a mut Mesh, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
+    pub fn add_to_mesh(mesh: &'a mut Mesh, points: &[Vec2<f32>], stroke_style: PolylineOptions) {
         let mut polyline = Self {
             mesh: PolyLineMesh::Borrowed(mesh),
         };
 
-        polyline.add_polyline(points, stroke_style);
+        polyline.add_polyline(points, &stroke_style);
     }
 
-    pub fn create(points: &[Vec2<f32>], stroke_style: &StrokeStyle) -> Mesh {
+    pub fn create(points: &[Vec2<f32>], stroke_style: PolylineOptions) -> Mesh {
         let mut polyline = Self {
             mesh: PolyLineMesh::Owned(Default::default()),
         };
 
-        polyline.add_polyline(points, stroke_style);
+        polyline.add_polyline(points, &stroke_style);
 
         match polyline.mesh {
             PolyLineMesh::Owned(mesh) => mesh,
@@ -37,7 +61,7 @@ impl<'a> Polyline<'a> {
         }
     }
 
-    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
+    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &PolylineOptions) {
         if points.len() < 2 {
             return;
         }
@@ -167,7 +191,7 @@ impl<'a> Polyline<'a> {
     fn polyline_create_joint(
         &mut self,
 
-        style: &StrokeStyle,
+        style: &PolylineOptions,
         segment1: &PolySegment,
         segment2: &PolySegment,
 

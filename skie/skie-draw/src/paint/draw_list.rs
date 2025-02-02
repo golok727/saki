@@ -3,7 +3,8 @@ use std::ops::Range;
 
 use super::path::Path2D;
 use super::{
-    Brush, Circle, Color, FillStyle, Mesh, Polyline, Primitive, Quad, StrokeStyle, Vertex,
+    Brush, Circle, Color, FillStyle, LineCap, LineJoin, Mesh, Polyline, PolylineOptions, Primitive,
+    Quad, StrokeStyle, Vertex,
 };
 
 use crate::earcut::Earcut;
@@ -108,8 +109,9 @@ impl DrawList {
 
         self.path.clear();
         self.path.round_rect(&quad.bounds, &quad.corners);
+        self.path.close();
         self.fill_path_convex(fill_color, textured);
-        self.stroke_path(&brush.stroke_style.join())
+        self.stroke_path(&brush.stroke_style)
     }
 
     pub fn add_circle(&mut self, circle: &Circle, brush: &Brush, textured: bool) {
@@ -117,22 +119,17 @@ impl DrawList {
 
         self.path.clear();
         self.path.circle(circle.center, circle.radius);
+        self.path.close();
 
         self.fill_path_convex(fill_color, textured);
 
-        self.stroke_path(&brush.stroke_style.join())
+        self.stroke_path(&brush.stroke_style)
     }
 
     pub fn add_path(&mut self, path: &Path2D, brush: &Brush) {
         self.fill_with_path(path, &brush.fill_style);
 
-        let stroke_style = if path.closed {
-            brush.stroke_style.join()
-        } else {
-            brush.stroke_style
-        };
-
-        self.stroke_with_path(path, &stroke_style);
+        self.stroke_with_path(path, &brush.stroke_style);
     }
 
     pub fn add_primitive(&mut self, primitive: &Primitive, brush: &Brush, textured: bool) {
@@ -241,17 +238,48 @@ impl DrawList {
         }
     }
 
+    fn get_polyline_opts(stroke_style: &StrokeStyle, closed: bool) -> PolylineOptions {
+        PolylineOptions {
+            line_width: stroke_style.stroke_width,
+            color: stroke_style.color,
+            line_join: match stroke_style.stroke_join {
+                super::StrokeJoin::Miter => LineJoin::Miter,
+                super::StrokeJoin::Bevel => LineJoin::Bevel,
+                super::StrokeJoin::Round => LineJoin::Round,
+            },
+            line_cap: if closed {
+                LineCap::Joint
+            } else {
+                match stroke_style.stroke_cap {
+                    super::StrokeCap::Round => LineCap::Round,
+                    super::StrokeCap::Square => LineCap::Square,
+                    super::StrokeCap::Butt => LineCap::Butt,
+                }
+            },
+            allow_overlap: false,
+        }
+    }
+
     /// Add stroke using the current path
     pub fn stroke_path(&mut self, stroke_style: &StrokeStyle) {
         if stroke_style.color.is_transparent() {
             return;
         }
-        Polyline::add_to_mesh(&mut self.mesh, &self.path.points, stroke_style);
+
+        Polyline::add_to_mesh(
+            &mut self.mesh,
+            &self.path.points,
+            Self::get_polyline_opts(stroke_style, self.path.closed),
+        );
     }
 
     /// Add stroke using the given path
     pub fn stroke_with_path(&mut self, path: &Path2D, stroke_style: &StrokeStyle) {
-        Polyline::add_to_mesh(&mut self.mesh, &path.points, stroke_style);
+        Polyline::add_to_mesh(
+            &mut self.mesh,
+            &path.points,
+            Self::get_polyline_opts(stroke_style, path.closed),
+        );
     }
 
     // fills the current path with the given fill_style
@@ -274,32 +302,36 @@ impl DrawList {
         earcut: &mut Earcut<f32>,
         fill_style: &FillStyle,
     ) {
+        // TODO: AA fill
+        // TODO: support holes ?
         if fill_style.color.is_transparent() {
             return;
         }
 
-        // TODO: AA fill
-        let mut indices: Vec<u32> = vec![];
-        // TODO: support holes ?
-        earcut.earcut(points.iter().map(|p| [p.x, p.y]), &[], &mut indices);
+        let vertex_offset = mesh.vertices.len() as u32;
+        let index_offset = mesh.indices.len();
 
-        let offset = mesh.vertices.len() as u32;
+        earcut.earcut(
+            points.iter().map(|p| [p.x, p.y]),
+            &[],
+            &mut mesh.indices,
+            false,
+        );
 
-        if indices.is_empty() {
+        if index_offset == mesh.indices.len() {
             return;
         }
+
+        // indices are reserved by earcut
+        mesh.vertices.reserve(points.len());
 
         for point in points {
             mesh.add_vertex(*point, fill_style.color, WHITE_UV);
         }
 
-        mesh.reserve_prim(points.len(), indices.len());
-
-        for i in &mut indices {
-            *i += offset;
+        for i in &mut mesh.indices[index_offset..] {
+            *i += vertex_offset;
         }
-
-        mesh.indices.extend(indices)
     }
 
     pub fn fill_rect(&mut self, rect: &Rect<f32>, color: Color) {

@@ -18,9 +18,9 @@ pub(crate) use winit::window::Window as WinitWindow;
 use skie_draw::{
     gpu,
     paint::{AtlasImage, AtlasKey, Brush, SkieAtlas},
-    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, LineCap,
-    LineJoin, Path2D, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId, TextureOptions,
-    Vec2,
+    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, Path2D,
+    Rect, Size, StrokeCap, StrokeJoin, Text, TextSystem, TextureFilterMode, TextureId,
+    TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -369,7 +369,7 @@ impl Window {
             brush.fill_color(Color::TORCH_RED);
             brush.stroke_width(20);
             brush.stroke_color(Color::WHITE);
-            brush.stroke_join(LineJoin::Bevel);
+            brush.stroke_join(StrokeJoin::Bevel);
             cx.draw_path(path, &brush);
         }
 
@@ -381,8 +381,8 @@ impl Window {
 
             brush.fill_color(Color::TRANSPARENT);
             brush.stroke_color(Color::WHITE);
-            brush.stroke_join(LineJoin::Miter);
-            brush.stroke_cap(LineCap::Round);
+            brush.stroke_join(StrokeJoin::Miter);
+            brush.stroke_cap(StrokeCap::Round);
             cx.draw_path(path, &brush);
         }
 
