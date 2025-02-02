@@ -8,8 +8,8 @@ use crate::{
     },
     quad,
     renderer::Renderable,
-    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Size, Text, TextSystem,
-    TextureId, TextureOptions, WgpuRenderer,
+    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Renderer2D, Size, Text,
+    TextSystem, TextureId, TextureOptions,
 };
 use ahash::HashSet;
 use anyhow::Result;
@@ -48,7 +48,7 @@ pub struct Canvas {
     // TODO
     // - pub(crate)
     // - allow rendering in another thread
-    pub renderer: WgpuRenderer,
+    pub renderer: Renderer2D,
 
     pub(crate) surface_config: CanvasSurfaceConfig,
 
@@ -72,7 +72,7 @@ pub struct Canvas {
 impl Canvas {
     pub(super) fn new(
         surface_config: CanvasSurfaceConfig,
-        renderer: WgpuRenderer,
+        renderer: Renderer2D,
         texture_atlas: Arc<SkieAtlas>,
         text_system: Arc<TextSystem>,
     ) -> Self {

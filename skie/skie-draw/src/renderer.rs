@@ -110,13 +110,13 @@ pub struct RendererTexture {
 }
 
 #[derive(Debug, Clone)]
-pub struct WgpuRendererSpecs {
+pub struct Renderer2DSpecs {
     pub width: u32,
     pub height: u32,
 }
 
 #[derive(Debug)]
-pub struct WgpuRenderer {
+pub struct Renderer2D {
     gpu: GpuContext,
 
     size: Size<u32>,
@@ -134,8 +134,8 @@ pub struct WgpuRenderer {
     texture_bindgroup_layout: wgpu::BindGroupLayout,
 }
 
-impl WgpuRenderer {
-    pub fn new(gpu: GpuContext, specs: &WgpuRendererSpecs) -> Self {
+impl Renderer2D {
+    pub fn new(gpu: GpuContext, specs: &Renderer2DSpecs) -> Self {
         let proj = Mat3::ortho(0.0, 0.0, specs.height as f32, specs.width as f32);
 
         let global_uniforms =
@@ -478,9 +478,9 @@ impl WgpuRenderer {
 pub(crate) fn create_skie_renderer(
     gpu: GpuContext,
     atlas: &SkieAtlas,
-    specs: &WgpuRendererSpecs,
-) -> WgpuRenderer {
-    let mut renderer = WgpuRenderer::new(gpu, specs);
+    specs: &Renderer2DSpecs,
+) -> Renderer2D {
+    let mut renderer = Renderer2D::new(gpu, specs);
     // add white texture to the atlas
     atlas.get_or_insert(&AtlasKey::WhiteTexture, || {
         (

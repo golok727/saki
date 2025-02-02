@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use wgpu::{TextureFormat, TextureUsages};
 
-use crate::{renderer::create_skie_renderer, GpuContext, SkieAtlas, TextSystem, WgpuRendererSpecs};
+use crate::{renderer::create_skie_renderer, GpuContext, Renderer2DSpecs, SkieAtlas, TextSystem};
 
 use super::{surface::CanvasSurfaceConfig, Canvas};
 
@@ -49,7 +49,7 @@ impl CanvasBuilder {
         let renderer = create_skie_renderer(
             gpu,
             &texture_atlas,
-            &WgpuRendererSpecs {
+            &Renderer2DSpecs {
                 width: self.surface_config.width,
                 height: self.surface_config.height,
             },

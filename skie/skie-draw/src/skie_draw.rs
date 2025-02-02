@@ -31,7 +31,7 @@ pub use paint::{
     TextureFilterMode, TextureFormat, TextureId, TextureKind, TextureOptions,
 };
 
-pub use renderer::{WgpuRenderer, WgpuRendererSpecs};
+pub use renderer::{Renderer2D, Renderer2DSpecs};
 
 pub use text::{Font, FontId, FontStyle, FontWeight, GlyphId, GlyphImage, TextSystem};
 
