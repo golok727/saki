@@ -104,7 +104,7 @@ impl Brush {
     ///
     /// * `stroke_width` - The new stroke width to be applied.
     pub fn stroke_width(&mut self, stroke_width: u32) {
-        self.stroke_style.line_width = stroke_width;
+        self.stroke_style.stroke_width = stroke_width;
     }
 
     /// Sets the stroke style of the brush.
@@ -121,8 +121,8 @@ impl Brush {
     /// # Arguments
     ///
     /// * `line_join` - The line join style (e.g., miter, round, bevel).
-    pub fn stroke_join(&mut self, line_join: LineJoin) {
-        self.stroke_style.line_join = line_join;
+    pub fn stroke_join(&mut self, stroke_join: StrokeJoin) {
+        self.stroke_style.stroke_join = stroke_join;
     }
 
     /// Sets the stroke line cap style for the brush.
@@ -130,8 +130,8 @@ impl Brush {
     /// # Arguments
     ///
     /// * `line_cap` - The line cap style (e.g., butt, round, square).
-    pub fn stroke_cap(&mut self, line_cap: LineCap) {
-        self.stroke_style.line_cap = line_cap;
+    pub fn stroke_cap(&mut self, stroke_cap: StrokeCap) {
+        self.stroke_style.stroke_cap = stroke_cap;
     }
 
     /// Resets the brush to its default state.
@@ -166,26 +166,25 @@ impl FillStyle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LineJoin {
+pub enum StrokeJoin {
     Miter,
     Bevel,
     Round,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LineCap {
+pub enum StrokeCap {
     Round,
     Square,
     Butt,
-    Joint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrokeStyle {
     pub color: Color,
-    pub line_width: u32,
-    pub line_join: LineJoin,
-    pub line_cap: LineCap,
+    pub stroke_width: u32,
+    pub stroke_join: StrokeJoin,
+    pub stroke_cap: StrokeCap,
     pub allow_overlap: bool,
 }
 
@@ -193,9 +192,9 @@ impl Default for StrokeStyle {
     fn default() -> Self {
         Self {
             color: Color::WHITE,
-            line_width: 2,
-            line_join: LineJoin::Miter,
-            line_cap: LineCap::Butt,
+            stroke_width: 2,
+            stroke_join: StrokeJoin::Miter,
+            stroke_cap: StrokeCap::Butt,
             allow_overlap: false,
         }
     }
@@ -213,59 +212,53 @@ impl StrokeStyle {
     }
 
     pub fn line_width(mut self, line_width: u32) -> Self {
-        self.line_width = line_width;
+        self.stroke_width = line_width;
         self
     }
 
-    pub fn line_join(mut self, line_join: LineJoin) -> Self {
-        self.line_join = line_join;
+    pub fn line_join(mut self, line_join: StrokeJoin) -> Self {
+        self.stroke_join = line_join;
         self
     }
 
-    pub fn line_cap(mut self, line_cap: LineCap) -> Self {
-        self.line_cap = line_cap;
+    pub fn line_cap(mut self, line_cap: StrokeCap) -> Self {
+        self.stroke_cap = line_cap;
         self
     }
 
     pub fn default_join(mut self) -> Self {
-        self.line_join = LineJoin::Miter;
+        self.stroke_join = StrokeJoin::Miter;
         self
     }
 
     pub fn miter_join(mut self) -> Self {
-        self.line_join = LineJoin::Miter;
+        self.stroke_join = StrokeJoin::Miter;
         self
     }
 
     pub fn bevel_join(mut self) -> Self {
-        self.line_join = LineJoin::Bevel;
+        self.stroke_join = StrokeJoin::Bevel;
         self
     }
 
     pub fn round_join(mut self) -> Self {
-        self.line_join = LineJoin::Round;
+        self.stroke_join = StrokeJoin::Round;
         self
     }
 
     pub fn round_cap(mut self) -> Self {
-        self.line_cap = LineCap::Round;
+        self.stroke_cap = StrokeCap::Round;
         self
     }
 
     /// aka with_butt_join lol
     pub fn default_cap(mut self) -> Self {
-        self.line_cap = LineCap::Butt;
+        self.stroke_cap = StrokeCap::Butt;
         self
     }
 
     pub fn square_cap(mut self) -> Self {
-        self.line_cap = LineCap::Square;
-        self
-    }
-
-    /// sets line cap to join which will join the last point to first point
-    pub fn join(mut self) -> Self {
-        self.line_cap = LineCap::Joint;
+        self.stroke_cap = StrokeCap::Square;
         self
     }
 }

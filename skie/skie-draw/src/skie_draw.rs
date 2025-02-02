@@ -16,7 +16,7 @@ pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
     circle, quad, AtlasKey, AtlasKeySource, AtlasTextureInfo, AtlasTextureInfoMap, Brush, Circle,
-    FillStyle, LineCap, LineJoin, Path2D, Quad, SkieAtlas, StrokeStyle, Text, TextAlign,
+    FillStyle, Path2D, Quad, SkieAtlas, StrokeCap, StrokeJoin, StrokeStyle, Text, TextAlign,
     TextBaseline, TextureAtlas,
 };
 

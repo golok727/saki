@@ -157,10 +157,13 @@ impl<T: Float> Earcut<T> {
         data: impl IntoIterator<Item = [T; 2]>,
         hole_indices: &[N],
         triangles_out: &mut Vec<N>,
+        clear_out: bool,
     ) {
         self.data.clear();
         self.data.extend(data);
-        triangles_out.clear();
+        if clear_out {
+            triangles_out.clear();
+        }
         if self.data.len() < 3 {
             return;
         }
