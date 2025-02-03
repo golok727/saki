@@ -26,8 +26,8 @@ fn main() {
 
     app.run(|app| {
         let window_specs = WindowSpecification {
-            width: 1875,
-            height: 1023,
+            width: 1280,
+            height: 720,
             ..Default::default()
         };
 

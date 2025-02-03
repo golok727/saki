@@ -143,13 +143,8 @@ impl Canvas {
 
     pub fn restore(&mut self) {
         if let Some(state) = self.state_stack.pop() {
-            let restored = state;
-
-            if restored != self.current_state {
-                self.stage_changes();
-            }
-
-            self.current_state = restored;
+            self.stage_changes();
+            self.current_state = state;
         }
     }
 

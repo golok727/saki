@@ -74,6 +74,7 @@ impl<'a> Polyline<'a> {
             .map(|p| PolySegment::new(LineSegment::new(p[0], p[1]), h_linewidth))
             .collect();
 
+        // TODO merge with actual stroke_style and remove line_cap joint
         if stroke_style.line_cap == LineCap::Joint && points.first() != points.last() {
             segments.push(PolySegment::new(
                 LineSegment::new(*points.last().unwrap(), *points.first().unwrap()),
@@ -342,6 +343,7 @@ struct PolySegment {
 }
 
 impl PolySegment {
+    #[inline]
     pub fn new(center: LineSegment, line_width: f32) -> Self {
         let normal = center.normal();
         let edge_1 = center.clone() + normal * line_width;
@@ -362,6 +364,7 @@ struct LineSegment {
 }
 
 impl LineSegment {
+    #[inline]
     pub fn new(a: Vec2<f32>, b: Vec2<f32>) -> Self {
         Self { a, b }
     }

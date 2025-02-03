@@ -140,7 +140,7 @@ impl Window {
         let height = specs.height;
 
         let attr = winit::window::WindowAttributes::default()
-            .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
+            .with_inner_size(winit::dpi::LogicalSize::new(width, height))
             .with_title(specs.title);
 
         let winit_window = event_loop.create_window(attr).map_err(CreateWindowError)?;
@@ -473,10 +473,8 @@ impl Window {
     pub(crate) fn paint(&mut self) -> Result<()> {
         self.canvas.clear();
         self.canvas.clear_color(self.clear_color);
-
         // TODO: remove
         self._add_basic_scene();
-
         self.canvas.render(&mut self.surface)?.present();
 
         Ok(())

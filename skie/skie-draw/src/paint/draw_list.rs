@@ -11,6 +11,45 @@ use crate::earcut::Earcut;
 use crate::math::{Corners, Rect, Vec2};
 use crate::paint::WHITE_UV;
 
+pub mod scratch_path {
+    use std::ops::{Deref, DerefMut};
+
+    use crate::path::{DefaultPathBuilder, PathBuilder, PathEvent, PathIter};
+
+    pub struct ScratchPathBuilder(DefaultPathBuilder);
+
+    impl ScratchPathBuilder {
+        fn clear(&mut self) {
+            self.points.clear();
+            self.verbs.clear();
+        }
+    }
+
+    impl<'a> IntoIterator for &'a ScratchPathBuilder {
+        type Item = PathEvent;
+
+        type IntoIter = PathIter<'a>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            todo!()
+        }
+    }
+
+    impl Deref for ScratchPathBuilder {
+        type Target = DefaultPathBuilder;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl DerefMut for ScratchPathBuilder {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct DrawList {
     pub(crate) antialias: bool,
