@@ -1,10 +1,9 @@
-mod p2d;
-pub use p2d::*;
+mod builder;
+mod path_;
+pub mod polygon;
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq)]
-enum Verb {
-    QuadTo,
-    LineTo,
-    CubeTo,
-    Close,
-}
+pub use builder::*;
+pub use path_::*;
+pub use polygon::*;
+
+pub type Point = skie_math::Vec2<f32>;
