@@ -527,17 +527,6 @@ mod tests {
                 PathVerb::Close
             ]
         );
-
-        // {
-        // use std::fmt::Write;
-        // let mut out = String::new();
-        // out.push_str("assert_eq!(&path.points, &[\n");
-        // for point in &path.points {
-        //     writeln!(&mut out, "vec2({:.07}, {:.07}),", point.x, point.y).unwrap();
-        // }
-        // out.push_str("]);\n");
-        // println!("{out}");
-        // }
     }
 
     #[test]
