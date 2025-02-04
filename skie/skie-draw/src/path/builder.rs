@@ -1,32 +1,95 @@
 use skie_math::{vec2, Corners, Rect};
 
-use super::{Point, Polygon};
+use super::{Path, PathIter, PathVerb, Point, Polygon};
 
-pub trait PathBuilder {
-    // begin a subpath
-    fn begin(&mut self, to: Point);
+#[derive(Default)]
+pub struct PathBuilder {
+    pub(crate) points: Vec<Point>,
+    pub(crate) verbs: Vec<PathVerb>,
+    // pub crate for use in drawlist
+    pub(crate) validator: DebugPathValidator,
+    first: Point,
+}
 
-    // end a subpath
-    fn end(&mut self, close: bool);
+impl PathBuilder {
+    pub fn with_capacity(points: usize, edges: usize) -> Self {
+        Self {
+            points: Vec::with_capacity(points),
+            verbs: Vec::with_capacity(edges),
+            ..Default::default()
+        }
+    }
 
-    fn close(&mut self) {
+    pub fn begin(&mut self, to: Point) {
+        self.validator.begin();
+        check_is_nan(to);
+
+        self.first = to;
+        self.points.push(to);
+        self.verbs.push(PathVerb::Begin)
+    }
+
+    pub fn end(&mut self, close: bool) {
+        self.validator.end();
+
+        if close {
+            self.points.push(self.first);
+        }
+
+        self.verbs.push(if close {
+            PathVerb::Close
+        } else {
+            PathVerb::End
+        });
+    }
+
+    /// alias for self.end(true)
+    #[inline]
+    pub fn close(&mut self) {
         self.end(true)
     }
 
-    fn reserve(&mut self, endpoints: usize, ctrl_points: usize);
+    #[inline]
+    pub fn path_events(&self) -> PathIter {
+        PathIter::new(&self.points, &self.verbs)
+    }
 
-    fn line_to(&mut self, to: Point);
+    pub fn line_to(&mut self, to: Point) {
+        self.validator.edge();
+        check_is_nan(to);
 
-    fn quadratic_bezier_to(&mut self, ctrl: Point, to: Point);
+        self.points.push(to);
+        self.verbs.push(PathVerb::LineTo)
+    }
 
-    fn cubic_bezier_to(&mut self, ctrl1: Point, ctrl2: Point, to: Point);
+    pub fn quadratic_to(&mut self, ctrl: Point, to: Point) {
+        self.validator.edge();
+        check_is_nan(ctrl);
+        check_is_nan(to);
 
-    fn add_point(&mut self, at: Point) {
+        self.points.push(ctrl);
+        self.points.push(to);
+        self.verbs.push(PathVerb::QuadraticTo);
+    }
+
+    pub fn cubic_to(&mut self, ctrl1: Point, ctrl2: Point, to: Point) {
+        self.validator.edge();
+        check_is_nan(ctrl1);
+        check_is_nan(ctrl2);
+        check_is_nan(to);
+
+        self.points.push(ctrl1);
+        self.points.push(ctrl2);
+        self.points.push(to);
+        self.verbs.push(PathVerb::CubicTo);
+    }
+
+    pub fn add_point(&mut self, at: Point) {
         self.begin(at);
         self.end(false);
     }
 
-    fn polygon(&mut self, polygon: Polygon<Point>) {
+    pub fn polygon(&mut self, polygon: Polygon<Point>) {
         if polygon.points.is_empty() {
             return;
         }
@@ -42,7 +105,7 @@ pub trait PathBuilder {
         self.end(polygon.closed);
     }
 
-    fn rect(&mut self, rect: &Rect<f32>) {
+    pub fn rect(&mut self, rect: &Rect<f32>) {
         self.polygon(Polygon {
             points: &[
                 rect.top_left(),
@@ -54,22 +117,36 @@ pub trait PathBuilder {
         });
     }
 
-    fn circle(&mut self, center: Point, radius: f32)
+    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>)
+    where
+        Self: Sized,
+    {
+        add_rounded_rectangle(self, rect, corners)
+    }
+
+    pub fn circle(&mut self, center: Point, radius: f32)
     where
         Self: Sized,
     {
         add_circle(self, center, radius);
     }
 
-    fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>)
-    where
-        Self: Sized,
-    {
-        add_rounded_rectangle(self, rect, corners)
+    pub fn reserve(&mut self, endpoints: usize, ctrl_points: usize) {
+        self.points.reserve(endpoints + ctrl_points);
+        self.verbs.reserve(endpoints);
+    }
+
+    pub fn build(self) -> Path {
+        self.validator.build();
+
+        Path {
+            points: self.points.into_boxed_slice(),
+            verbs: self.verbs.into_boxed_slice(),
+        }
     }
 }
 
-fn add_circle<Builder: PathBuilder>(builder: &mut Builder, center: Point, radius: f32) {
+fn add_circle(builder: &mut PathBuilder, center: Point, radius: f32) {
     let radius = radius.abs();
     // let dir = match winding {
     //     Winding::Positive => 1.0,
@@ -87,31 +164,27 @@ fn add_circle<Builder: PathBuilder>(builder: &mut Builder, center: Point, radius
     let ctrl_0 = center + vec2(-radius, -d * dir);
     let ctrl_1 = center + vec2(-d, -radius * dir);
     let mid = center + vec2(0.0, -radius * dir);
-    builder.cubic_bezier_to(ctrl_0, ctrl_1, mid);
+    builder.cubic_to(ctrl_0, ctrl_1, mid);
 
     let ctrl_0 = center + vec2(d, -radius * dir);
     let ctrl_1 = center + vec2(radius, -d * dir);
     let mid = center + vec2(radius, 0.0);
-    builder.cubic_bezier_to(ctrl_0, ctrl_1, mid);
+    builder.cubic_to(ctrl_0, ctrl_1, mid);
 
     let ctrl_0 = center + vec2(radius, d * dir);
     let ctrl_1 = center + vec2(d, radius * dir);
     let mid = center + vec2(0.0, radius * dir);
-    builder.cubic_bezier_to(ctrl_0, ctrl_1, mid);
+    builder.cubic_to(ctrl_0, ctrl_1, mid);
 
     let ctrl_0 = center + vec2(-d, radius * dir);
     let ctrl_1 = center + vec2(-radius, d * dir);
     let mid = center + vec2(-radius, 0.0);
-    builder.cubic_bezier_to(ctrl_0, ctrl_1, mid);
+    builder.cubic_to(ctrl_0, ctrl_1, mid);
 
     builder.close();
 }
 
-fn add_rounded_rectangle<Builder: PathBuilder>(
-    builder: &mut Builder,
-    rect: &Rect<f32>,
-    corners: &Corners<f32>,
-) {
+fn add_rounded_rectangle(builder: &mut PathBuilder, rect: &Rect<f32>, corners: &Corners<f32>) {
     let w = rect.size.width;
     let h = rect.size.height;
     let min = rect.min();
@@ -185,21 +258,379 @@ fn add_rounded_rectangle<Builder: PathBuilder>(
 
     builder.begin(points[0]);
     if tl > 0.0 {
-        builder.cubic_bezier_to(points[1], points[2], points[3]);
+        builder.cubic_to(points[1], points[2], points[3]);
     }
     builder.line_to(points[4]);
 
     if tl > 0.0 {
-        builder.cubic_bezier_to(points[5], points[6], points[7]);
+        builder.cubic_to(points[5], points[6], points[7]);
     }
 
     builder.line_to(points[8]);
     if br > 0.0 {
-        builder.cubic_bezier_to(points[9], points[10], points[11]);
+        builder.cubic_to(points[9], points[10], points[11]);
     }
     builder.line_to(points[12]);
     if bl > 0.0 {
-        builder.cubic_bezier_to(points[13], points[14], points[15]);
+        builder.cubic_to(points[13], points[14], points[15]);
     }
     builder.end(true);
+}
+
+#[inline]
+fn check_is_nan(p: Point) {
+    debug_assert!(p.x.is_finite());
+    debug_assert!(p.y.is_finite());
+}
+
+#[derive(Default)]
+pub(crate) struct DebugPathValidator {
+    #[cfg(debug_assertions)]
+    in_subpath: bool,
+}
+
+impl DebugPathValidator {
+    #[inline(always)]
+    pub fn begin(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            assert!(
+                !self.in_subpath,
+                "Please end the current subpath with `end(<close>)` or `close()` before starting a new one"
+            );
+            self.in_subpath = true;
+        }
+    }
+
+    #[inline(always)]
+    pub fn end(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            assert!(self.in_subpath, "Please start a new subpath with `begin()`");
+            self.in_subpath = false;
+        }
+    }
+
+    #[inline(always)]
+    pub fn edge(&self) {
+        #[cfg(debug_assertions)]
+        assert!(
+            self.in_subpath,
+            "Please begin a new subpath with begin() to continue this operation"
+        )
+    }
+
+    #[inline(always)]
+    pub fn build(&self) {
+        #[cfg(debug_assertions)]
+        assert!(
+            !self.in_subpath,
+            "Please end the current subpath with `end(<close>)` or `close()` before building"
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use skie_math::{vec2, Corners, Rect};
+
+    use super::super::*;
+    #[test]
+    fn path_builder_basic_test() {
+        // closed
+        {
+            let mut path = Path::builder();
+            path.begin((0.0, 0.0).into());
+            path.line_to((5.0, 5.0).into());
+            path.line_to((10.0, 10.0).into());
+            path.line_to((2.0, 10.0).into());
+            path.close();
+
+            assert_eq!(
+                &path.points,
+                &[
+                    vec2(0.0, 0.0),
+                    vec2(5.0, 5.0),
+                    vec2(10.0, 10.0),
+                    vec2(2.0, 10.0),
+                    vec2(0.0, 0.0),
+                ]
+            );
+
+            assert_eq!(
+                &path.verbs,
+                &[
+                    PathVerb::Begin,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::Close
+                ]
+            );
+        }
+
+        // open
+        {
+            let mut path = Path::builder();
+            path.begin((0.0, 0.0).into());
+            path.line_to((5.0, 5.0).into());
+            path.line_to((10.0, 10.0).into());
+            path.line_to((2.0, 10.0).into());
+            path.end(false);
+
+            assert_eq!(
+                &path.points,
+                &[
+                    vec2(0.0, 0.0),
+                    vec2(5.0, 5.0),
+                    vec2(10.0, 10.0),
+                    vec2(2.0, 10.0),
+                ]
+            );
+
+            assert_eq!(
+                &path.verbs,
+                &[
+                    PathVerb::Begin,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::End
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn path_builder_quadratic_to() {
+        let mut path = Path::builder();
+
+        path.begin(vec2(0.0, 0.0));
+        path.quadratic_to(vec2(5.0, 5.0), vec2(10.0, 0.0));
+        assert_eq!(
+            &path.points,
+            &[vec2(0.0, 0.0), vec2(5.0, 5.0), vec2(10.0, 0.0),]
+        );
+        path.end(false);
+
+        assert_eq!(
+            &path.verbs,
+            &[PathVerb::Begin, PathVerb::QuadraticTo, PathVerb::End]
+        );
+    }
+
+    #[test]
+    fn path_builder_cubic_to() {
+        let mut path = Path::builder();
+
+        path.begin(vec2(0.0, 0.0));
+        path.cubic_to(vec2(0.0, 5.0), vec2(10.0, 5.0), vec2(10.0, 0.0));
+        assert_eq!(
+            &path.points,
+            &[
+                vec2(0.0, 0.0),
+                vec2(0.0, 5.0),
+                vec2(10.0, 5.0),
+                vec2(10.0, 0.0)
+            ]
+        );
+        path.end(false);
+
+        assert_eq!(
+            &path.verbs,
+            &[PathVerb::Begin, PathVerb::CubicTo, PathVerb::End]
+        );
+    }
+
+    #[test]
+    fn path_builder_round_rect() {
+        let mut path = Path::builder();
+        path.round_rect(&Rect::xywh(0.0, 0.0, 10.0, 10.0), &Corners::with_all(3.0));
+
+        assert_eq!(
+            &path.points,
+            &[
+                vec2(0.0000000, 3.0000000),
+                vec2(0.0000000, 1.3442549),
+                vec2(1.3442549, 0.0000000),
+                vec2(3.0000000, 0.0000000),
+                vec2(7.0000000, 0.0000000),
+                vec2(8.6557455, 0.0000000),
+                vec2(10.0000000, 1.3442549),
+                vec2(10.0000000, 3.0000000),
+                vec2(10.0000000, 7.0000000),
+                vec2(10.0000000, 8.6557455),
+                vec2(8.6557455, 10.0000000),
+                vec2(7.0000000, 10.0000000),
+                vec2(3.0000000, 10.0000000),
+                vec2(1.3442549, 10.0000000),
+                vec2(0.0000000, 8.6557455),
+                vec2(0.0000000, 7.0000000),
+                vec2(0.0000000, 3.0000000),
+            ]
+        );
+
+        assert_eq!(
+            &path.verbs,
+            &[
+                PathVerb::Begin,
+                PathVerb::CubicTo,
+                PathVerb::LineTo,
+                PathVerb::CubicTo,
+                PathVerb::LineTo,
+                PathVerb::CubicTo,
+                PathVerb::LineTo,
+                PathVerb::CubicTo,
+                PathVerb::Close
+            ]
+        );
+    }
+
+    #[test]
+    fn path_builder_circle() {
+        let mut path = Path::builder();
+        path.circle((0.0, 0.0).into(), 10.0);
+
+        assert_eq!(
+            &path.points,
+            &[
+                vec2(-10.0000000, 0.0000000),
+                vec2(-10.0000000, -5.5191507),
+                vec2(-5.5191507, -10.0000000),
+                vec2(0.0000000, -10.0000000),
+                vec2(5.5191507, -10.0000000),
+                vec2(10.0000000, -5.5191507),
+                vec2(10.0000000, 0.0000000),
+                vec2(10.0000000, 5.5191507),
+                vec2(5.5191507, 10.0000000),
+                vec2(0.0000000, 10.0000000),
+                vec2(-5.5191507, 10.0000000),
+                vec2(-10.0000000, 5.5191507),
+                vec2(-10.0000000, 0.0000000),
+                vec2(-10.0000000, 0.0000000),
+            ]
+        );
+
+        assert_eq!(
+            &path.verbs,
+            &[
+                PathVerb::Begin,
+                PathVerb::CubicTo,
+                PathVerb::CubicTo,
+                PathVerb::CubicTo,
+                PathVerb::CubicTo,
+                PathVerb::Close
+            ]
+        );
+
+        // {
+        // use std::fmt::Write;
+        // let mut out = String::new();
+        // out.push_str("assert_eq!(&path.points, &[\n");
+        // for point in &path.points {
+        //     writeln!(&mut out, "vec2({:.07}, {:.07}),", point.x, point.y).unwrap();
+        // }
+        // out.push_str("]);\n");
+        // println!("{out}");
+        // }
+    }
+
+    #[test]
+    fn path_builder_rect() {
+        let mut path = Path::builder();
+        path.rect(&Rect::xywh(10., 10.0, 100.0, 100.0));
+
+        assert_eq!(
+            &path.points,
+            &[
+                vec2(10.0, 10.0),
+                vec2(110.0, 10.0),
+                vec2(110.0, 110.0),
+                vec2(10.0, 110.0),
+                vec2(10.0, 10.0),
+            ]
+        );
+
+        assert_eq!(
+            &path.verbs,
+            &[
+                PathVerb::Begin,
+                PathVerb::LineTo,
+                PathVerb::LineTo,
+                PathVerb::LineTo,
+                PathVerb::Close
+            ]
+        );
+    }
+
+    #[test]
+    fn path_builder_polygon() {
+        // closed
+        {
+            let mut path = Path::builder();
+            path.polygon(Polygon {
+                points: &[
+                    vec2(0.0, 0.0),
+                    vec2(10.0, 100.0),
+                    vec2(200.0, 300.0),
+                    vec2(500.0, 600.0),
+                ],
+                closed: true,
+            });
+
+            assert_eq!(
+                &path.points,
+                &[
+                    vec2(0.0, 0.0),
+                    vec2(10.0, 100.0),
+                    vec2(200.0, 300.0),
+                    vec2(500.0, 600.0),
+                    vec2(0.0, 0.0),
+                ]
+            );
+
+            assert_eq!(
+                &path.verbs,
+                &[
+                    PathVerb::Begin,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::Close
+                ]
+            );
+        }
+        // open
+        {
+            let mut path = Path::builder();
+            path.polygon(Polygon {
+                points: &[
+                    vec2(0.0, 0.0),
+                    vec2(10.0, 100.0),
+                    vec2(200.0, 300.0),
+                    vec2(500.0, 600.0),
+                ],
+                closed: false,
+            });
+            assert_eq!(
+                &path.points,
+                &[
+                    vec2(0.0, 0.0),
+                    vec2(10.0, 100.0),
+                    vec2(200.0, 300.0),
+                    vec2(500.0, 600.0),
+                ]
+            );
+            assert_eq!(
+                &path.verbs,
+                &[
+                    PathVerb::Begin,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::LineTo,
+                    PathVerb::End
+                ]
+            );
+        }
+    }
 }

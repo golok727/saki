@@ -14,19 +14,16 @@ pub(crate) enum PathVerb {
     End,
 }
 
-// TODO:
-// Iterator over the path to build actual points;
-
-/// Struct to build paths
-#[derive(Clone)]
+/// Struct to store built paths
+#[derive(Clone, Debug)]
 pub struct Path {
     pub(crate) points: Box<[Point]>,
     pub(crate) verbs: Box<[PathVerb]>,
 }
 
 impl Path {
-    pub fn create() -> DefaultPathBuilder {
-        DefaultPathBuilder::default()
+    pub fn builder() -> PathBuilder {
+        PathBuilder::default()
     }
 }
 
@@ -38,88 +35,6 @@ impl<'a> IntoIterator for &'a Path {
     fn into_iter(self) -> Self::IntoIter {
         PathIter::new(&self.points, &self.verbs)
     }
-}
-
-#[derive(Default)]
-pub struct DefaultPathBuilder {
-    pub(crate) points: Vec<Point>,
-    pub(crate) verbs: Vec<PathVerb>,
-    first: Point,
-}
-
-impl DefaultPathBuilder {
-    #[allow(unused)]
-    pub fn with_capacity(points: usize, edges: usize) -> Self {
-        Self {
-            points: Vec::with_capacity(points),
-            verbs: Vec::with_capacity(edges),
-            first: Default::default(),
-        }
-    }
-
-    pub fn build(self) -> Path {
-        Path {
-            points: self.points.into_boxed_slice(),
-            verbs: self.verbs.into_boxed_slice(),
-        }
-    }
-}
-
-impl PathBuilder for DefaultPathBuilder {
-    fn begin(&mut self, to: Point) {
-        check_is_nan(to);
-        self.first = to;
-        self.points.push(to);
-        self.verbs.push(PathVerb::Begin)
-    }
-
-    fn line_to(&mut self, to: Point) {
-        check_is_nan(to);
-        self.first = to;
-        self.points.push(to);
-        self.verbs.push(PathVerb::LineTo)
-    }
-
-    fn quadratic_bezier_to(&mut self, ctrl: Point, to: Point) {
-        check_is_nan(ctrl);
-        check_is_nan(to);
-        self.points.push(ctrl);
-        self.points.push(to);
-        self.verbs.push(PathVerb::QuadraticTo);
-    }
-
-    fn cubic_bezier_to(&mut self, ctrl1: Point, ctrl2: Point, to: Point) {
-        check_is_nan(ctrl1);
-        check_is_nan(ctrl2);
-        check_is_nan(to);
-        self.points.push(ctrl1);
-        self.points.push(ctrl2);
-        self.points.push(to);
-        self.verbs.push(PathVerb::CubicTo);
-    }
-
-    fn end(&mut self, close: bool) {
-        if close {
-            self.points.push(self.first);
-        }
-
-        self.verbs.push(if close {
-            PathVerb::Close
-        } else {
-            PathVerb::End
-        });
-    }
-
-    fn reserve(&mut self, endpoints: usize, ctrl_points: usize) {
-        self.points.reserve(endpoints + ctrl_points);
-        self.verbs.reserve(endpoints);
-    }
-}
-
-#[inline]
-fn check_is_nan(p: Point) {
-    debug_assert!(p.x.is_finite());
-    debug_assert!(p.y.is_finite());
 }
 
 pub struct PathIter<'a> {

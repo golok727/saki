@@ -14,14 +14,19 @@ use crate::paint::WHITE_UV;
 pub mod scratch_path {
     use std::ops::{Deref, DerefMut};
 
-    use crate::path::{DefaultPathBuilder, PathBuilder, PathEvent, PathIter};
+    use crate::path::{PathBuilder, PathEvent, PathIter};
 
-    pub struct ScratchPathBuilder(DefaultPathBuilder);
+    pub struct ScratchPathBuilder(PathBuilder);
 
     impl ScratchPathBuilder {
         fn clear(&mut self) {
             self.points.clear();
             self.verbs.clear();
+        }
+
+        #[inline(always)]
+        fn validate_build(&self) {
+            self.validator.build()
         }
     }
 
@@ -36,7 +41,7 @@ pub mod scratch_path {
     }
 
     impl Deref for ScratchPathBuilder {
-        type Target = DefaultPathBuilder;
+        type Target = PathBuilder;
 
         fn deref(&self) -> &Self::Target {
             &self.0
