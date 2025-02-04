@@ -1,6 +1,6 @@
 use skie_math::{vec2, Corners, Rect};
 
-use super::{Path, PathIter, PathVerb, Point, Polygon};
+use super::{Path, PathEventsIter, PathVerb, Point, Polygon};
 
 #[derive(Default)]
 pub struct PathBuilder {
@@ -50,8 +50,9 @@ impl PathBuilder {
     }
 
     #[inline]
-    pub fn path_events(&self) -> PathIter {
-        PathIter::new(&self.points, &self.verbs)
+    pub fn path_events(&self) -> PathEventsIter {
+        self.validator.build();
+        PathEventsIter::new(&self.points, &self.verbs)
     }
 
     pub fn line_to(&mut self, to: Point) {
@@ -136,6 +137,7 @@ impl PathBuilder {
         self.verbs.reserve(endpoints);
     }
 
+    #[must_use]
     pub fn build(self) -> Path {
         self.validator.build();
 
@@ -146,8 +148,11 @@ impl PathBuilder {
     }
 }
 
+// Adapted from
+// https://github.com/nical/lyon/blob/main/crates/path/src/builder.rs
 fn add_circle(builder: &mut PathBuilder, center: Point, radius: f32) {
     let radius = radius.abs();
+    // need this ?  we allways go for positive winding
     // let dir = match winding {
     //     Winding::Positive => 1.0,
     //     Winding::Negative => -1.0,
