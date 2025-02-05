@@ -1,9 +1,9 @@
-use crate::path::{Contour, PathBuilder};
+use crate::path::Contour;
 
 use super::Color;
 
 /// Represents a brush used for drawing operations, which includes properties for fill style, stroke style, and anti-aliasing.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Brush {
     pub(crate) fill_style: FillStyle,
     pub(crate) stroke_style: StrokeStyle,
@@ -313,12 +313,22 @@ impl PathBrush {
         }
     }
 
+    #[inline]
     pub fn set(&mut self, contour: Contour, brush: Brush) {
         self.overrides.insert(contour, brush);
     }
 
+    #[inline]
     pub fn set_default(&mut self, default: Brush) {
         self.default = default;
+    }
+
+    #[inline]
+    pub fn get_or_default(&self, contour: &Contour) -> Brush {
+        self.overrides
+            .get(contour)
+            .cloned()
+            .unwrap_or(self.default.clone())
     }
 }
 
@@ -365,7 +375,10 @@ where
 mod tests {
     use skie_math::vec2;
 
-    use crate::{path::PathBuilder, Color};
+    use crate::{
+        path::{PathBuilder, PathEventsIter, PathGeometryBuilder, Point},
+        Color,
+    };
 
     use super::{Brush, PathBrush};
 
@@ -375,17 +388,41 @@ mod tests {
 
         let mut brush = PathBrush::default();
 
+        let leg_paint = Brush::filled(Color::RED).stroke_width(10);
+
         path.begin(vec2(0.0, 0.0));
         path.line_to(vec2(-20.0, 100.0));
         let leg_l = path.end(false);
-        brush.set(leg_l, Brush::filled(Color::RED));
+        brush.set(leg_l, leg_paint.clone());
 
         path.begin(vec2(0.0, 0.0));
         path.line_to(vec2(20.0, 100.0));
         let leg_r = path.end(false);
-        brush.set(leg_r, Brush::filled(Color::RED));
+        brush.set(leg_r, leg_paint.clone());
 
+        let head_paint = Brush::filled(Color::WHITE);
         let head = path.circle(vec2(0.0, 0.0), 10.0);
-        brush.set(head, Brush::filled(Color::WHITE));
+        brush.set(head, head_paint.clone());
+
+        let mut output = <Vec<Point>>::new();
+
+        let mut builder =
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+                .map(|v| v.0);
+
+        let leg_l_build = builder.next().expect("no contour");
+        assert_eq!(leg_l, leg_l_build);
+
+        let leg_r_build = builder.next().expect("no contour");
+        assert_eq!(leg_r, leg_r_build);
+
+        let head_build = builder.next().expect("no contour");
+        assert_eq!(head, head_build);
+
+        assert_eq!(builder.next(), None);
+
+        assert_eq!(brush.get_or_default(&leg_l_build), leg_paint.clone());
+        assert_eq!(brush.get_or_default(&leg_r_build), leg_paint);
+        assert_eq!(brush.get_or_default(&head_build), head_paint);
     }
 }
