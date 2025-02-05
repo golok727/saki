@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use skie_math::Rect;
+
 use crate::paint::{CubicBezier, QuadraticBezier};
 
 use super::{Contour, PathEvent, Point};
@@ -112,6 +114,26 @@ where
             }
         }
     }
+}
+
+pub fn get_path_bounds(path: &[Point]) -> Rect<f32> {
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for point in path {
+        let x = point.x;
+        let y = point.y;
+        min_x = if x < min_x { x } else { min_x };
+        max_x = if x > max_x { x } else { max_x };
+
+        min_y = if y < min_y { y } else { min_y };
+        max_y = if y > max_y { y } else { max_y };
+    }
+
+    Rect::from_corners((min_x, min_y).into(), (max_x, max_y).into())
 }
 
 #[cfg(test)]

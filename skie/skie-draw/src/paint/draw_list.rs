@@ -10,10 +10,11 @@ use super::{
 use crate::earcut::Earcut;
 use crate::math::{Rect, Vec2};
 use crate::paint::WHITE_UV;
+use crate::{get_path_bounds, PathEventsIter, PathGeometryBuilder};
 
 use std::ops::{Deref, DerefMut};
 
-use crate::path::{Path, PathBuilder, PathEventsIter, PathGeometryBuilder, Point};
+use crate::path::{Path, PathBuilder, Point};
 
 #[derive(Default)]
 pub struct ScratchPathBuilder(PathBuilder);
@@ -259,6 +260,21 @@ impl<'a> DrawListCapture<'a> {
     }
 }
 
+pub fn build_path(
+    iter: PathEventsIter,
+    output: &mut Vec<Point>,
+    brush: &PathBrush,
+    mut f: impl FnMut(&Brush, &[Point]),
+) {
+    let geo_build =
+        <PathGeometryBuilder<PathEventsIter>>::new(iter, output, true).collect::<Vec<_>>();
+
+    for (contour, range) in geo_build {
+        let this_brush = brush.get_or_default(&contour);
+        f(&this_brush, &output[range.clone()])
+    }
+}
+
 fn fill_path_convex(
     mesh: &mut Mesh,
     path: &[Point],
@@ -295,7 +311,7 @@ fn fill_path_convex(
 
     // FIXME:
     if feathering > 0.0 {
-        // AA fill
+        // // AA fill
         let idx_count = (points_count - 2) * 3 + points_count * 6;
         let vtx_count = points_count * 2;
         mesh.reserve_prim(vtx_count, idx_count);
@@ -312,8 +328,8 @@ fn fill_path_convex(
         }
 
         let mut i0 = points_count - 1;
-        for i1 in 0..points_count {
-            let p1 = path[i1];
+        for (i1, point) in path.iter().enumerate() {
+            let p1 = *point;
             let dm = p1.normalize().normal() * 0.5 * feathering;
 
             let pos_inner = p1 - dm;
@@ -357,39 +373,4 @@ fn fill_path_convex(
             );
         }
     }
-}
-
-fn build_path(
-    iter: PathEventsIter,
-    output: &mut Vec<Point>,
-    brush: &PathBrush,
-    mut f: impl FnMut(&Brush, &[Point]),
-) {
-    let geo_build =
-        <PathGeometryBuilder<PathEventsIter>>::new(iter, output, true).collect::<Vec<_>>();
-
-    for (contour, range) in geo_build {
-        let this_brush = brush.get_or_default(&contour);
-        f(&this_brush, &output[range.clone()])
-    }
-}
-
-fn get_path_bounds(path: &[Point]) -> Rect<f32> {
-    let mut min_x = f32::INFINITY;
-    let mut max_x = f32::NEG_INFINITY;
-
-    let mut min_y = f32::INFINITY;
-    let mut max_y = f32::NEG_INFINITY;
-
-    for point in path {
-        let x = point.x;
-        let y = point.y;
-        min_x = if x < min_x { x } else { min_x };
-        max_x = if x > max_x { x } else { max_x };
-
-        min_y = if y < min_y { y } else { min_y };
-        max_y = if y > max_y { y } else { max_y };
-    }
-
-    Rect::from_corners((min_x, min_y).into(), (max_x, max_y).into())
 }
