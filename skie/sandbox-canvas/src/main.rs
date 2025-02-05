@@ -80,14 +80,13 @@ impl Man {
         let head_size: f32 = f32::min(height * 0.20, 30.0);
 
         let arm_length = height - head_size;
-        let left_arm_spread= 20.0;
+        let left_arm_spread = 20.0;
         let right_arm_spread = 25.0;
         let shoulder = spine_start + vec2(0.0, head_size + 10.0);
-        
+
         let leg_length = height * 0.75;
         let left_leg_spread = 20.0;
         let right_leg_spread = 20.0;
-
 
         // Cape
         let cape_pin = spine_start + vec2(0.0, head_size);
@@ -124,12 +123,12 @@ impl Man {
         let right_leg = path.end(false);
 
         path.begin(shoulder);
-        path.line_to(shoulder + vec2(-left_arm_spread, arm_length)); 
+        path.line_to(shoulder + vec2(-left_arm_spread, arm_length));
         let left_arm = path.end(false);
-        
+
         path.begin(shoulder);
-        path.line_to(shoulder + vec2(right_arm_spread, arm_length)); 
-        let right_arm = path.end(false); 
+        path.line_to(shoulder + vec2(right_arm_spread, arm_length));
+        let right_arm = path.end(false);
 
         // Head
         let head = path.circle(spine_start, head_size);

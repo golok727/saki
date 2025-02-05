@@ -18,7 +18,7 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     gpu,
-    paint::{AtlasImage, AtlasKey, Brush, SkieAtlas},
+    paint::{AtlasImage, AtlasKey, Brush, PathBrush, SkieAtlas},
     quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, LineCap,
     LineJoin, Path as Path2D, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId,
     TextureOptions, Vec2,
@@ -355,6 +355,8 @@ impl Window {
         );
 
         {
+            let mut brush = PathBrush::default();
+
             let mut path = Path2D::builder();
             path.begin((100.0, 100.0).into());
             path.line_to((500.0, 100.0).into());
@@ -366,26 +368,24 @@ impl Window {
             path.line_to((400.0, 700.0).into());
             let b = path.end(false);
 
-            cx.draw_path(
-                path,
-                [
-                    (
-                        a,
-                        Brush::filled(Color::TORCH_RED)
-                            .line_width(20)
-                            .stroke_color(Color::WHITE)
-                            .line_join(LineJoin::Bevel),
-                    ),
-                    (
-                        b,
-                        Brush::filled(Color::TRANSPARENT)
-                            .line_width(20)
-                            .stroke_color(Color::WHITE)
-                            .line_join(LineJoin::Miter)
-                            .line_cap(LineCap::Round),
-                    ),
-                ],
+            brush.set(
+                a,
+                Brush::filled(Color::TORCH_RED)
+                    .line_width(20)
+                    .stroke_color(Color::WHITE)
+                    .line_join(LineJoin::Bevel),
             );
+
+            brush.set(
+                b,
+                Brush::filled(Color::TRANSPARENT)
+                    .line_width(20)
+                    .stroke_color(Color::WHITE)
+                    .line_join(LineJoin::Miter)
+                    .line_cap(LineCap::Round),
+            );
+
+            cx.draw_path(path, brush); 
         }
 
         {
