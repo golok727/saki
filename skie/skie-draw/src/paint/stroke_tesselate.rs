@@ -6,80 +6,56 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{Color, Vec2};
+use crate::{StrokeJoin, Vec2};
 
-use super::{Mesh, WHITE_UV};
+use super::{Mesh, StrokeCap, StrokeStyle, WHITE_UV};
 
 #[derive(Debug)]
-pub struct Polyline<'a> {
-    mesh: PolyLineMesh<'a>,
+pub struct StrokeTesellator<'a> {
+    mesh: StrokeTesellatorMesh<'a>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LineJoin {
-    Miter,
-    Bevel,
-    Round,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LineCap {
-    Round,
-    Square,
-    Butt,
-    Joint,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PolylineOptions {
-    pub color: Color,
-    pub line_width: u32,
-    pub line_join: LineJoin,
-    pub line_cap: LineCap,
-    pub allow_overlap: bool,
-}
-
-impl<'a> Polyline<'a> {
-    pub fn add_to_mesh(mesh: &'a mut Mesh, points: &[Vec2<f32>], stroke_style: PolylineOptions) {
+impl<'a> StrokeTesellator<'a> {
+    pub fn add_to_mesh(mesh: &'a mut Mesh, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
         let mut polyline = Self {
-            mesh: PolyLineMesh::Borrowed(mesh),
+            mesh: StrokeTesellatorMesh::Borrowed(mesh),
         };
 
-        polyline.add_polyline(points, &stroke_style);
+        polyline.add_polyline(points, stroke_style);
     }
 
-    pub fn create(points: &[Vec2<f32>], stroke_style: PolylineOptions) -> Mesh {
+    pub fn create(points: &[Vec2<f32>], stroke_style: &StrokeStyle) -> Mesh {
         let mut polyline = Self {
-            mesh: PolyLineMesh::Owned(Default::default()),
+            mesh: StrokeTesellatorMesh::Owned(Default::default()),
         };
 
-        polyline.add_polyline(points, &stroke_style);
+        polyline.add_polyline(points, stroke_style);
 
         match polyline.mesh {
-            PolyLineMesh::Owned(mesh) => mesh,
-            PolyLineMesh::Borrowed(_) => unreachable!(),
+            StrokeTesellatorMesh::Owned(mesh) => mesh,
+            StrokeTesellatorMesh::Borrowed(_) => unreachable!(),
         }
     }
 
-    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &PolylineOptions) {
+    fn add_polyline(&mut self, points: &[Vec2<f32>], stroke_style: &StrokeStyle) {
         if points.len() < 2 {
             return;
         }
 
-        let h_linewidth = stroke_style.line_width.max(1) as f32 / 2.0;
+        let h_linewidth = stroke_style.stroke_width.max(1) as f32 / 2.0;
 
-        let mut segments: Vec<PolySegment> = points
+        let segments: Vec<PolySegment> = points
             .windows(2)
             .filter(|p| p[0] != p[1])
             .map(|p| PolySegment::new(LineSegment::new(p[0], p[1]), h_linewidth))
             .collect();
 
-        // TODO merge with actual stroke_style and remove line_cap joint
-        if stroke_style.line_cap == LineCap::Joint && points.first() != points.last() {
-            segments.push(PolySegment::new(
-                LineSegment::new(*points.last().unwrap(), *points.first().unwrap()),
-                h_linewidth,
-            ));
+        let mut join = false;
+
+        if let (Some(first), Some(last)) = (points.first(), points.last()) {
+            if first == last {
+                join = true
+            }
         }
 
         if segments.is_empty() {
@@ -96,31 +72,8 @@ impl<'a> Polyline<'a> {
         let mut path_end_1 = last_segment.edge1.b;
         let mut path_end_2 = last_segment.edge2.b;
 
-        match stroke_style.line_cap {
-            LineCap::Butt => {
-                // NOOP
-            }
-            LineCap::Round => {
-                // add the start and end round caps
-                self.mesh.add_triangle_fan(
-                    stroke_style.color,
-                    first_segment.center.a,
-                    first_segment.center.a,
-                    path_start_1,
-                    path_start_2,
-                    false,
-                );
-
-                self.mesh.add_triangle_fan(
-                    stroke_style.color,
-                    last_segment.center.b,
-                    last_segment.center.b,
-                    path_end_1,
-                    path_end_2,
-                    true,
-                );
-            }
-            LineCap::Joint => self.polyline_create_joint(
+        if join {
+            self.polyline_create_joint(
                 stroke_style,
                 last_segment,
                 first_segment,
@@ -128,13 +81,39 @@ impl<'a> Polyline<'a> {
                 &mut path_end_2,
                 &mut path_start_1,
                 &mut path_start_2,
-            ),
-            LineCap::Square => {
-                // offset the start and end with the half line width
-                path_start_1 += first_segment.edge1.direction() * h_linewidth;
-                path_start_2 += first_segment.edge2.direction() * h_linewidth;
-                path_end_1 -= last_segment.edge1.direction() * h_linewidth;
-                path_end_2 -= last_segment.edge2.direction() * h_linewidth;
+            )
+        } else {
+            match stroke_style.stroke_cap {
+                StrokeCap::Butt => {
+                    // NOOP
+                }
+                StrokeCap::Round => {
+                    // add the start and end round caps
+                    self.mesh.add_triangle_fan(
+                        stroke_style.color,
+                        first_segment.center.a,
+                        first_segment.center.a,
+                        path_start_1,
+                        path_start_2,
+                        false,
+                    );
+
+                    self.mesh.add_triangle_fan(
+                        stroke_style.color,
+                        last_segment.center.b,
+                        last_segment.center.b,
+                        path_end_1,
+                        path_end_2,
+                        true,
+                    );
+                }
+                StrokeCap::Square => {
+                    // offset the start and end with the half line width
+                    path_start_1 += first_segment.edge1.direction() * h_linewidth;
+                    path_start_2 += first_segment.edge2.direction() * h_linewidth;
+                    path_end_1 -= last_segment.edge1.direction() * h_linewidth;
+                    path_end_2 -= last_segment.edge2.direction() * h_linewidth;
+                }
             }
         }
 
@@ -192,7 +171,7 @@ impl<'a> Polyline<'a> {
     fn polyline_create_joint(
         &mut self,
 
-        style: &PolylineOptions,
+        style: &StrokeStyle,
         segment1: &PolySegment,
         segment2: &PolySegment,
 
@@ -213,13 +192,13 @@ impl<'a> Polyline<'a> {
         }
 
         const MITER_MIN_ANGLE: f32 = 0.349066; // ~20 degrees
-        let mut joint_style = style.line_join;
+        let mut joint_style = style.stroke_join;
 
-        if joint_style == LineJoin::Miter && wrapped_angle < MITER_MIN_ANGLE {
-            joint_style = LineJoin::Bevel;
+        if joint_style == StrokeJoin::Miter && wrapped_angle < MITER_MIN_ANGLE {
+            joint_style = StrokeJoin::Bevel;
         }
 
-        if joint_style == LineJoin::Miter {
+        if joint_style == StrokeJoin::Miter {
             // calculate each edge's intersection point
             // with the next segment's central line
             let sec1 = segment1.edge1.intersection(&segment2.edge1, true);
@@ -280,7 +259,7 @@ impl<'a> Polyline<'a> {
                 *next_start2 = outer2.a;
             }
 
-            if joint_style == LineJoin::Bevel {
+            if joint_style == StrokeJoin::Bevel {
                 // simply connect the intersection points
                 self.mesh.reserve_prim(3, 3);
 
@@ -295,7 +274,7 @@ impl<'a> Polyline<'a> {
                     cur_vertex_idx + 1, //
                     cur_vertex_idx + 2, //
                 );
-            } else if joint_style == LineJoin::Round {
+            } else if joint_style == StrokeJoin::Round {
                 self.mesh.add_triangle_fan(
                     style.color,
                     inner_sec,
@@ -310,27 +289,27 @@ impl<'a> Polyline<'a> {
 }
 
 #[derive(Debug)]
-enum PolyLineMesh<'a> {
+enum StrokeTesellatorMesh<'a> {
     Borrowed(&'a mut Mesh),
     Owned(Mesh),
 }
 
-impl<'a> Deref for PolyLineMesh<'a> {
+impl<'a> Deref for StrokeTesellatorMesh<'a> {
     type Target = Mesh;
 
     fn deref(&self) -> &Self::Target {
         match &self {
-            PolyLineMesh::Borrowed(mesh) => mesh,
-            PolyLineMesh::Owned(mesh) => mesh,
+            StrokeTesellatorMesh::Borrowed(mesh) => mesh,
+            StrokeTesellatorMesh::Owned(mesh) => mesh,
         }
     }
 }
 
-impl<'a> DerefMut for PolyLineMesh<'a> {
+impl<'a> DerefMut for StrokeTesellatorMesh<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            PolyLineMesh::Borrowed(mesh) => mesh,
-            PolyLineMesh::Owned(mesh) => mesh,
+            StrokeTesellatorMesh::Borrowed(mesh) => mesh,
+            StrokeTesellatorMesh::Owned(mesh) => mesh,
         }
     }
 }

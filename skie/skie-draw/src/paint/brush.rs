@@ -361,12 +361,12 @@ impl From<&Brush> for PathBrush {
 
 impl<T> From<T> for PathBrush
 where
-    T: Iterator<Item = (Contour, Brush)>,
+    T: IntoIterator<Item = (Contour, Brush)>,
 {
     fn from(value: T) -> Self {
         Self {
             default: Default::default(),
-            overrides: value.collect(),
+            overrides: value.into_iter().collect(),
         }
     }
 }

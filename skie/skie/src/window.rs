@@ -1,9 +1,10 @@
 pub mod error;
 use derive_more::derive::{Deref, DerefMut};
 use parking_lot::RwLock;
+use std::path::Path;
 
 use core::f32;
-use std::{borrow::Cow, future::Future, io::Read, path::Path, sync::Arc};
+use std::{borrow::Cow, future::Future, io::Read, sync::Arc};
 
 use crate::{
     app::{AppContext, AsyncAppContext},
@@ -18,9 +19,9 @@ pub(crate) use winit::window::Window as WinitWindow;
 use skie_draw::{
     gpu,
     paint::{AtlasImage, AtlasKey, Brush, SkieAtlas},
-    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, Path2D,
-    Rect, Size, StrokeCap, StrokeJoin, Text, TextSystem, TextureFilterMode, TextureId,
-    TextureOptions, Vec2,
+    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half,
+    Path as Path2D, Rect, Size, StrokeCap, StrokeJoin, Text, TextSystem, TextureFilterMode,
+    TextureId, TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -354,34 +355,36 @@ impl Window {
         );
 
         {
-            let mut path = Path2D::default();
-            path.move_to((100.0, 100.0).into());
+            let mut path = Path2D::builder();
+            path.begin((100.0, 100.0).into());
             path.line_to((500.0, 100.0).into());
             path.line_to((100.0, 400.0).into());
-            path.close();
+            let a = path.close();
 
-            cx.draw_path(
-                path,
-                Brush::filled(Color::TORCH_RED)
-                    .stroke_width(20)
-                    .stroke_color(Color::WHITE)
-                    .stroke_join(StrokeJoin::Bevel),
-            );
-        }
-
-        {
-            let mut path = Path2D::default();
-            path.move_to((300.0, 500.0).into());
+            path.begin((300.0, 500.0).into());
             path.line_to((600.0, 500.0).into());
             path.line_to((400.0, 700.0).into());
+            let b = path.end(false);
 
             cx.draw_path(
                 path,
-                Brush::filled(Color::TRANSPARENT)
-                    .stroke_width(20)
-                    .stroke_color(Color::WHITE)
-                    .stroke_join(StrokeJoin::Miter)
-                    .stroke_cap(StrokeCap::Round),
+                [
+                    (
+                        a,
+                        Brush::filled(Color::TORCH_RED)
+                            .stroke_width(20)
+                            .stroke_color(Color::WHITE)
+                            .stroke_join(StrokeJoin::Bevel),
+                    ),
+                    (
+                        b,
+                        Brush::filled(Color::TRANSPARENT)
+                            .stroke_width(20)
+                            .stroke_color(Color::WHITE)
+                            .stroke_join(StrokeJoin::Miter)
+                            .stroke_cap(StrokeCap::Round),
+                    ),
+                ],
             );
         }
 

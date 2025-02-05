@@ -4,11 +4,12 @@ use crate::{
     circle,
     paint::{
         AtlasKey, Brush, GpuTextureView, GraphicsInstruction, GraphicsInstructionBatcher,
-        Primitive, SkieAtlas, SkieAtlasTextureInfoMap, TextureKind,
+        PathBrush, Primitive, SkieAtlas, SkieAtlasTextureInfoMap, TextureKind,
     },
+    path::Path,
     quad,
     renderer::Renderable,
-    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Renderer2D, Size, Text,
+    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Rect, Renderer2D, Size, Text,
     TextSystem, TextureId, TextureOptions,
 };
 use ahash::HashSet;
@@ -196,8 +197,15 @@ impl Canvas {
             .add(GraphicsInstruction::brush(prim, brush.clone()));
     }
 
-    pub fn draw_path(&mut self, path: Path2D, brush: Brush) {
-        self.draw_primitive(path, brush);
+    pub fn draw_path(&mut self, path: impl Into<Path>, brush: impl Into<PathBrush>) {
+        // FIXME: We need to change this;
+        self.draw_primitive(
+            Primitive::Path {
+                path: path.into(),
+                brush: brush.into(),
+            },
+            Brush::filled(Color::WHITE),
+        );
     }
 
     pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: Brush) {

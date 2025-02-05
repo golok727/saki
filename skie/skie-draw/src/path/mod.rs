@@ -56,6 +56,13 @@ pub struct PathEventsIter<'a> {
     current: Point,
 }
 
+impl From<PathBuilder> for Path {
+    #[inline]
+    fn from(value: PathBuilder) -> Self {
+        value.build()
+    }
+}
+
 impl<'a> PathEventsIter<'a> {
     pub(crate) fn new(points: &'a [Point], verbs: &'a [PathVerb]) -> Self {
         Self {
