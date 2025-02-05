@@ -27,12 +27,12 @@ impl PathBuilder {
         }
     }
 
-    pub fn begin(&mut self, to: Point) {
+    pub fn begin(&mut self, at: Point) {
         self.validator.begin();
-        check_is_nan(to);
+        check_is_nan(at);
 
-        self.first = to;
-        self.points.push(to);
+        self.first = at;
+        self.points.push(at);
         self.verbs.push(PathVerb::Begin);
     }
 

@@ -19,9 +19,9 @@ pub(crate) use winit::window::Window as WinitWindow;
 use skie_draw::{
     gpu,
     paint::{AtlasImage, AtlasKey, Brush, SkieAtlas},
-    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half,
-    Path as Path2D, Rect, Size, LineCap, LineJoin, Text, TextSystem, TextureFilterMode,
-    TextureId, TextureOptions, Vec2,
+    quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, LineCap,
+    LineJoin, Path as Path2D, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId,
+    TextureOptions, Vec2,
 };
 
 #[derive(Debug, Clone)]
