@@ -6,6 +6,10 @@ pub mod paint;
 pub mod renderer;
 pub mod text;
 
+pub mod path;
+
+pub use path::*;
+
 pub use skie_math as math;
 
 pub use canvas::Canvas;
@@ -16,8 +20,8 @@ pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
     circle, quad, AtlasKey, AtlasKeySource, AtlasTextureInfo, AtlasTextureInfoMap, Brush, Circle,
-    FillStyle, Path2D, Quad, SkieAtlas, StrokeCap, StrokeJoin, StrokeStyle, Text, TextAlign,
-    TextBaseline, TextureAtlas,
+    FillStyle, LineCap, LineJoin, Quad, SkieAtlas, StrokeStyle, Text, TextAlign, TextBaseline,
+    TextureAtlas,
 };
 
 pub use canvas::{

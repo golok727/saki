@@ -4,11 +4,12 @@ use crate::{
     circle,
     paint::{
         AtlasKey, Brush, GpuTextureView, GraphicsInstruction, GraphicsInstructionBatcher,
-        Primitive, SkieAtlas, SkieAtlasTextureInfoMap, TextureKind,
+        PathBrush, Primitive, SkieAtlas, SkieAtlasTextureInfoMap, TextureKind,
     },
+    path::Path,
     quad,
     renderer::Renderable,
-    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Path2D, Rect, Renderer2D, Size, Text,
+    AtlasTextureInfo, Color, DrawList, GlyphImage, IsZero, Rect, Renderer2D, Size, Text,
     TextSystem, TextureId, TextureOptions,
 };
 use ahash::HashSet;
@@ -143,13 +144,8 @@ impl Canvas {
 
     pub fn restore(&mut self) {
         if let Some(state) = self.state_stack.pop() {
-            let restored = state;
-
-            if restored != self.current_state {
-                self.stage_changes();
-            }
-
-            self.current_state = restored;
+            self.stage_changes();
+            self.current_state = state;
         }
     }
 
@@ -196,20 +192,27 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: &Brush) {
+    pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: Brush) {
         self.list
             .add(GraphicsInstruction::brush(prim, brush.clone()));
     }
 
-    pub fn draw_path(&mut self, path: Path2D, brush: &Brush) {
-        self.draw_primitive(path, brush);
+    pub fn draw_path(&mut self, path: impl Into<Path>, brush: impl Into<PathBrush>) {
+        self.draw_primitive(
+            Primitive::Path {
+                path: path.into(),
+                brush: brush.into(),
+            },
+            // FIXME: This is a workaround
+            Brush::filled(Color::WHITE),
+        );
     }
 
-    pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: &Brush) {
+    pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: Brush) {
         self.draw_primitive(quad().rect(rect.clone()), brush);
     }
 
-    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: &Brush) {
+    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: Brush) {
         self.draw_primitive(quad().rect(rect.clone()).corners(corners.clone()), brush);
     }
 
@@ -232,7 +235,7 @@ impl Canvas {
         ));
     }
 
-    pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: &Brush) {
+    pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: Brush) {
         self.draw_primitive(circle().pos(cx, cy).radius(radius), brush);
     }
 

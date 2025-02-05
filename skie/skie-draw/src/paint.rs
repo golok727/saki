@@ -2,14 +2,17 @@ pub mod atlas;
 pub mod brush;
 pub mod color;
 pub mod draw_list;
+pub mod geometry;
 pub mod graphics_instruction;
 pub mod image;
 pub mod mesh;
-pub mod path;
-pub mod polyline;
 pub mod primitives;
+pub mod stroke_tesselate;
 pub mod text;
 pub mod texture;
+
+// pub mod path;
+// pub use path::*;
 
 use crate::{math::Vec2, text::GlyphImage};
 
@@ -17,12 +20,12 @@ pub use atlas::*;
 pub use brush::*;
 pub use color::*;
 pub use draw_list::*;
+pub use geometry::*;
 pub use graphics_instruction::*;
 pub use image::*;
 pub use mesh::*;
-pub use path::*;
-pub use polyline::*;
 pub use primitives::*;
+pub use stroke_tesselate::*;
 pub use text::*;
 pub use texture::*;
 

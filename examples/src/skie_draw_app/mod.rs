@@ -44,10 +44,11 @@ struct MovingSquare {
 
 impl MovingSquare {
     fn draw(&self, c: &mut Canvas, _keystate: &KeyState) {
-        let mut brush = Brush::default();
-        brush.fill_color(Color::TORCH_RED);
-
-        c.draw_round_rect(&self.rect, &Corners::with_all(10.0), &brush);
+        c.draw_round_rect(
+            &self.rect,
+            &Corners::with_all(10.0),
+            Brush::filled(Color::TORCH_RED),
+        );
     }
 
     fn update(&mut self, keystate: &KeyState, window: &app::Window) {
@@ -117,9 +118,7 @@ impl SkieAppHandle for App {
 
         cx.fill_text(&text, Color::WHITE);
 
-        let mut brush = Brush::default();
-
-        if self.keystate.any_pressed([
+        let moving = self.keystate.any_pressed([
             KeyCode::ArrowUp,
             KeyCode::ArrowDown,
             KeyCode::ArrowLeft,
@@ -128,14 +127,16 @@ impl SkieAppHandle for App {
             KeyCode::KeyA,
             KeyCode::KeyS,
             KeyCode::KeyD,
-        ]) {
-            brush.fill_color(Color::GREEN);
-        } else {
-            brush.fill_color(Color::RED);
-        }
+        ]);
+
+        let brush = Brush::default().when_or(
+            moving,
+            |brush| brush.fill_color(Color::GREEN),
+            |brush| brush.fill_color(Color::RED),
+        );
 
         let height = cx.height() as f32;
-        cx.draw_circle(51.0, height - 50.0, 20.0, &brush);
+        cx.draw_circle(51.0, height - 50.0, 20.0, brush);
     }
 
     fn on_keyup(&mut self, keycode: KeyCode) {

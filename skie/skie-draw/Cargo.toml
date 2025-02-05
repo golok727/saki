@@ -34,4 +34,3 @@ default = []
 all = ["application"]
 # provides a quick start application module backed by winit
 application = ["dep:winit"]
-experimental = []

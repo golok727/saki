@@ -1,14 +1,14 @@
-use crate::{math::Corners, Zero};
+use crate::{math::Corners, path::Path, Zero};
 use std::fmt::Debug;
 
 use crate::math::{Rect, Vec2};
 
-use super::path::Path2D;
+use super::PathBrush;
 
 #[derive(Debug, Clone)]
 pub enum Primitive {
     Quad(Quad),
-    Path(Path2D),
+    Path { path: Path, brush: PathBrush },
     Circle(Circle),
 }
 
@@ -91,12 +91,5 @@ impl From<Circle> for Primitive {
     #[inline]
     fn from(circle: Circle) -> Self {
         Primitive::Circle(circle)
-    }
-}
-
-impl From<Path2D> for Primitive {
-    #[inline]
-    fn from(path: Path2D) -> Self {
-        Primitive::Path(path)
     }
 }

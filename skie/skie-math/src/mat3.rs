@@ -52,11 +52,11 @@ impl Mat3 {
     pub fn from_rotation(angle: f32) -> Self {
         let cos = angle.cos();
         let sin = angle.sin();
-         Self {
+        Self {
             #[rustfmt::skip]
             data: [
-                    cos, -sin, 0.0, 
-                    sin, cos, 0.0, 
+                    cos, -sin, 0.0,
+                    sin, cos, 0.0,
                     0.0, 0.0, 1.0
             ],
         }

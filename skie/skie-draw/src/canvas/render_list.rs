@@ -22,7 +22,6 @@ impl RenderList {
         self.instructions.push(instruction)
     }
 
-    #[inline]
     pub fn stage_changes(&mut self, state: CanvasState) {
         let start = self.stage.last().map(|ins| ins.range.end).unwrap_or(0);
         let end = self.instructions.len();
