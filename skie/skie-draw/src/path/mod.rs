@@ -51,6 +51,7 @@ impl<'a> IntoIterator for &'a Path {
 pub struct PathEventsIter<'a> {
     points: std::slice::Iter<'a, Point>,
     verbs: std::slice::Iter<'a, PathVerb>,
+    p_index: usize,
     first: Point,
     current: Point,
 }
@@ -62,14 +63,17 @@ impl<'a> PathEventsIter<'a> {
             verbs: verbs.iter(),
             current: Point::zero(),
             first: Point::zero(),
+            p_index: 0,
         }
     }
 
     pub fn next_point(&mut self) -> Point {
-        self.points
-            .next()
-            .copied()
-            .unwrap_or(Point::new(f32::NAN, f32::NAN))
+        if let Some(point) = self.points.next().copied() {
+            self.p_index += 1;
+            point
+        } else {
+            Point::new(f32::NAN, f32::NAN)
+        }
     }
 }
 
@@ -81,12 +85,12 @@ impl<'a> Iterator for PathEventsIter<'a> {
             Some(&PathVerb::Begin) => {
                 self.current = self.next_point();
                 self.first = self.current;
+
                 Some(PathEvent::Begin { at: self.current })
             }
             Some(&PathVerb::LineTo) => {
                 let from = self.current;
                 self.current = self.next_point();
-
                 Some(PathEvent::Line {
                     from,
                     to: self.current,
@@ -95,6 +99,7 @@ impl<'a> Iterator for PathEventsIter<'a> {
             Some(&PathVerb::QuadraticTo) => {
                 let from = self.current;
                 let ctrl = self.next_point();
+
                 self.current = self.next_point();
                 Some(PathEvent::Quadratic {
                     from,
@@ -106,6 +111,7 @@ impl<'a> Iterator for PathEventsIter<'a> {
                 let from = self.current;
                 let ctrl1 = self.next_point();
                 let ctrl2 = self.next_point();
+
                 self.current = self.next_point();
 
                 Some(PathEvent::Cubic {
@@ -117,8 +123,10 @@ impl<'a> Iterator for PathEventsIter<'a> {
             }
             Some(&PathVerb::Close) => {
                 let last = self.current;
+
                 self.current = self.next_point();
                 Some(PathEvent::End {
+                    contour: Contour(self.p_index),
                     last,
                     first: self.first,
                     close: true,
@@ -128,6 +136,7 @@ impl<'a> Iterator for PathEventsIter<'a> {
                 let last = self.current;
                 self.current = self.first;
                 Some(PathEvent::End {
+                    contour: Contour(self.p_index),
                     last,
                     first: self.first,
                     close: false,
@@ -163,8 +172,90 @@ pub enum PathEvent {
     },
 
     End {
+        contour: Contour,
         last: Point,
         close: bool,
         first: Point,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use skie_math::vec2;
+
+    use super::*;
+
+    #[test]
+    fn path_contours() {
+        let mut path = Path::builder();
+
+        path.begin(vec2(0.0, 0.0));
+        path.line_to(vec2(-20.0, 100.0));
+        let leg_l = path.end(false);
+
+        path.begin(vec2(0.0, 0.0));
+        path.line_to(vec2(20.0, 100.0));
+        let leg_r = path.end(false);
+
+        let head = path.circle(vec2(0.0, 0.0), 10.0);
+
+        assert_eq!(leg_l, Contour(2));
+        assert_eq!(leg_r, Contour(2 + 2));
+        assert_eq!(head, Contour(2 + 2 + 14));
+    }
+
+    #[test]
+    fn path_events_iter_test() {
+        // todo add tests for rest of the events
+        let mut path = Path::builder();
+
+        path.begin(vec2(0.0, 0.0));
+        path.line_to(vec2(-20.0, 100.0));
+        path.end(false);
+
+        path.begin(vec2(0.0, 0.0));
+        path.line_to(vec2(20.0, 100.0));
+        path.end(false);
+
+        let mut iter = path.path_events();
+        // first
+        assert_eq!(iter.next(), Some(PathEvent::Begin { at: vec2(0.0, 0.0) }));
+        assert_eq!(
+            iter.next(),
+            Some(PathEvent::Line {
+                from: vec2(0.0, 0.0),
+                to: vec2(-20.0, 100.0)
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(PathEvent::End {
+                contour: Contour(2),
+                last: vec2(-20.0, 100.0),
+                close: false,
+                first: vec2(0.0, 0.0)
+            })
+        );
+
+        // second
+        assert_eq!(iter.next(), Some(PathEvent::Begin { at: vec2(0.0, 0.0) }));
+        assert_eq!(
+            iter.next(),
+            Some(PathEvent::Line {
+                from: vec2(0.0, 0.0),
+                to: vec2(20.0, 100.0)
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(PathEvent::End {
+                contour: Contour(4),
+                last: vec2(20.0, 100.0),
+                close: false,
+                first: vec2(0.0, 0.0)
+            })
+        );
+
+        assert_eq!(iter.next(), None);
+    }
 }

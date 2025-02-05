@@ -21,17 +21,16 @@ pub fn run() {
 
     let rect = Rect::xywh(size.width.half(), size.height.half(), 500.0, 500.0).centered();
 
-    let mut brush = Brush::default();
-    brush.fill_color(Color::TORCH_RED);
-    brush.stroke_color(Color::WHITE);
-    brush.stroke_width(5);
+    canvas.draw_round_rect(
+        &rect,
+        &Corners::with_all(10.0),
+        Brush::filled(Color::TORCH_RED)
+            .stroke_color(Color::WHITE)
+            .stroke_width(5),
+    );
 
-    canvas.draw_round_rect(&rect, &Corners::with_all(10.0), &brush);
-
-    brush.reset();
-    brush.fill_color(Color::WHITE);
     let center = rect.center();
-    canvas.draw_circle(center.x, center.y, 200.0, &brush);
+    canvas.draw_circle(center.x, center.y, 200.0, Brush::filled(Color::WHITE));
 
     // Aligns wont work now :)
     let pos = center - vec2(170.0, 50.0);

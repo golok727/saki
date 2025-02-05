@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::paint::{CubicBezier, QuadraticBezier};
 
-use super::{PathEvent, Point};
+use super::{Contour, PathEvent, Point};
 
 pub struct PathGeometryBuilder<'a, PathIter>
 where
@@ -32,7 +32,7 @@ where
         }
     }
 
-    fn build_geometry_till_end(&mut self, start: Point) {
+    fn build_geometry_till_end(&mut self, start: Point) -> Contour {
         self.output.push(start);
 
         loop {
@@ -72,13 +72,18 @@ where
                     }
                 }
                 Some(PathEvent::Line { to, .. }) => self.output.push(to),
-                Some(PathEvent::End { close, first, .. }) => {
+                Some(PathEvent::End {
+                    close,
+                    first,
+                    contour,
+                    ..
+                }) => {
                     if close {
                         self.output.push(first)
                     }
-                    return;
+                    return contour;
                 }
-                None => return,
+                None => return Contour::INVALID,
             }
         }
     }
@@ -88,16 +93,16 @@ impl<'a, PathIter> Iterator for PathGeometryBuilder<'a, PathIter>
 where
     PathIter: Iterator<Item = PathEvent>,
 {
-    type Item = Range<usize>;
+    type Item = (Contour, Range<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.path_iter.next() {
             Some(PathEvent::Begin { at }) => {
                 let start = self.offset;
-                self.build_geometry_till_end(at);
+                let contour = self.build_geometry_till_end(at);
                 let end = self.output.len();
                 self.offset = end;
-                Some(start..end)
+                Some((contour, start..end))
             }
 
             None => None,
@@ -134,7 +139,7 @@ mod tests {
         let geo_build =
             <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
 
-        let contours = geo_build.collect::<Vec<_>>();
+        let contours = geo_build.map(|v| v.1).collect::<Vec<_>>();
 
         assert_eq!(output.len(), 7);
         assert_eq!(contours.len(), 2);
@@ -204,7 +209,8 @@ mod tests {
         path.end(false);
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+                .map(|v| v.1);
         let range = geo_build.next().expect("no countours found");
         assert!(geo_build.next().is_none());
 
@@ -243,7 +249,8 @@ mod tests {
         path.end(false);
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+                .map(|v| v.1);
 
         let range = geo_build.next().expect("no contours found");
         let points = &output[range];
@@ -279,7 +286,8 @@ mod tests {
         path.circle(vec2(0.0, 0.0), 5.0);
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+                .map(|v| v.1);
 
         let range = geo_build.next().expect("no contours found");
         let points = &output[range];
@@ -368,7 +376,8 @@ mod tests {
         );
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+                .map(|v| v.1);
 
         let range = geo_build.next().expect("no contours found");
         let points = &output[range];

@@ -191,20 +191,20 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: &Brush) {
+    pub fn draw_primitive(&mut self, prim: impl Into<Primitive>, brush: Brush) {
         self.list
             .add(GraphicsInstruction::brush(prim, brush.clone()));
     }
 
-    pub fn draw_path(&mut self, path: Path2D, brush: &Brush) {
+    pub fn draw_path(&mut self, path: Path2D, brush: Brush) {
         self.draw_primitive(path, brush);
     }
 
-    pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: &Brush) {
+    pub fn draw_rect(&mut self, rect: &Rect<f32>, brush: Brush) {
         self.draw_primitive(quad().rect(rect.clone()), brush);
     }
 
-    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: &Brush) {
+    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: Brush) {
         self.draw_primitive(quad().rect(rect.clone()).corners(corners.clone()), brush);
     }
 
@@ -227,7 +227,7 @@ impl Canvas {
         ));
     }
 
-    pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: &Brush) {
+    pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, brush: Brush) {
         self.draw_primitive(circle().pos(cx, cy).radius(radius), brush);
     }
 

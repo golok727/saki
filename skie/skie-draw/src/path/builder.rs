@@ -2,6 +2,13 @@ use skie_math::{vec2, Corners, Rect};
 
 use super::{Path, PathEventsIter, PathVerb, Point, Polygon};
 
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, PartialOrd, Eq)]
+pub struct Contour(pub(crate) usize);
+
+impl Contour {
+    pub const INVALID: Contour = Contour(0);
+}
+
 #[derive(Default)]
 pub struct PathBuilder {
     pub(crate) points: Vec<Point>,
@@ -26,10 +33,10 @@ impl PathBuilder {
 
         self.first = to;
         self.points.push(to);
-        self.verbs.push(PathVerb::Begin)
+        self.verbs.push(PathVerb::Begin);
     }
 
-    pub fn end(&mut self, close: bool) {
+    pub fn end(&mut self, close: bool) -> Contour {
         self.validator.end();
 
         if close {
@@ -41,11 +48,13 @@ impl PathBuilder {
         } else {
             PathVerb::End
         });
+
+        Contour(self.points.len())
     }
 
     /// alias for self.end(true)
     #[inline]
-    pub fn close(&mut self) {
+    pub fn close(&mut self) -> Contour {
         self.end(true)
     }
 
@@ -90,23 +99,23 @@ impl PathBuilder {
         self.end(false);
     }
 
-    pub fn polygon(&mut self, polygon: Polygon<Point>) {
+    pub fn polygon(&mut self, polygon: Polygon<Point>) -> Contour {
         if polygon.points.is_empty() {
-            return;
+            return Contour::INVALID;
         }
 
-        self.reserve(polygon.points.len(), 0);
-
         self.begin(polygon.points[0]);
+
+        self.reserve(polygon.points.len(), 0);
 
         for p in &polygon.points[1..] {
             self.line_to(*p);
         }
 
-        self.end(polygon.closed);
+        self.end(polygon.closed)
     }
 
-    pub fn rect(&mut self, rect: &Rect<f32>) {
+    pub fn rect(&mut self, rect: &Rect<f32>) -> Contour {
         self.polygon(Polygon {
             points: &[
                 rect.top_left(),
@@ -115,21 +124,15 @@ impl PathBuilder {
                 rect.bottom_left(),
             ],
             closed: true,
-        });
+        })
     }
 
-    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>)
-    where
-        Self: Sized,
-    {
+    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>) -> Contour {
         add_rounded_rectangle(self, rect, corners)
     }
 
-    pub fn circle(&mut self, center: Point, radius: f32)
-    where
-        Self: Sized,
-    {
-        add_circle(self, center, radius);
+    pub fn circle(&mut self, center: Point, radius: f32) -> Contour {
+        add_circle(self, center, radius)
     }
 
     pub fn reserve(&mut self, endpoints: usize, ctrl_points: usize) {
@@ -150,7 +153,7 @@ impl PathBuilder {
 
 // Adapted from
 // https://github.com/nical/lyon/blob/main/crates/path/src/builder.rs
-fn add_circle(builder: &mut PathBuilder, center: Point, radius: f32) {
+fn add_circle(builder: &mut PathBuilder, center: Point, radius: f32) -> Contour {
     let radius = radius.abs();
     // need this ?  we allways go for positive winding
     // let dir = match winding {
@@ -186,10 +189,14 @@ fn add_circle(builder: &mut PathBuilder, center: Point, radius: f32) {
     let mid = center + vec2(-radius, 0.0);
     builder.cubic_to(ctrl_0, ctrl_1, mid);
 
-    builder.close();
+    builder.close()
 }
 
-fn add_rounded_rectangle(builder: &mut PathBuilder, rect: &Rect<f32>, corners: &Corners<f32>) {
+fn add_rounded_rectangle(
+    builder: &mut PathBuilder,
+    rect: &Rect<f32>,
+    corners: &Corners<f32>,
+) -> Contour {
     let w = rect.size.width;
     let h = rect.size.height;
     let min = rect.min();
@@ -279,7 +286,7 @@ fn add_rounded_rectangle(builder: &mut PathBuilder, rect: &Rect<f32>, corners: &
     if bl > 0.0 {
         builder.cubic_to(points[13], points[14], points[15]);
     }
-    builder.end(true);
+    builder.end(true)
 }
 
 #[inline]

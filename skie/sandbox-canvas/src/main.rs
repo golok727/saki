@@ -29,33 +29,35 @@ impl SkieAppHandle for SandboxApp {
 
         let rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
 
-        let mut brush = Brush::default();
+        cx.draw_rect(
+            &Rect::from_origin_size(Default::default(), size),
+            Brush::filled(Color::KHAKI),
+        );
 
-        brush.fill_color(Color::KHAKI);
-        cx.draw_rect(&Rect::from_origin_size(Default::default(), size), &brush);
-
-        brush.fill_color(Color::TORCH_RED);
-        cx.draw_rect(&rect, &brush);
+        cx.draw_rect(&rect, Brush::filled(Color::TORCH_RED));
 
         let center = rect.center();
-        brush.fill_color(Color::BLUE);
-        cx.draw_circle(center.x, center.y, 10.0, &brush);
+        cx.draw_circle(center.x, center.y, 10.0, Brush::filled(Color::BLUE));
 
         // draw rotated square
         cx.save();
         cx.translate(center.x, center.y);
         cx.scale(0.5, 0.5);
         cx.rotate(60f32.to_radians());
-        brush.fill_color(Color::WHITE);
-        cx.draw_rect(&Rect::xywh(0.0, 0.0, 200.0, 200.0), &brush);
+        cx.draw_rect(
+            &Rect::xywh(0.0, 0.0, 200.0, 200.0),
+            Brush::filled(Color::WHITE),
+        );
         cx.restore();
 
-        cx.draw_rect(&Rect::xywh(0.0, 0.0, 50.0, 50.0), &brush);
+        cx.draw_rect(&Rect::xywh(0.0, 0.0, 50.0, 50.0), Brush::filled(Color::RED));
 
         cx.save();
         cx.translate(size.width.half(), size.height.half());
-        brush.fill_color(Color::WHITE);
-        cx.draw_rect(&Rect::xywh(0.0, 0.0, 200.0, 200.0).centered(), &brush);
+        cx.draw_rect(
+            &Rect::xywh(0.0, 0.0, 200.0, 200.0).centered(),
+            Brush::filled(Color::WHITE),
+        );
         cx.restore();
 
         let mut path = Path2D::new();
@@ -65,13 +67,14 @@ impl SkieAppHandle for SandboxApp {
         path.line_to((70.0, 300.0).into());
         path.close();
 
-        let mut brush = Brush::default();
-        brush.fill_color(Color::ORANGE);
-        brush.stroke_color(Color::THAMAR_BLACK);
-        brush.stroke_width(7);
-        brush.stroke_join(skie_draw::StrokeJoin::Round);
-        brush.stroke_cap(StrokeCap::Round);
-        cx.draw_path(path, &brush);
+        let brush = Brush::filled(Color::ORANGE)
+            .fill_color(Color::ORANGE)
+            .stroke_color(Color::THAMAR_BLACK)
+            .stroke_width(7)
+            .stroke_join(skie_draw::StrokeJoin::Round)
+            .stroke_cap(StrokeCap::Round);
+
+        cx.draw_path(path, brush);
 
         cx.restore();
     }

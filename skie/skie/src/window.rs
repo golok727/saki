@@ -283,8 +283,6 @@ impl Window {
         let height = size.height as f32;
         let cx = &mut self.canvas;
 
-        let mut brush = Brush::default();
-
         cx.draw_image(
             &Rect::xywh(width / 2.0 - 350.0, height / 2.0 - 350.0, 700.0, 700.0),
             &self.yellow_thing_texture_id,
@@ -305,11 +303,12 @@ impl Window {
             &self.yellow_thing_texture_id,
         );
 
-        brush.fill_color(Color::from_rgb(0x55a09e));
-        cx.draw_rect(&Rect::xywh(100.0, 500.0, 300.0, 100.0), &brush);
+        cx.draw_rect(
+            &Rect::xywh(100.0, 500.0, 300.0, 100.0),
+            Brush::filled(Color::from_rgb(0x55a09e)),
+        );
 
-        brush.fill_color(Color::KHAKI);
-        cx.draw_circle(400.0, 500.0, 300.0, &brush);
+        cx.draw_circle(400.0, 500.0, 300.0, Brush::filled(Color::KHAKI));
 
         for object in &self.objects {
             match object {
@@ -334,29 +333,25 @@ impl Window {
             }
         }
 
-        brush.fill_color(Color::LIGHT_GREEN);
-        brush.stroke_width(20);
-        brush.stroke_color(Color::TORCH_RED);
+        Brush::filled(Color::LIGHT_GREEN)
+            .stroke_width(20)
+            .stroke_color(Color::TORCH_RED);
 
         cx.draw_round_rect(
             &Rect::xywh(800.0, 200.0, 200.0, 500.0),
             &Corners::with_all(100.0).with_top_left(50.0),
-            &brush,
+            Brush::filled(Color::LIGHT_GREEN)
+                .stroke_width(20)
+                .stroke_color(Color::TORCH_RED),
         );
-
-        brush.reset();
-
-        brush.fill_color(Color::TORCH_RED);
-        brush.stroke_width(20);
-        brush.stroke_color(Color::WHITE);
 
         cx.draw_round_rect(
             &Rect::xywh(800.0, 200.0, 200.0, 500.0),
             &Corners::with_all(100.0).with_top_left(50.0),
-            &brush,
+            Brush::filled(Color::TORCH_RED)
+                .stroke_color(Color::WHITE)
+                .stroke_width(20),
         );
-
-        brush.reset();
 
         {
             let mut path = Path2D::default();
@@ -365,12 +360,13 @@ impl Window {
             path.line_to((100.0, 400.0).into());
             path.close();
 
-            brush.reset();
-            brush.fill_color(Color::TORCH_RED);
-            brush.stroke_width(20);
-            brush.stroke_color(Color::WHITE);
-            brush.stroke_join(StrokeJoin::Bevel);
-            cx.draw_path(path, &brush);
+            cx.draw_path(
+                path,
+                Brush::filled(Color::TORCH_RED)
+                    .stroke_width(20)
+                    .stroke_color(Color::WHITE)
+                    .stroke_join(StrokeJoin::Bevel),
+            );
         }
 
         {
@@ -379,11 +375,14 @@ impl Window {
             path.line_to((600.0, 500.0).into());
             path.line_to((400.0, 700.0).into());
 
-            brush.fill_color(Color::TRANSPARENT);
-            brush.stroke_color(Color::WHITE);
-            brush.stroke_join(StrokeJoin::Miter);
-            brush.stroke_cap(StrokeCap::Round);
-            cx.draw_path(path, &brush);
+            cx.draw_path(
+                path,
+                Brush::filled(Color::TRANSPARENT)
+                    .stroke_width(20)
+                    .stroke_color(Color::WHITE)
+                    .stroke_join(StrokeJoin::Miter)
+                    .stroke_cap(StrokeCap::Round),
+            );
         }
 
         {
@@ -394,11 +393,9 @@ impl Window {
         let bar_height: f32 = 50.0;
         let margin_bottom: f32 = 30.0;
 
-        brush.reset();
-        brush.fill_color(Color::from_rgb(0x0A0A11));
         cx.draw_rect(
             &Rect::xywh(0.0, height - bar_height - margin_bottom, width, bar_height),
-            &brush,
+            Brush::filled(Color::from_rgb(0x0A0A11)),
         );
 
         cx.fill_text(
@@ -474,8 +471,10 @@ impl Window {
         self.canvas.clear();
         self.canvas.clear_color(self.clear_color);
         // TODO: remove
+
         self._add_basic_scene();
         self.canvas.render(&mut self.surface)?.present();
+        self.canvas.restore();
 
         Ok(())
     }
@@ -604,7 +603,6 @@ impl Scroller {
     }
 
     fn render(&self, canvas: &mut Canvas, mouse_pos: Option<&Vec2<f32>>) {
-        let mut brush = Brush::default();
         let container = &self.dims;
 
         let hovered = mouse_pos
@@ -619,14 +617,13 @@ impl Scroller {
             Color::DARK_GRAY
         };
 
-        brush.fill_color(Color::WHITE);
-        brush.stroke_color(stroke_color);
-        brush.stroke_width(stroke_width);
         canvas.draw_primitive(
             quad()
                 .rect(container.clone())
                 .corners(Corners::with_all(10.0)),
-            &brush,
+            Brush::filled(Color::WHITE)
+                .stroke_color(stroke_color)
+                .stroke_width(stroke_width),
         );
 
         // paint children clipped to this rect
@@ -653,17 +650,14 @@ impl Scroller {
             Color::DARK_BLUE,
         ];
 
-        brush.reset();
         // paint children overflow hidden
         canvas.save();
         canvas.clip(&clip);
         for _ in 0..4 {
             for i in 0..10 {
-                brush.fill_color(colors[i % colors.len()]);
-
                 canvas.draw_rect(
                     &Rect::from_origin_size(cursor + vec2(-self.scroll_x, 0.0), size),
-                    &brush,
+                    Brush::filled(colors[i % colors.len()]),
                 );
                 cursor.x += margin + size.width;
             }
