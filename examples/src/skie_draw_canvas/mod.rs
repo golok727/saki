@@ -26,7 +26,7 @@ pub fn run() {
         &Corners::with_all(10.0),
         Brush::filled(Color::TORCH_RED)
             .stroke_color(Color::WHITE)
-            .stroke_width(5),
+            .line_width(5),
     );
 
     let center = rect.center();

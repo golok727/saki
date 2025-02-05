@@ -198,12 +198,12 @@ impl Canvas {
     }
 
     pub fn draw_path(&mut self, path: impl Into<Path>, brush: impl Into<PathBrush>) {
-        // FIXME: We need to change this;
         self.draw_primitive(
             Primitive::Path {
                 path: path.into(),
                 brush: brush.into(),
             },
+            // FIXME: This is a workaround
             Brush::filled(Color::WHITE),
         );
     }

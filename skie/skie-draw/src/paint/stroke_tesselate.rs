@@ -6,9 +6,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{StrokeJoin, Vec2};
+use crate::{LineJoin, Vec2};
 
-use super::{Mesh, StrokeCap, StrokeStyle, WHITE_UV};
+use super::{LineCap, Mesh, StrokeStyle, WHITE_UV};
 
 #[derive(Debug)]
 pub struct StrokeTesellator<'a> {
@@ -42,7 +42,7 @@ impl<'a> StrokeTesellator<'a> {
             return;
         }
 
-        let h_linewidth = stroke_style.stroke_width.max(1) as f32 / 2.0;
+        let h_linewidth = stroke_style.line_width.max(1) as f32 / 2.0;
 
         let segments: Vec<PolySegment> = points
             .windows(2)
@@ -83,11 +83,11 @@ impl<'a> StrokeTesellator<'a> {
                 &mut path_start_2,
             )
         } else {
-            match stroke_style.stroke_cap {
-                StrokeCap::Butt => {
+            match stroke_style.line_cap {
+                LineCap::Butt => {
                     // NOOP
                 }
-                StrokeCap::Round => {
+                LineCap::Round => {
                     // add the start and end round caps
                     self.mesh.add_triangle_fan(
                         stroke_style.color,
@@ -107,7 +107,7 @@ impl<'a> StrokeTesellator<'a> {
                         true,
                     );
                 }
-                StrokeCap::Square => {
+                LineCap::Square => {
                     // offset the start and end with the half line width
                     path_start_1 += first_segment.edge1.direction() * h_linewidth;
                     path_start_2 += first_segment.edge2.direction() * h_linewidth;
@@ -192,13 +192,13 @@ impl<'a> StrokeTesellator<'a> {
         }
 
         const MITER_MIN_ANGLE: f32 = 0.349066; // ~20 degrees
-        let mut joint_style = style.stroke_join;
+        let mut joint_style = style.line_join;
 
-        if joint_style == StrokeJoin::Miter && wrapped_angle < MITER_MIN_ANGLE {
-            joint_style = StrokeJoin::Bevel;
+        if joint_style == LineJoin::Miter && wrapped_angle < MITER_MIN_ANGLE {
+            joint_style = LineJoin::Bevel;
         }
 
-        if joint_style == StrokeJoin::Miter {
+        if joint_style == LineJoin::Miter {
             // calculate each edge's intersection point
             // with the next segment's central line
             let sec1 = segment1.edge1.intersection(&segment2.edge1, true);
@@ -259,7 +259,7 @@ impl<'a> StrokeTesellator<'a> {
                 *next_start2 = outer2.a;
             }
 
-            if joint_style == StrokeJoin::Bevel {
+            if joint_style == LineJoin::Bevel {
                 // simply connect the intersection points
                 self.mesh.reserve_prim(3, 3);
 
@@ -274,7 +274,7 @@ impl<'a> StrokeTesellator<'a> {
                     cur_vertex_idx + 1, //
                     cur_vertex_idx + 2, //
                 );
-            } else if joint_style == StrokeJoin::Round {
+            } else if joint_style == LineJoin::Round {
                 self.mesh.add_triangle_fan(
                     style.color,
                     inner_sec,

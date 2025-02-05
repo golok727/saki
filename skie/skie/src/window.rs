@@ -20,7 +20,7 @@ use skie_draw::{
     gpu,
     paint::{AtlasImage, AtlasKey, Brush, SkieAtlas},
     quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half,
-    Path as Path2D, Rect, Size, StrokeCap, StrokeJoin, Text, TextSystem, TextureFilterMode,
+    Path as Path2D, Rect, Size, LineCap, LineJoin, Text, TextSystem, TextureFilterMode,
     TextureId, TextureOptions, Vec2,
 };
 
@@ -335,14 +335,14 @@ impl Window {
         }
 
         Brush::filled(Color::LIGHT_GREEN)
-            .stroke_width(20)
+            .line_width(20)
             .stroke_color(Color::TORCH_RED);
 
         cx.draw_round_rect(
             &Rect::xywh(800.0, 200.0, 200.0, 500.0),
             &Corners::with_all(100.0).with_top_left(50.0),
             Brush::filled(Color::LIGHT_GREEN)
-                .stroke_width(20)
+                .line_width(20)
                 .stroke_color(Color::TORCH_RED),
         );
 
@@ -351,7 +351,7 @@ impl Window {
             &Corners::with_all(100.0).with_top_left(50.0),
             Brush::filled(Color::TORCH_RED)
                 .stroke_color(Color::WHITE)
-                .stroke_width(20),
+                .line_width(20),
         );
 
         {
@@ -372,17 +372,17 @@ impl Window {
                     (
                         a,
                         Brush::filled(Color::TORCH_RED)
-                            .stroke_width(20)
+                            .line_width(20)
                             .stroke_color(Color::WHITE)
-                            .stroke_join(StrokeJoin::Bevel),
+                            .line_join(LineJoin::Bevel),
                     ),
                     (
                         b,
                         Brush::filled(Color::TRANSPARENT)
-                            .stroke_width(20)
+                            .line_width(20)
                             .stroke_color(Color::WHITE)
-                            .stroke_join(StrokeJoin::Miter)
-                            .stroke_cap(StrokeCap::Round),
+                            .line_join(LineJoin::Miter)
+                            .line_cap(LineCap::Round),
                     ),
                 ],
             );
@@ -626,7 +626,7 @@ impl Scroller {
                 .corners(Corners::with_all(10.0)),
             Brush::filled(Color::WHITE)
                 .stroke_color(stroke_color)
-                .stroke_width(stroke_width),
+                .line_width(stroke_width),
         );
 
         // paint children clipped to this rect

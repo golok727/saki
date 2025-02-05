@@ -20,7 +20,7 @@ pub use paint::color::{Color, Rgba};
 pub use paint::DrawList;
 pub use paint::{
     circle, quad, AtlasKey, AtlasKeySource, AtlasTextureInfo, AtlasTextureInfoMap, Brush, Circle,
-    FillStyle, Quad, SkieAtlas, StrokeCap, StrokeJoin, StrokeStyle, Text, TextAlign, TextBaseline,
+    FillStyle, LineCap, LineJoin, Quad, SkieAtlas, StrokeStyle, Text, TextAlign, TextBaseline,
     TextureAtlas,
 };
 
