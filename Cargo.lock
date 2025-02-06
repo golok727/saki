@@ -2344,6 +2344,7 @@ dependencies = [
  "parking_lot",
  "pollster",
  "skie-draw",
+ "slotmap",
  "thiserror 2.0.3",
  "wgpu",
  "winit",

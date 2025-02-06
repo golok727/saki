@@ -21,3 +21,4 @@ flume.workspace = true
 image.workspace = true
 ahash.workspace = true
 anyhow.workspace = true
+slotmap.workspace = true
