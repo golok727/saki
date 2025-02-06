@@ -385,7 +385,7 @@ impl Window {
                     .line_cap(LineCap::Round),
             );
 
-            cx.draw_path(path, brush); 
+            cx.draw_path(path, brush);
         }
 
         {
