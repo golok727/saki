@@ -565,6 +565,23 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Please start a new subpath with `begin()`")]
+    fn path_builder_validator_end_without_a_subpath() {
+        let mut path = Path::builder();
+        path.close();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Please end the current subpath with `end(<close>)` or `close()` before starting a new one"
+    )]
+    fn path_builder_validator_begin_without_end() {
+        let mut path = Path::builder();
+        path.begin(vec2(0.0, 0.0));
+        path.begin(vec2(10.0, 10.0));
+    }
+
+    #[test]
     fn path_builder_polygon() {
         // closed
         {

@@ -101,6 +101,7 @@ impl DrawList {
         let fill_color = brush.fill_style.color;
 
         self.temp_path.clear();
+        self.temp_path_data.clear();
 
         if quad.corners.is_zero() {
             self.temp_path.rect(&quad.bounds);
@@ -108,20 +109,12 @@ impl DrawList {
             self.temp_path.round_rect(&quad.bounds, &quad.corners);
         }
 
-        build_path(
+        build_path_single_contour(
             self.temp_path.path_events(),
             &mut self.temp_path_data,
-            &PathBrush::new(brush.clone()),
-            |_, points| {
-                fill_path_convex(
-                    &mut self.mesh,
-                    points,
-                    self.feathering,
-                    fill_color,
-                    textured,
-                );
-
-                StrokeTesellator::add_to_mesh(&mut self.mesh, points, &brush.stroke_style);
+            |path| {
+                fill_path_convex(&mut self.mesh, path, self.feathering, fill_color, textured);
+                StrokeTesellator::add_to_mesh(&mut self.mesh, path, &brush.stroke_style);
             },
         );
     }
@@ -132,25 +125,20 @@ impl DrawList {
         self.temp_path.clear();
         self.temp_path.circle(circle.center, circle.radius);
 
-        build_path(
+        self.temp_path_data.clear();
+
+        build_path_single_contour(
             self.temp_path.path_events(),
             &mut self.temp_path_data,
-            &PathBrush::new(brush.clone()),
-            |_, points| {
-                fill_path_convex(
-                    &mut self.mesh,
-                    points,
-                    self.feathering,
-                    fill_color,
-                    textured,
-                );
-
-                StrokeTesellator::add_to_mesh(&mut self.mesh, points, &brush.stroke_style);
+            |path| {
+                fill_path_convex(&mut self.mesh, path, self.feathering, fill_color, textured);
+                StrokeTesellator::add_to_mesh(&mut self.mesh, path, &brush.stroke_style);
             },
         );
     }
 
     pub fn add_path(&mut self, path: &Path, brush: &PathBrush) {
+        self.temp_path_data.clear();
         build_path(
             path.events(),
             &mut self.temp_path_data,
@@ -260,18 +248,31 @@ impl<'a> DrawListCapture<'a> {
     }
 }
 
+#[inline]
 pub fn build_path(
     iter: PathEventsIter,
     output: &mut Vec<Point>,
     brush: &PathBrush,
     mut f: impl FnMut(&Brush, &[Point]),
 ) {
-    let geo_build =
-        <PathGeometryBuilder<PathEventsIter>>::new(iter, output, true).collect::<Vec<_>>();
+    let geo_build = <PathGeometryBuilder<PathEventsIter>>::new(iter, output).collect::<Vec<_>>();
 
     for (contour, range) in geo_build {
         let this_brush = brush.get_or_default(&contour);
         f(&this_brush, &output[range.clone()])
+    }
+}
+
+#[inline]
+pub fn build_path_single_contour(
+    iter: PathEventsIter,
+    output: &mut Vec<Point>,
+    mut f: impl FnMut(&[Point]),
+) {
+    if let Some((_, range)) = <PathGeometryBuilder<PathEventsIter>>::new(iter, output).next() {
+        f(&output[range])
+    } else {
+        log::warn!("build_path_single_contour called with path with no contour!");
     }
 }
 

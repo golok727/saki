@@ -1,7 +1,6 @@
 pub mod error;
 use derive_more::derive::{Deref, DerefMut};
 use parking_lot::RwLock;
-use std::path::Path;
 
 use core::f32;
 use std::{borrow::Cow, future::Future, io::Read, sync::Arc};
@@ -18,10 +17,10 @@ pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
     gpu,
-    paint::{AtlasImage, AtlasKey, Brush, PathBrush, SkieAtlas},
+    paint::{AtlasImage, AtlasKey, Brush, PathBuilderBrushExt, SkieAtlas},
     quad, vec2, BackendRenderTarget, Canvas, Color, Corners, FontWeight, GpuContext, Half, LineCap,
-    LineJoin, Path as Path2D, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId,
-    TextureOptions, Vec2,
+    LineJoin, Path, Rect, Size, Text, TextSystem, TextureFilterMode, TextureId, TextureOptions,
+    Vec2,
 };
 
 #[derive(Debug, Clone)]
@@ -355,29 +354,23 @@ impl Window {
         );
 
         {
-            let mut brush = PathBrush::default();
+            let mut path = Path::builder().with_brush();
 
-            let mut path = Path2D::builder();
             path.begin((100.0, 100.0).into());
             path.line_to((500.0, 100.0).into());
             path.line_to((100.0, 400.0).into());
-            let a = path.close();
-
-            path.begin((300.0, 500.0).into());
-            path.line_to((600.0, 500.0).into());
-            path.line_to((400.0, 700.0).into());
-            let b = path.end(false);
-
-            brush.set(
-                a,
+            path.close(
                 Brush::filled(Color::TORCH_RED)
                     .line_width(20)
                     .stroke_color(Color::WHITE)
                     .line_join(LineJoin::Bevel),
             );
 
-            brush.set(
-                b,
+            path.begin((300.0, 500.0).into());
+            path.line_to((600.0, 500.0).into());
+            path.line_to((400.0, 700.0).into());
+            path.end(
+                false,
                 Brush::filled(Color::TRANSPARENT)
                     .line_width(20)
                     .stroke_color(Color::WHITE)
@@ -385,7 +378,7 @@ impl Window {
                     .line_cap(LineCap::Round),
             );
 
-            cx.draw_path(path, brush);
+            path.draw(cx);
         }
 
         {
@@ -671,7 +664,7 @@ impl Scroller {
     }
 }
 
-async fn load_image_from_file_async<P: AsRef<Path>>(file_path: P) -> Result<RgbaImage> {
+async fn load_image_from_file_async<P: AsRef<std::path::Path>>(file_path: P) -> Result<RgbaImage> {
     let mut file = std::fs::File::open(file_path).map_err(|_| anyhow!("Error opening file"))?;
 
     let mut data = Vec::<u8>::new();

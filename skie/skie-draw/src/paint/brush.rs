@@ -1,4 +1,11 @@
-use crate::path::Contour;
+use std::ops::{Deref, DerefMut};
+
+use skie_math::{Corners, Rect};
+
+use crate::{
+    path::{Contour, Point},
+    Canvas, PathBuilder, Polygon,
+};
 
 use super::Color;
 
@@ -372,6 +379,89 @@ where
     }
 }
 
+pub struct PathBuilderWithBrush {
+    path: PathBuilder,
+    brush: PathBrush,
+}
+
+impl PathBuilderWithBrush {
+    pub fn with_default_brush(&mut self, brush: Brush) {
+        self.brush.default = brush;
+    }
+
+    #[inline]
+    pub fn close(&mut self, brush: Brush) {
+        self.brush.set(self.path.end(true), brush);
+    }
+
+    #[inline]
+    pub fn end(&mut self, close: bool, brush: Brush) {
+        self.brush.set(self.path.end(close), brush);
+    }
+
+    #[inline]
+    pub fn polygon(&mut self, polygon: Polygon<Point>, brush: Brush) {
+        self.brush.set(self.path.polygon(polygon), brush);
+    }
+
+    #[inline]
+    pub fn circle(&mut self, center: Point, radius: f32, brush: Brush) {
+        self.brush.set(self.path.circle(center, radius), brush);
+    }
+
+    #[inline]
+    pub fn rect(&mut self, rect: &Rect<f32>, brush: Brush) {
+        self.brush.set(self.path.rect(rect), brush);
+    }
+
+    #[inline]
+    pub fn round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: Brush) {
+        self.brush.set(self.path.round_rect(rect, corners), brush);
+    }
+
+    #[inline]
+    pub fn draw(self, canvas: &mut Canvas) {
+        canvas.draw_path(self.path, self.brush)
+    }
+
+    pub fn split(self) -> (PathBuilder, PathBrush) {
+        (self.path, self.brush)
+    }
+}
+
+impl Deref for PathBuilderWithBrush {
+    type Target = PathBuilder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.path
+    }
+}
+
+impl DerefMut for PathBuilderWithBrush {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.path
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+pub trait PathBuilderBrushExt: sealed::Sealed {
+    fn with_brush(self) -> PathBuilderWithBrush;
+}
+
+impl sealed::Sealed for PathBuilder {}
+
+impl PathBuilderBrushExt for PathBuilder {
+    fn with_brush(self) -> PathBuilderWithBrush {
+        PathBuilderWithBrush {
+            path: self,
+            brush: Default::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use skie_math::vec2;
@@ -408,7 +498,7 @@ mod tests {
         let mut output = <Vec<Point>>::new();
 
         let mut builder =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output)
                 .map(|v| v.0);
 
         let leg_l_build = builder.next().expect("no contour");

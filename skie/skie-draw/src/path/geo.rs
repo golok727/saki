@@ -20,10 +20,7 @@ impl<'a, PathIter> PathGeometryBuilder<'a, PathIter>
 where
     PathIter: Iterator<Item = PathEvent>,
 {
-    pub fn new(path_iter: impl Into<PathIter>, output: &'a mut Vec<Point>, clear: bool) -> Self {
-        if clear {
-            output.clear()
-        }
+    pub fn new(path_iter: impl Into<PathIter>, output: &'a mut Vec<Point>) -> Self {
         let offset = output.len();
 
         Self {
@@ -158,8 +155,7 @@ mod tests {
         path.line_to(vec2(200.0, 300.0));
         path.close();
 
-        let geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
+        let geo_build = <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output);
 
         let contours = geo_build.map(|v| v.1).collect::<Vec<_>>();
 
@@ -214,8 +210,7 @@ mod tests {
             &Corners::with_all(20.0),
         );
 
-        let geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false);
+        let geo_build = <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output);
 
         let contours = geo_build.collect::<Vec<_>>();
         assert_eq!(contours.len(), 5);
@@ -231,7 +226,7 @@ mod tests {
         path.end(false);
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output)
                 .map(|v| v.1);
         let range = geo_build.next().expect("no countours found");
         assert!(geo_build.next().is_none());
@@ -271,7 +266,7 @@ mod tests {
         path.end(false);
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output)
                 .map(|v| v.1);
 
         let range = geo_build.next().expect("no contours found");
@@ -308,7 +303,7 @@ mod tests {
         path.circle(vec2(0.0, 0.0), 5.0);
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output)
                 .map(|v| v.1);
 
         let range = geo_build.next().expect("no contours found");
@@ -398,7 +393,7 @@ mod tests {
         );
 
         let mut geo_build =
-            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output, false)
+            <PathGeometryBuilder<PathEventsIter>>::new(path.path_events(), &mut output)
                 .map(|v| v.1);
 
         let range = geo_build.next().expect("no contours found");
