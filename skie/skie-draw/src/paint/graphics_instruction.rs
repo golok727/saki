@@ -3,6 +3,7 @@ use std::{iter::Peekable, slice};
 
 use super::Color;
 
+// FIXME: seperate stuff with enum
 #[derive(Debug, Clone)]
 pub struct GraphicsInstruction {
     pub primitive: Primitive,

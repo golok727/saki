@@ -333,10 +333,6 @@ impl Window {
             }
         }
 
-        Brush::filled(Color::LIGHT_GREEN)
-            .line_width(20)
-            .stroke_color(Color::TORCH_RED);
-
         cx.draw_round_rect(
             &Rect::xywh(800.0, 200.0, 200.0, 500.0),
             &Corners::with_all(100.0).with_top_left(50.0),
