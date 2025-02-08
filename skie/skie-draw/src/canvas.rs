@@ -109,7 +109,7 @@ impl Canvas {
         CanvasBuilder::default()
     }
 
-    pub fn screen(&self) -> Size<u32> {
+    pub fn size(&self) -> Size<u32> {
         Size::new(self.surface_config.width, self.surface_config.height)
     }
 
@@ -212,8 +212,8 @@ impl Canvas {
         self.draw_primitive(quad().rect(rect.clone()), brush);
     }
 
-    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: &Corners<f32>, brush: Brush) {
-        self.draw_primitive(quad().rect(rect.clone()).corners(corners.clone()), brush);
+    pub fn draw_round_rect(&mut self, rect: &Rect<f32>, corners: Corners<f32>, brush: Brush) {
+        self.draw_primitive(quad().rect(rect.clone()).corners(corners), brush);
     }
 
     pub fn draw_image(&mut self, rect: &Rect<f32>, texture_id: &TextureId) {
@@ -226,11 +226,11 @@ impl Canvas {
     pub fn draw_image_rounded(
         &mut self,
         rect: &Rect<f32>,
-        corners: &Corners<f32>,
+        corners: Corners<f32>,
         texture_id: &TextureId,
     ) {
         self.list.add(GraphicsInstruction::textured(
-            quad().rect(rect.clone()).corners(corners.clone()),
+            quad().rect(rect.clone()).corners(corners),
             texture_id.clone(),
         ));
     }
@@ -240,16 +240,15 @@ impl Canvas {
     }
 
     pub fn fill_text(&mut self, text: &Text, fill_color: Color) {
+        // render at a higher resolution
+        let scale_factor = 3.0;
         self.stage_changes();
         self.text_system.write(|state| {
             let line_height_em = 1.4;
-            let metrics = Metrics::new(text.size, text.size * line_height_em);
+            let font_size = text.size;
+            let metrics = Metrics::new(font_size, font_size * line_height_em);
             let mut buffer = Buffer::new(&mut state.font_system, metrics);
-            buffer.set_size(
-                &mut state.font_system,
-                Some(self.surface_config.width as f32),
-                Some(self.surface_config.height as f32),
-            );
+            buffer.set_size(&mut state.font_system, None, None);
 
             let attrs = Attrs::new();
             attrs.style(text.font.style.into());
@@ -261,12 +260,11 @@ impl Canvas {
             buffer.shape_until_scroll(&mut state.font_system, false);
             // begin run
             for run in buffer.layout_runs() {
-                let line_y = run.line_y;
+                let line_y = run.line_y * scale_factor;
 
                 // begin glyps
                 for glyph in run.glyphs.iter() {
-                    let scale = 1.0;
-                    let physical_glyph = glyph.physical((text.pos.x, text.pos.y), scale);
+                    let physical_glyph = glyph.physical((text.pos.x, text.pos.y), scale_factor);
                     let image = state
                         .swash_cache
                         .get_image(&mut state.font_system, physical_glyph.cache_key);
@@ -298,8 +296,8 @@ impl Canvas {
                             &self.texture_atlas,
                             &glyph_key,
                             &TextureOptions::default()
-                                .min_filter(FilterMode::Nearest)
-                                .mag_filter(FilterMode::Nearest),
+                                .min_filter(FilterMode::Linear)
+                                .mag_filter(FilterMode::Linear),
                         );
 
                         let x = physical_glyph.x + image.placement.left;
@@ -315,8 +313,8 @@ impl Canvas {
 
                         self.list.add(GraphicsInstruction::textured_brush(
                             quad().rect(Rect::from_origin_size(
-                                (x as f32, y as f32).into(),
-                                size.map(|v| *v as f32),
+                                vec2(x as f32 / scale_factor, y as f32 / scale_factor),
+                                size.map(|v| *v as f32 / scale_factor),
                             )),
                             TextureId::AtlasKey(glyph_key),
                             Brush::filled(color),
@@ -337,6 +335,16 @@ impl Canvas {
         self.renderer.resize(width, height);
         self.surface_config.width = width;
         self.surface_config.height = height;
+    }
+
+    pub fn configure_surface<Surface, Output>(&mut self, surface: &mut Surface)
+    where
+        Surface: CanvasSurface<PaintOutput = Output>,
+    {
+        if surface.get_config() != self.surface_config {
+            log::trace!("{}: surface.configure() ran", Surface::LABEL);
+            surface.configure(self.renderer.gpu(), &self.surface_config);
+        }
     }
 
     pub fn render<Surface, Output>(&mut self, surface: &mut Surface) -> Result<Output>

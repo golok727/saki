@@ -12,7 +12,8 @@ use error::CreateWindowError;
 pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
-    gpu, paint::SkieAtlas, BackendRenderTarget, Canvas, Color, GpuContext, Text, TextSystem,
+    gpu, paint::SkieAtlas, BackendRenderTarget, Brush, Canvas, Color, Corners, GpuContext, Half,
+    Rect, Text, TextSystem,
 };
 
 #[derive(Debug, Clone)]
@@ -158,13 +159,32 @@ impl Window {
     pub(crate) fn paint(&mut self) -> Result<()> {
         self.canvas.clear();
         self.canvas.clear_color(self.clear_color);
+        let scale_factor = self.handle.scale_factor() as f32;
+
+        self.canvas.save();
+        self.canvas.scale(scale_factor, scale_factor);
+
+        let size = self
+            .canvas
+            .size()
+            .map(|v| *v as f32)
+            .scale(1.0 / scale_factor);
 
         self.canvas.fill_text(
-            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari vansh\nराधा कृष्ण")
-                .pos(100.0, 100.0)
+            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari Vansh\n")
+                .pos(0.0, 0.0)
+                .size_px(24.0)
                 .font_family("Segoe UI Emoji"),
-            Color::WHITE,
+            Color::ORANGE,
         );
+
+        let rect = Rect::xywh(size.width.half(), size.height.half(), 100.0, 100.0).centered();
+
+        self.canvas
+            .draw_round_rect(&rect, Corners::with_all(20.0), Brush::filled(Color::ORANGE));
+
+        let rect = Rect::xywh(size.width.half(), size.height.half(), 16.0, 16.0).centered();
+        self.canvas.draw_rect(&rect, Brush::filled(Color::RED));
 
         self.canvas.render(&mut self.surface)?.present();
         self.canvas.restore();

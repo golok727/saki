@@ -34,7 +34,7 @@ impl Default for Text {
         Self {
             pos: Vec2::zero(),
             text: ArcString::new_static(""),
-            size: 16.0 * 2.0,
+            size: 16.0,
             font: Font {
                 family: ArcString::new_static("Segoe UI"),
                 weight: FontWeight::default(),

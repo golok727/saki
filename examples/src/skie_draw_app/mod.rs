@@ -46,7 +46,7 @@ impl MovingSquare {
     fn draw(&self, c: &mut Canvas, _keystate: &KeyState) {
         c.draw_round_rect(
             &self.rect,
-            &Corners::with_all(10.0),
+            Corners::with_all(10.0),
             Brush::filled(Color::TORCH_RED),
         );
     }

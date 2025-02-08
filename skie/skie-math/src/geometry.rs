@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::{traits::IsZero, Zero};
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Corners<T>
 where
     T: Clone + Default + Debug,

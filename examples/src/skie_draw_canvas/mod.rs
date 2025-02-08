@@ -17,13 +17,13 @@ pub fn run() {
 
     let mut surface = canvas.create_offscreen_target();
 
-    let size = canvas.screen().map(|v| *v as f32);
+    let size = canvas.size().map(|v| *v as f32);
 
     let rect = Rect::xywh(size.width.half(), size.height.half(), 500.0, 500.0).centered();
 
     canvas.draw_round_rect(
         &rect,
-        &Corners::with_all(10.0),
+        Corners::with_all(10.0),
         Brush::filled(Color::TORCH_RED)
             .stroke_color(Color::WHITE)
             .line_width(5),
