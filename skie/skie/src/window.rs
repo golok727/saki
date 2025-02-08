@@ -1,12 +1,13 @@
 pub mod error;
 use derive_more::derive::{Deref, DerefMut};
 
-use std::{future::Future, sync::Arc};
+use std::{cell::Cell, future::Future, sync::Arc};
 
 use crate::{
     app::{AppContext, AsyncAppContext},
     jobs::Job,
-    AnyElement, ElementObject, IntoElement, Render,
+    view::View,
+    AnyElement, ElementObject, Render,
 };
 use anyhow::Result;
 use error::CreateWindowError;
@@ -62,7 +63,9 @@ pub struct Window {
 
     pub(crate) canvas: Canvas,
 
-    root: Option<AnyElement>,
+    pub(crate) dirty: Cell<bool>,
+    root: Option<View>,
+    tree: Option<AnyElement>,
 
     surface: BackendRenderTarget<'static>,
 
@@ -102,7 +105,9 @@ impl Window {
             handle,
             canvas,
             surface,
+            dirty: Cell::new(true),
             root: None,
+            tree: None,
             texture_atlas,
             clear_color: specs.background,
         })
@@ -143,9 +148,10 @@ impl Window {
         })
     }
 
-    pub fn mount<V: Render + 'static>(&mut self, mut view: V) {
-        let root = view.render(self).into_any_element();
+    pub fn mount<V: Render + 'static>(&mut self, view: V) {
+        let root = View::new(view);
         self.root.replace(root);
+        self.refresh();
     }
 
     pub fn set_timeout(
@@ -172,9 +178,18 @@ impl Window {
         self.canvas.save();
         self.canvas.scale(scale_factor, scale_factor);
 
-        if let Some(mut root) = self.root.take() {
+        if self.dirty.get() {
+            if let Some(mut view) = self.root.take() {
+                let tree = view.render(self);
+                self.tree.replace(tree);
+                self.dirty.set(false);
+                self.root.replace(view);
+            }
+        }
+
+        if let Some(mut root) = self.tree.take() {
             root.paint(self);
-            self.root.replace(root);
+            self.tree.replace(root);
         }
 
         self.canvas.render(&mut self.surface)?.present();
