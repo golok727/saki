@@ -6,14 +6,14 @@ use std::{future::Future, sync::Arc};
 use crate::{
     app::{AppContext, AsyncAppContext},
     jobs::Job,
+    AnyElement, ElementObject, IntoElement, Render,
 };
 use anyhow::Result;
 use error::CreateWindowError;
 pub(crate) use winit::window::Window as WinitWindow;
 
 use skie_draw::{
-    gpu, paint::SkieAtlas, BackendRenderTarget, Brush, Canvas, Color, Corners, GpuContext, Half,
-    Rect, Text, TextSystem,
+    gpu, paint::SkieAtlas, BackendRenderTarget, Canvas, Color, GpuContext, TextSystem,
 };
 
 #[derive(Debug, Clone)]
@@ -62,6 +62,8 @@ pub struct Window {
 
     pub(crate) canvas: Canvas,
 
+    root: Option<AnyElement>,
+
     surface: BackendRenderTarget<'static>,
 
     pub(crate) handle: Arc<WinitWindow>,
@@ -100,6 +102,7 @@ impl Window {
             handle,
             canvas,
             surface,
+            root: None,
             texture_atlas,
             clear_color: specs.background,
         })
@@ -140,6 +143,11 @@ impl Window {
         })
     }
 
+    pub fn mount<V: Render + 'static>(&mut self, mut view: V) {
+        let root = view.render(self).into_any_element();
+        self.root.replace(root);
+    }
+
     pub fn set_timeout(
         &self,
         app: &mut AppContext,
@@ -164,27 +172,10 @@ impl Window {
         self.canvas.save();
         self.canvas.scale(scale_factor, scale_factor);
 
-        let size = self
-            .canvas
-            .size()
-            .map(|v| *v as f32)
-            .scale(1.0 / scale_factor);
-
-        self.canvas.fill_text(
-            &Text::new("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari Vansh\n")
-                .pos(0.0, 0.0)
-                .size_px(24.0)
-                .font_family("Segoe UI Emoji"),
-            Color::ORANGE,
-        );
-
-        let rect = Rect::xywh(size.width.half(), size.height.half(), 100.0, 100.0).centered();
-
-        self.canvas
-            .draw_round_rect(&rect, Corners::with_all(20.0), Brush::filled(Color::ORANGE));
-
-        let rect = Rect::xywh(size.width.half(), size.height.half(), 16.0, 16.0).centered();
-        self.canvas.draw_rect(&rect, Brush::filled(Color::RED));
+        if let Some(mut root) = self.root.take() {
+            root.paint(self);
+            self.root.replace(root);
+        }
 
         self.canvas.render(&mut self.surface)?.present();
         self.canvas.restore();

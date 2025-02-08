@@ -113,7 +113,7 @@ pub struct ArenaElement<T: ?Sized> {
 }
 
 impl<T: ?Sized> ArenaElement<T> {
-    pub fn map<U>(mut self, map: impl FnOnce(&mut T) -> &mut U) -> ArenaElement<U> {
+    pub fn map<U: ?Sized>(mut self, map: impl FnOnce(&mut T) -> &mut U) -> ArenaElement<U> {
         ArenaElement {
             ptr: map(&mut self),
             valid: self.valid.clone(),

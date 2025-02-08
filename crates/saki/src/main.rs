@@ -1,6 +1,16 @@
 use std::io::Write;
 
-use skie::{window::WindowSpecification, Color};
+use skie::{div, window::WindowSpecification, Color, ParentElement, Render};
+
+struct Main;
+
+impl Render for Main {
+    fn render(&mut self, _window: &mut skie::Window) -> impl skie::IntoElement {
+        div()
+            .bg(Color::KHAKI)
+            .child("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari Vansh\n")
+    }
+}
 
 fn main() {
     println!("Radhe Shyam!");
@@ -17,32 +27,8 @@ fn main() {
             ..Default::default()
         };
 
-        app.open_window(window_specs.clone(), move |window, app| {
-            window.set_timeout(
-                app,
-                |window, _| {
-                    window.set_bg_color(Color::YELLOW);
-                },
-                std::time::Duration::from_secs(3),
-            );
-
-            window.set_timeout(
-                app,
-                |window, _| {
-                    window.set_bg_color(Color::KHAKI);
-                },
-                std::time::Duration::from_secs(5),
-            );
-
-            window.set_timeout(
-                app,
-                |window, _| {
-                    window.set_bg_color(Color::from_rgb(0x181818));
-                },
-                std::time::Duration::from_secs(7),
-            );
-
-            window.set_bg_color(Color::from_rgb(0x181818));
+        app.open_window(window_specs.clone(), move |window, _| {
+            window.mount(Main);
         });
     });
 }

@@ -227,14 +227,16 @@ impl AppContext {
         self.push_effect(Effect::UserEvent(AppAction::AppUpdate))
     }
 
-    pub fn open_window<F>(&mut self, specs: WindowSpecification, f: F)
+    pub fn create_view(&self) {}
+
+    pub fn open_window<F>(&mut self, specs: WindowSpecification, create_view: F)
     where
-        F: Fn(&mut Window, &mut AppContext) + 'static,
+        F: FnOnce(&mut Window, &mut AppContext) + 'static,
     {
         self.update(|app| {
             app.push_app_event(AppUpdateEvent::CreateWindow {
                 specs,
-                callback: Box::new(f),
+                callback: Box::new(create_view),
             });
         });
     }
