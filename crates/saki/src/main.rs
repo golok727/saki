@@ -1,21 +1,6 @@
 use std::io::Write;
 
-use skie::{
-    app::AppContext,
-    math::Rect,
-    px,
-    window::{Window, WindowSpecification},
-    Color, Pixels,
-};
-
-/*
-TODO
- - [] Color correction
- - [] Clamp rounding
- - [] Text System
- - [] Dom
- - [] Layout system
-*/
+use skie::{window::WindowSpecification, Color};
 
 fn main() {
     println!("Radhe Shyam!");
@@ -28,6 +13,7 @@ fn main() {
         let window_specs = WindowSpecification {
             width: 1280,
             height: 720,
+            background: Color::THAMAR_BLACK,
             ..Default::default()
         };
 
@@ -57,61 +43,34 @@ fn main() {
             );
 
             window.set_bg_color(Color::from_rgb(0x181818));
-
-            load_images_from_args(window, app);
         });
     });
 }
 
-fn load_images_from_args(window: &mut Window, app: &mut AppContext) {
-    // TODO: Add Assets system to preload assets and pass in the asset handle
-    let mut args = std::env::args();
-    args.next(); // Skip the program name
+pub fn create_checker_texture(width: usize, height: usize, tile_size: usize) -> Vec<u8> {
+    let mut texture_data = vec![0u8; width * height * 4];
 
-    // Helper function to load an image from a file argument
-    fn load_image(window: &mut Window, app: &mut AppContext, file: String, rect: Rect<Pixels>) {
-        let file_clone = file.clone();
-        if let Some(file) = Some(file).filter(|f| {
-            std::fs::metadata(f)
-                .map(|data| data.is_file())
-                .unwrap_or(false)
-        }) {
-            window
-                .spawn(app, |cx| async move {
-                    let idx = cx.load_image_from_file(rect, file).await;
-                    if let Ok(idx) = idx {
-                        if idx == 0 {
-                            let _ = cx.update_window(|window, _| {
-                                let obj =
-                                    window.get_object_mut(idx).unwrap().as_image_mut().unwrap();
-                                obj.bbox.origin.x = obj.bbox.origin.x - px(100);
-                                obj.bbox.origin.y = obj.bbox.origin.x + px(100);
-                                window.refresh();
-                            });
-                        }
-                    }
-                })
-                .detach();
-        } else {
-            log::error!("Unable to load file {}", file_clone);
+    for y in 0..height {
+        for x in 0..width {
+            let tile_x = x / tile_size;
+            let tile_y = y / tile_size;
+            let is_black = (tile_x + tile_y) % 2 == 0;
+
+            let offset = (y * width + x) * 4;
+            if is_black {
+                texture_data[offset] = 0; // Red
+                texture_data[offset + 1] = 0; // Green
+                texture_data[offset + 2] = 0; // Blue
+                texture_data[offset + 3] = 255; // Alpha
+            } else {
+                texture_data[offset] = 255; // Red
+                texture_data[offset + 1] = 255; // Green
+                texture_data[offset + 2] = 255; // Blue
+                texture_data[offset + 3] = 255; // Alpha
+            }
         }
     }
-
-    // Define the positions and sizes for the images
-    let rects = [
-        Rect::xywh(px(350), px(100), px(500), px(500)),
-        Rect::xywh(px(800), px(600), px(300), px(300)),
-    ];
-
-    // Attempt to load up to two images
-    for rect in rects.iter() {
-        let file = args.next();
-        if let Some(file) = file {
-            load_image(window, app, file, rect.clone());
-        } else {
-            break;
-        }
-    }
+    texture_data
 }
 
 fn init_stdout_logger() {

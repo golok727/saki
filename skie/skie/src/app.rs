@@ -2,7 +2,7 @@ pub mod async_context;
 pub mod events;
 pub use async_context::AsyncAppContext;
 use skie_draw::paint::SkieAtlas;
-use skie_draw::{TextSystem, Vec2};
+use skie_draw::TextSystem;
 mod handle;
 
 use crate::window::{Window, WindowId, WindowSpecification};
@@ -15,7 +15,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use winit::event::{KeyEvent, MouseScrollDelta, WindowEvent};
+use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
@@ -24,6 +24,7 @@ use crate::jobs::{Job, Jobs};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AppAction {
     AppUpdate,
+
     Quit,
 }
 
@@ -365,21 +366,11 @@ impl AppContext {
                     }
                 });
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                let _ = self.update_window(&window_id, |window, _| {
-                    let mut lock = window.state.write();
-                    lock.set_mouse_pos(Vec2::new(position.x as f32, position.y as f32));
-                    // FIXME:
-                    window.refresh();
-                });
+            WindowEvent::CursorMoved { .. } => {
+                // todo
             }
-            WindowEvent::MouseWheel {
-                delta: MouseScrollDelta::LineDelta(dx, dy),
-                ..
-            } => {
-                let _ = self.update_window(&window_id, |window, _| {
-                    window.handle_scroll_wheel(dx, dy);
-                });
+            WindowEvent::MouseWheel { .. } => {
+                // todo
             }
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
