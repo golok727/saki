@@ -1,6 +1,7 @@
 pub mod app;
 pub mod jobs;
 
+pub mod arena;
 pub mod unit;
 pub mod window;
 
