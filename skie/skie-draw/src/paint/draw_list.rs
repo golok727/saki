@@ -1,4 +1,5 @@
 use core::f32;
+use std::cell::RefCell;
 use std::ops::Range;
 
 use skie_math::{Corners, IsZero};
@@ -292,6 +293,11 @@ pub fn build_path_single_contour(
     }
 }
 
+thread_local! {
+    static TEMP_BUFFER: RefCell<Vec<Vec2<f32>>> = Default::default();
+
+}
+
 fn fill_path_convex(
     mesh: &mut Mesh,
     path: &[Point],
@@ -343,39 +349,37 @@ fn fill_path_convex(
         for i in 2..points_count {
             mesh.add_triangle(idx_inner + 2 * (i - 1), idx_inner, idx_inner + 2 * i);
         }
-        // for (int i = 2; i < points_count; i++)
-        //       {
-        //           _IdxWritePtr[0] = (ImDrawIdx)(vtx_inner_idx); _IdxWritePtr[1] = (ImDrawIdx)(vtx_inner_idx + ((i - 1) << 1)); _IdxWritePtr[2] = (ImDrawIdx)(vtx_inner_idx + (i << 1));
-        //           _IdxWritePtr += 3;
-        //       }
 
-        let mut normals = Vec::new();
-        let mut i0 = points_count - 1;
-        for i1 in 0..points_count {
-            let p0 = path[i0 as usize];
-            let p1 = path[i1 as usize];
-            let edge = (p1 - p0).normalize().rot90();
-            normals.push(edge);
-            i0 = i1;
-        }
+        TEMP_BUFFER.with_borrow_mut(|normals| {
+            let mut i0 = points_count - 1;
+            normals.reserve(points_count as usize);
 
-        // The feathering:
-        let mut i0 = points_count - 1;
-        for i1 in 0..points_count {
-            let n0 = normals[i0 as usize];
-            let n1 = normals[i1 as usize];
-            let dm = ((n0 + n1) * 0.5) * feathering * 0.5;
-            let p1 = path[i0 as usize];
+            for i1 in 0..points_count {
+                let p0 = path[i0 as usize];
+                let p1 = path[i1 as usize];
+                let edge = (p1 - p0).normalize().rot90();
+                normals.push(edge);
+                i0 = i1;
+            }
 
-            let pos_inner = p1 - dm;
-            let pos_outer = p1 + dm;
+            // The feathering:
+            let mut i0 = points_count - 1;
+            for i1 in 0..points_count {
+                let n0 = normals[i0 as usize];
+                let n1 = normals[i1 as usize];
+                let dm = ((n0 + n1) * 0.5) * feathering * 0.5;
+                let p1 = path[i0 as usize];
 
-            mesh.add_vertex(pos_inner, fill, get_uv(&p1));
-            mesh.add_vertex(pos_outer, out_color, get_uv(&pos_outer));
-            mesh.add_triangle(idx_inner + i1 * 2, idx_inner + i0 * 2, idx_outer + 2 * i0);
-            mesh.add_triangle(idx_outer + i0 * 2, idx_outer + i1 * 2, idx_inner + 2 * i1);
-            i0 = i1;
-        }
+                let pos_inner = p1 - dm;
+                let pos_outer = p1 + dm;
+
+                mesh.add_vertex(pos_inner, fill, get_uv(&p1));
+                mesh.add_vertex(pos_outer, out_color, get_uv(&pos_outer));
+                mesh.add_triangle(idx_inner + i1 * 2, idx_inner + i0 * 2, idx_outer + 2 * i0);
+                mesh.add_triangle(idx_outer + i0 * 2, idx_outer + i1 * 2, idx_inner + 2 * i1);
+                i0 = i1;
+            }
+        });
     } else {
         let index_count = (points_count - 2) * 3;
         let vtx_count = points_count;
