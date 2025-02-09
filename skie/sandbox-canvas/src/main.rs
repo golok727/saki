@@ -57,7 +57,7 @@ impl SkieAppHandle for SandboxApp {
         cx.translate(size.width.half(), size.height.half());
         cx.draw_rect(
             &Rect::xywh(0.0, 0.0, 200.0, 200.0).centered(),
-            Brush::filled(Color::WHITE),
+            Brush::filled(Color::WHITE).feathering(10.0),
         );
         cx.restore();
 

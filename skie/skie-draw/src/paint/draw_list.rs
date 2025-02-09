@@ -43,7 +43,6 @@ impl DerefMut for ScratchPathBuilder {
 
 #[derive(Default)]
 pub struct DrawList {
-    pub(crate) antialias: bool,
     pub(crate) feathering: f32,
     pub(crate) mesh: Mesh,
     pub(crate) temp_path: ScratchPathBuilder,
@@ -52,16 +51,10 @@ pub struct DrawList {
 }
 
 impl DrawList {
-    pub fn is_antialiazed(&self) -> bool {
-        self.antialias
-    }
-
-    pub fn antialias(&mut self, value: bool) {
-        self.antialias = value
-    }
-
-    pub fn feathering(&mut self, value: f32) {
-        self.feathering = value
+    pub fn feathering(&mut self, value: f32) -> f32 {
+        let old = self.feathering;
+        self.feathering = value;
+        old
     }
 
     pub fn clear(&mut self) {
@@ -99,6 +92,7 @@ impl DrawList {
 
     pub fn add_quad(&mut self, quad: &Quad, brush: &Brush, textured: bool) {
         let fill_color = brush.fill_style.color;
+        let stroke_color = brush.stroke_style.color;
 
         self.temp_path.clear();
         self.temp_path_data.clear();
@@ -113,7 +107,14 @@ impl DrawList {
             self.temp_path.path_events(),
             &mut self.temp_path_data,
             |path| {
-                fill_path_convex(&mut self.mesh, path, self.feathering, fill_color, textured);
+                fill_path_convex(
+                    &mut self.mesh,
+                    path,
+                    fill_color,
+                    textured,
+                    brush.feathering,
+                    (!stroke_color.is_transparent()).then_some(stroke_color),
+                );
                 StrokeTesellator::add_to_mesh(&mut self.mesh, path, &brush.stroke_style);
             },
         );
@@ -121,6 +122,7 @@ impl DrawList {
 
     pub fn add_circle(&mut self, circle: &Circle, brush: &Brush, textured: bool) {
         let fill_color = brush.fill_style.color;
+        let stroke_color = brush.stroke_style.color;
 
         self.temp_path.clear();
         self.temp_path.circle(circle.center, circle.radius);
@@ -131,7 +133,14 @@ impl DrawList {
             self.temp_path.path_events(),
             &mut self.temp_path_data,
             |path| {
-                fill_path_convex(&mut self.mesh, path, self.feathering, fill_color, textured);
+                fill_path_convex(
+                    &mut self.mesh,
+                    path,
+                    fill_color,
+                    textured,
+                    brush.feathering,
+                    (!stroke_color.is_transparent()).then_some(stroke_color),
+                );
                 StrokeTesellator::add_to_mesh(&mut self.mesh, path, &brush.stroke_style);
             },
         );
@@ -279,17 +288,16 @@ pub fn build_path_single_contour(
 fn fill_path_convex(
     mesh: &mut Mesh,
     path: &[Point],
-    feathering: f32,
-    color: Color,
+    fill: Color,
     textured: bool,
+    _feathering: f32,
+    _fade_to: Option<Color>,
 ) {
-    let points_count = path.len();
+    let points_count = path.len() as u32;
 
-    if points_count <= 2 || color.is_transparent() {
+    if points_count < 3 || fill.is_transparent() {
         return;
     }
-    let mut color_out = color;
-    color_out.a = 0;
 
     let bounds = if textured {
         get_path_bounds(path)
@@ -310,68 +318,22 @@ fn fill_path_convex(
         }
     };
 
-    // FIXME:
-    if feathering > 0.0 {
-        // // AA fill
-        let idx_count = (points_count - 2) * 3 + points_count * 6;
-        let vtx_count = points_count * 2;
-        mesh.reserve_prim(vtx_count, idx_count);
+    let index_count = (points_count - 2) * 3;
+    let vtx_count = points_count;
 
-        let cur_vertex_idx = mesh.vertex_count();
-        let vtx_inner_idx = cur_vertex_idx;
-        let vtx_outer_idx = vtx_inner_idx + 1;
-        for i in 2..points_count {
-            mesh.add_triangle(
-                vtx_inner_idx,
-                vtx_inner_idx + ((i - 1) << 1) as u32,
-                vtx_inner_idx + (i << 1) as u32,
-            );
-        }
+    mesh.reserve_prim(vtx_count as usize, index_count as usize);
+    let base_idx = mesh.vertex_count();
 
-        let mut i0 = points_count - 1;
-        for (i1, point) in path.iter().enumerate() {
-            let p1 = *point;
-            let dm = p1.normalize().normal() * 0.5 * feathering;
+    for point in path {
+        let uv = get_uv(point);
+        mesh.add_vertex(*point, fill, uv);
+    }
 
-            let pos_inner = p1 - dm;
-            let pos_outer = p1 + dm;
-
-            mesh.add_vertex(pos_inner, color, get_uv(&pos_inner));
-            mesh.add_vertex(pos_outer, color_out, get_uv(&pos_outer));
-
-            mesh.add_triangle(
-                vtx_inner_idx + (i1 << 1) as u32,
-                vtx_inner_idx + (i0 << 1) as u32,
-                vtx_outer_idx + (i0 << 1) as u32,
-            );
-
-            mesh.add_triangle(
-                vtx_outer_idx + (i0 << 1) as u32,
-                vtx_outer_idx + (i1 << 1) as u32,
-                vtx_inner_idx + (i1 << 1) as u32,
-            );
-
-            i0 = i1;
-        }
-    } else {
-        // no AA fill
-        let index_count = (points_count - 2) * 3;
-        let vtx_count = points_count;
-
-        mesh.reserve_prim(vtx_count, index_count);
-        let base_idx = mesh.vertex_count();
-
-        for point in path {
-            let uv = get_uv(point);
-            mesh.add_vertex(*point, color, uv);
-        }
-
-        for i in 2..points_count {
-            mesh.add_triangle(
-                base_idx,                //
-                base_idx + i as u32 - 1, //
-                base_idx + i as u32,     //
-            );
-        }
+    for i in 2..points_count {
+        mesh.add_triangle(
+            base_idx,         //
+            base_idx + i - 1, //
+            base_idx + i,     //
+        );
     }
 }

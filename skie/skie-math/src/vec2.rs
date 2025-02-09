@@ -1,6 +1,6 @@
 use std::{
     fmt::Display,
-    ops::{Add, Mul, Sub},
+    ops::{self, Add, Mul, Sub},
 };
 
 use crate::traits::{Half, IsZero, One, Zero};
@@ -69,12 +69,29 @@ where
 
 impl<T> Vec2<T>
 where
-    T: Clone + Add<T, Output = T> + std::ops::Neg<Output = T>,
+    T: Clone + Add<T, Output = T> + ops::Neg<Output = T>,
 {
     pub fn normal(&self) -> Self {
         Vec2 {
             x: -self.y.clone(),
             y: self.x.clone(),
+        }
+    }
+    pub fn rot90(self) -> Self {
+        vec2(self.y, -self.x)
+    }
+}
+
+impl<T> ops::Neg for Vec2<T>
+where
+    T: Clone + Add<T, Output = T> + ops::Neg<Output = T>,
+{
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            x: -self.x,
+            y: -self.y,
         }
     }
 }
@@ -293,7 +310,7 @@ where
 }
 
 // Begin Vector assign
-impl<T> std::ops::AddAssign for Vec2<T>
+impl<T> ops::AddAssign for Vec2<T>
 where
     T: Add<T, Output = T> + Clone,
 {
@@ -302,7 +319,7 @@ where
     }
 }
 
-impl<T> std::ops::SubAssign for Vec2<T>
+impl<T> ops::SubAssign for Vec2<T>
 where
     T: Sub<T, Output = T> + Clone,
 {
@@ -311,7 +328,7 @@ where
     }
 }
 
-impl<T> std::ops::MulAssign for Vec2<T>
+impl<T> ops::MulAssign for Vec2<T>
 where
     T: Mul<T, Output = T> + Clone,
 {
@@ -320,9 +337,9 @@ where
     }
 }
 
-impl<T> std::ops::DivAssign for Vec2<T>
+impl<T> ops::DivAssign for Vec2<T>
 where
-    T: std::ops::Div<T, Output = T> + Clone,
+    T: ops::Div<T, Output = T> + Clone,
 {
     fn div_assign(&mut self, rhs: Self) {
         *self = self.clone() / rhs
@@ -391,9 +408,9 @@ where
 }
 
 // Vector
-impl<T> std::ops::Div for Vec2<T>
+impl<T> ops::Div for Vec2<T>
 where
-    T: std::ops::Div<T, Output = T>,
+    T: ops::Div<T, Output = T>,
 {
     type Output = Vec2<T>;
 
@@ -406,9 +423,9 @@ where
 }
 
 // Scalar
-impl<T> std::ops::Div<T> for Vec2<T>
+impl<T> ops::Div<T> for Vec2<T>
 where
-    T: Clone + std::ops::Div<T, Output = T>,
+    T: Clone + ops::Div<T, Output = T>,
 {
     type Output = Vec2<T>;
 
