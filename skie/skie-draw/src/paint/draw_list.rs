@@ -2,11 +2,10 @@ use core::f32;
 use std::cell::RefCell;
 use std::ops::Range;
 
-use skie_math::{Corners, IsZero};
+use skie_math::IsZero;
 
 use super::{
-    quad, Brush, Circle, Color, FillStyle, Mesh, PathBrush, Primitive, Quad, StrokeTesellator,
-    Vertex,
+    Brush, Circle, Color, FillStyle, Mesh, PathBrush, Primitive, Quad, StrokeTesellator, Vertex,
 };
 
 use crate::earcut::Earcut;
