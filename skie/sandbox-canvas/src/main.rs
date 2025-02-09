@@ -1,7 +1,7 @@
 use skie_draw::{
     app::{self, LogicalSize, SkieAppHandle, WindowAttributes},
     paint::PathBrush,
-    vec2, Canvas, Color, Half, LineCap, Path, Size,
+    vec2, Canvas, Color, Corners, Half, LineCap, Path, Size,
 };
 
 use skie_draw::{Brush, Rect};
@@ -25,8 +25,33 @@ impl SkieAppHandle for SandboxApp {
 
         cx.clear_color(Color::THAMAR_BLACK);
 
-        cx.save();
-        cx.scale(scale_factor, scale_factor);
+        {
+            cx.save();
+            cx.scale(scale_factor, scale_factor);
+
+            cx.draw_round_rect(
+                &Rect::xywh(size.width.half(), size.height.half(), 200.0, 200.0).centered(),
+                &Corners::with_all(30.0),
+                Brush::filled(Color::WHITE).feathering(50.0),
+            );
+
+            // cx.draw_rect(
+            //     &Rect::xywh(size.width.half(), size.height.half(), 200.0, 200.0).centered(),
+            //     Brush::filled(Color::TORCH_RED).feathering(30.0),
+            // );
+
+            cx.draw_circle(
+                140.0,
+                140.0,
+                100.0,
+                Brush::filled(Color::KHAKI).feathering(10.0),
+            );
+            // cx.draw_circle(140.0, 140.0, 100.0, Brush::filled(Color::WHITE));
+
+            cx.restore();
+
+            return;
+        }
 
         let rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
 
