@@ -60,7 +60,7 @@ impl SkieAppHandle for SandboxApp {
         shadow_color.a = 100;
         cx.draw_round_rect(
             &Rect::xywh(0.0, 0.0, 210.0, 210.0).centered(),
-            &Corners::with_all(8.0),
+            Corners::with_all(8.0),
             Brush::filled(shadow_color).feathering(15.0),
         );
         cx.draw_rect(
