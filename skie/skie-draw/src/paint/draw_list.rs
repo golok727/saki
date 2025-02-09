@@ -351,6 +351,7 @@ fn fill_path_convex(
         }
 
         TEMP_BUFFER.with_borrow_mut(|normals| {
+            normals.clear();
             let mut i0 = points_count - 1;
             normals.reserve(points_count as usize);
 

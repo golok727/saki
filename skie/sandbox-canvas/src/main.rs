@@ -25,33 +25,8 @@ impl SkieAppHandle for SandboxApp {
 
         cx.clear_color(Color::THAMAR_BLACK);
 
-        {
-            cx.save();
-            cx.scale(scale_factor, scale_factor);
-
-            cx.draw_round_rect(
-                &Rect::xywh(size.width.half(), size.height.half(), 200.0, 200.0).centered(),
-                &Corners::with_all(30.0),
-                Brush::filled(Color::WHITE).feathering(50.0),
-            );
-
-            // cx.draw_rect(
-            //     &Rect::xywh(size.width.half(), size.height.half(), 200.0, 200.0).centered(),
-            //     Brush::filled(Color::TORCH_RED).feathering(30.0),
-            // );
-
-            cx.draw_circle(
-                140.0,
-                140.0,
-                100.0,
-                Brush::filled(Color::KHAKI).feathering(10.0),
-            );
-            // cx.draw_circle(140.0, 140.0, 100.0, Brush::filled(Color::WHITE));
-
-            cx.restore();
-
-            return;
-        }
+        cx.save();
+        cx.scale(scale_factor, scale_factor);
 
         let rect = Rect::xywh(0.0, 0.0, 200.0, 200.0);
 
@@ -80,10 +55,19 @@ impl SkieAppHandle for SandboxApp {
 
         cx.save();
         cx.translate(size.width.half(), size.height.half());
+
+        let mut shadow_color = Color::from_rgb(0x939496);
+        shadow_color.a = 100;
+        cx.draw_round_rect(
+            &Rect::xywh(0.0, 0.0, 210.0, 210.0).centered(),
+            &Corners::with_all(8.0),
+            Brush::filled(shadow_color).feathering(15.0),
+        );
         cx.draw_rect(
             &Rect::xywh(0.0, 0.0, 200.0, 200.0).centered(),
-            Brush::filled(Color::WHITE).feathering(10.0),
+            Brush::filled(Color::WHITE),
         );
+
         cx.restore();
 
         Man::draw(cx);
