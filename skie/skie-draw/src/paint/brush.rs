@@ -15,6 +15,7 @@ pub struct Brush {
     pub(crate) fill_style: FillStyle,
     pub(crate) stroke_style: StrokeStyle,
     pub(crate) antialias: bool,
+    pub(crate) feathering: f32,
 }
 
 impl Default for Brush {
@@ -29,6 +30,7 @@ impl Default for Brush {
                 ..Default::default()
             },
             antialias: false,
+            feathering: 0.0,
         }
     }
 }
@@ -52,6 +54,11 @@ impl Brush {
     /// * `enable` - A boolean value to enable (true) or disable (false) anti-aliasing.
     pub fn antialias(mut self, enable: bool) -> Self {
         self.antialias = enable;
+        self
+    }
+
+    pub fn feathering(mut self, value: f32) -> Self {
+        self.feathering = value;
         self
     }
 
