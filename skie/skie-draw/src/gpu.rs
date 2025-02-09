@@ -32,7 +32,7 @@ impl GpuContext {
             .request_device(
                 &(wgpu::DeviceDescriptor {
                     label: Some("GPUContext device"),
-                    required_features: wgpu::Features::empty(),
+                    required_features: wgpu::Features::POLYGON_MODE_LINE,
                     required_limits: wgpu::Limits::downlevel_webgl2_defaults()
                         .using_resolution(adapter.limits()),
                     memory_hints: wgpu::MemoryHints::MemoryUsage,

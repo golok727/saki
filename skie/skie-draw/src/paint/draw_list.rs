@@ -1,4 +1,5 @@
 use core::f32;
+use std::cell::RefCell;
 use std::ops::Range;
 
 use skie_math::IsZero;
@@ -97,7 +98,9 @@ impl DrawList {
         self.temp_path.clear();
         self.temp_path_data.clear();
 
-        if quad.corners.is_zero() {
+        let no_round = quad.corners.is_zero();
+
+        if no_round {
             self.temp_path.rect(&quad.bounds);
         } else {
             self.temp_path.round_rect(&quad.bounds, &quad.corners);
@@ -109,7 +112,11 @@ impl DrawList {
             |path| {
                 fill_path_convex(
                     &mut self.mesh,
-                    path,
+                    if no_round {
+                        &path[..path.len() - 1]
+                    } else {
+                        &path[..path.len() - 2]
+                    },
                     fill_color,
                     textured,
                     brush.feathering,
@@ -125,9 +132,9 @@ impl DrawList {
         let stroke_color = brush.stroke_style.color;
 
         self.temp_path.clear();
-        self.temp_path.circle(circle.center, circle.radius);
-
         self.temp_path_data.clear();
+
+        self.temp_path.circle(circle.center, circle.radius);
 
         build_path_single_contour(
             self.temp_path.path_events(),
@@ -135,7 +142,7 @@ impl DrawList {
             |path| {
                 fill_path_convex(
                     &mut self.mesh,
-                    path,
+                    &path[0..path.len() - 2],
                     fill_color,
                     textured,
                     brush.feathering,
@@ -285,12 +292,17 @@ pub fn build_path_single_contour(
     }
 }
 
+thread_local! {
+    static TEMP_BUFFER: RefCell<Vec<Vec2<f32>>> = Default::default();
+
+}
+
 fn fill_path_convex(
     mesh: &mut Mesh,
     path: &[Point],
     fill: Color,
     textured: bool,
-    _feathering: f32,
+    feathering: f32,
     _fade_to: Option<Color>,
 ) {
     let points_count = path.len() as u32;
@@ -298,6 +310,8 @@ fn fill_path_convex(
     if points_count < 3 || fill.is_transparent() {
         return;
     }
+
+    debug_assert!(cw_signed_area(path) > 0.0);
 
     let bounds = if textured {
         get_path_bounds(path)
@@ -318,22 +332,86 @@ fn fill_path_convex(
         }
     };
 
-    let index_count = (points_count - 2) * 3;
-    let vtx_count = points_count;
+    if feathering > 0.0 {
+        let out_color = _fade_to.unwrap_or_else(|| {
+            let mut c = fill;
+            c.a = 0;
+            c
+        });
 
-    mesh.reserve_prim(vtx_count as usize, index_count as usize);
-    let base_idx = mesh.vertex_count();
+        mesh.reserve_prim(2 * points_count as usize, 3 * points_count as usize);
 
-    for point in path {
-        let uv = get_uv(point);
-        mesh.add_vertex(*point, fill, uv);
+        let idx_inner = mesh.vertices.len() as u32;
+        let idx_outer = idx_inner + 1;
+
+        // The fill:
+        for i in 2..points_count {
+            mesh.add_triangle(idx_inner + 2 * (i - 1), idx_inner, idx_inner + 2 * i);
+        }
+
+        TEMP_BUFFER.with_borrow_mut(|normals| {
+            normals.clear();
+            let mut i0 = points_count - 1;
+            normals.reserve(points_count as usize);
+
+            for i1 in 0..points_count {
+                let p0 = path[i0 as usize];
+                let p1 = path[i1 as usize];
+                let edge = (p1 - p0).normalize().rot90();
+                normals.push(edge);
+                i0 = i1;
+            }
+
+            // The feathering:
+            let mut i0 = points_count - 1;
+            for i1 in 0..points_count {
+                let n0 = normals[i0 as usize];
+                let n1 = normals[i1 as usize];
+                let dm = ((n0 + n1) * 0.5) * feathering * 0.5;
+                let p1 = path[i0 as usize];
+
+                let pos_inner = p1 - dm;
+                let pos_outer = p1 + dm;
+
+                mesh.add_vertex(pos_inner, fill, get_uv(&p1));
+                mesh.add_vertex(pos_outer, out_color, get_uv(&pos_outer));
+                mesh.add_triangle(idx_inner + i1 * 2, idx_inner + i0 * 2, idx_outer + 2 * i0);
+                mesh.add_triangle(idx_outer + i0 * 2, idx_outer + i1 * 2, idx_inner + 2 * i1);
+                i0 = i1;
+            }
+        });
+    } else {
+        let index_count = (points_count - 2) * 3;
+        let vtx_count = points_count;
+
+        mesh.reserve_prim(vtx_count as usize, index_count as usize);
+        let base_idx = mesh.vertex_count();
+
+        for point in path {
+            let uv = get_uv(point);
+            mesh.add_vertex(*point, fill, uv);
+        }
+
+        for i in 2..points_count {
+            mesh.add_triangle(
+                base_idx,         //
+                base_idx + i - 1, //
+                base_idx + i,     //
+            );
+        }
     }
+}
 
-    for i in 2..points_count {
-        mesh.add_triangle(
-            base_idx,         //
-            base_idx + i - 1, //
-            base_idx + i,     //
-        );
+fn cw_signed_area(path: &[Point]) -> f64 {
+    if let Some(last) = path.last() {
+        let mut previous = *last;
+        let mut area = 0.0;
+        for p in path {
+            area += (previous.x * p.y - p.x * previous.y) as f64;
+            previous = *p;
+        }
+        area
+    } else {
+        0.0
     }
 }
