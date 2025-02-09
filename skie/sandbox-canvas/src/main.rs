@@ -23,6 +23,8 @@ impl SkieAppHandle for SandboxApp {
         let size = window.inner_size();
         let size = Size::new(size.width as f32, size.height as f32).scale(1.0 / scale_factor);
 
+        let mut shadow_color = Color::from_rgb(0x939496);
+        shadow_color.a = 100;
         cx.clear_color(Color::THAMAR_BLACK);
 
         cx.save();
@@ -38,16 +40,28 @@ impl SkieAppHandle for SandboxApp {
         cx.draw_rect(&rect, Brush::filled(Color::TORCH_RED));
 
         let center = rect.center();
-        cx.draw_circle(center.x, center.y, 10.0, Brush::filled(Color::BLUE));
+        cx.draw_circle(
+            center.x,
+            center.y,
+            10.0,
+            Brush::filled(Color::BLUE).feathering(2.0),
+        );
 
         // draw rotated square
         cx.save();
         cx.translate(center.x, center.y);
         cx.scale(0.5, 0.5);
         cx.rotate(60f32.to_radians());
+
+        // shadow
+        cx.draw_round_rect(
+            &Rect::xywh(0.0, 0.0, 200.0, 200.0),
+            Corners::with_all(8.0),
+            Brush::filled(shadow_color).feathering(15.0),
+        );
         cx.draw_rect(
             &Rect::xywh(0.0, 0.0, 200.0, 200.0),
-            Brush::filled(Color::WHITE),
+            Brush::filled(Color::WHITE).feathering(5.0),
         );
         cx.restore();
 
@@ -56,8 +70,6 @@ impl SkieAppHandle for SandboxApp {
         cx.save();
         cx.translate(size.width.half(), size.height.half());
 
-        let mut shadow_color = Color::from_rgb(0x939496);
-        shadow_color.a = 100;
         cx.draw_round_rect(
             &Rect::xywh(0.0, 0.0, 210.0, 210.0).centered(),
             Corners::with_all(8.0),
