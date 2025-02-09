@@ -351,9 +351,9 @@ fn fill_path_convex(
 
         TEMP_BUFFER.with_borrow_mut(|normals| {
             normals.clear();
-            let mut i0 = points_count - 1;
             normals.reserve(points_count as usize);
 
+            let mut i0 = points_count - 1;
             for i1 in 0..points_count {
                 let p0 = path[i0 as usize];
                 let p1 = path[i1 as usize];
@@ -373,7 +373,7 @@ fn fill_path_convex(
                 let pos_inner = p1 - dm;
                 let pos_outer = p1 + dm;
 
-                mesh.add_vertex(pos_inner, fill, get_uv(&p1));
+                mesh.add_vertex(pos_inner, fill, get_uv(&pos_inner));
                 mesh.add_vertex(pos_outer, out_color, get_uv(&pos_outer));
                 mesh.add_triangle(idx_inner + i1 * 2, idx_inner + i0 * 2, idx_outer + 2 * i0);
                 mesh.add_triangle(idx_outer + i0 * 2, idx_outer + i1 * 2, idx_inner + 2 * i1);
