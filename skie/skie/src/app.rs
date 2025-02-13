@@ -24,13 +24,12 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use crate::jobs::{Job, Jobs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AppAction {
+pub enum AppEventKind {
     AppUpdate,
-
     Quit,
 }
 
-pub(crate) enum AppUpdateEvent {
+pub(crate) enum AppEvent {
     CreateWindow {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
@@ -38,7 +37,7 @@ pub(crate) enum AppUpdateEvent {
 }
 
 pub(crate) enum Effect {
-    UserEvent(AppAction),
+    AppEvent(AppEventKind),
 }
 
 pub struct App {
@@ -54,14 +53,14 @@ impl App {
     }
 
     pub fn run(mut self, on_init: impl FnOnce(&mut AppContext) + 'static) {
-        let event_loop: winit::event_loop::EventLoop<AppAction> =
+        let event_loop: winit::event_loop::EventLoop<AppEventKind> =
             winit::event_loop::EventLoop::with_user_event()
                 .build()
                 .expect("error creating event_loop.");
 
         let proxy = event_loop.create_proxy();
 
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
 
         {
             let mut cx = self.cx.borrow_mut();
@@ -92,14 +91,15 @@ pub struct AppContext {
     pub(crate) jobs: Jobs,
     init_callback: Option<AppInitCallback>,
 
-    pending_updates: usize,
-    flushing_effects: bool,
+    update_count: usize,
+    running_effects: bool,
     effects: VecDeque<Effect>,
     pub(crate) app_events: AppEvents,
 
+    #[allow(unused)]
     world: World,
 
-    pending_user_events: ahash::AHashSet<AppAction>,
+    pending_user_events: ahash::AHashSet<AppEventKind>,
 
     pub(crate) text_system: Arc<TextSystem>,
 
@@ -129,8 +129,8 @@ impl AppContext {
 
                 world: World::new(),
 
-                pending_updates: 0,
-                flushing_effects: false,
+                update_count: 0,
+                running_effects: false,
                 effects: Default::default(),
                 app_events: Default::default(),
                 pending_user_events: Default::default(),
@@ -191,34 +191,34 @@ impl AppContext {
         }
     }
 
-    fn flush_effects(&mut self) {
-        self.flushing_effects = true;
+    fn run_effects(&mut self) {
+        self.running_effects = true;
 
         while let Some(effect) = self.effects.pop_front() {
             match effect {
-                Effect::UserEvent(event) => self.app_events.notify(event),
+                Effect::AppEvent(event) => self.app_events.notify(event),
             }
         }
 
-        self.flushing_effects = false;
+        self.running_effects = false;
     }
 
     pub(crate) fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
-        self.pending_updates += 1;
+        self.update_count += 1;
         let res = cb(self);
 
-        if !self.flushing_effects && self.pending_updates == 1 {
-            self.flush_effects();
+        if !self.running_effects && self.update_count == 1 {
+            self.run_effects();
         }
 
-        self.pending_updates -= 1;
+        self.update_count -= 1;
 
         res
     }
 
     pub(crate) fn push_effect(&mut self, effect: Effect) {
         match effect {
-            Effect::UserEvent(event) => {
+            Effect::AppEvent(event) => {
                 if !self.pending_user_events.insert(event) {
                     return;
                 }
@@ -227,9 +227,9 @@ impl AppContext {
         self.effects.push_back(effect);
     }
 
-    pub(crate) fn push_app_event(&mut self, event: AppUpdateEvent) {
+    pub(crate) fn push_app_event(&mut self, event: AppEvent) {
         self.app_events.push_event(event);
-        self.push_effect(Effect::UserEvent(AppAction::AppUpdate))
+        self.push_effect(Effect::AppEvent(AppEventKind::AppUpdate))
     }
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, create_view: F)
@@ -237,7 +237,7 @@ impl AppContext {
         F: FnOnce(&mut Window, &mut AppContext) + 'static,
     {
         self.update(|app| {
-            app.push_app_event(AppUpdateEvent::CreateWindow {
+            app.push_app_event(AppEvent::CreateWindow {
                 specs,
                 callback: Box::new(create_view),
             });
@@ -271,7 +271,7 @@ impl AppContext {
 
     pub fn quit(&mut self) {
         self.update(|app| {
-            app.push_effect(Effect::UserEvent(AppAction::Quit));
+            app.push_effect(Effect::AppEvent(AppEventKind::Quit));
         });
     }
 
@@ -323,7 +323,7 @@ impl AppContext {
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for event in self.app_events.drain() {
             match event {
-                AppUpdateEvent::CreateWindow { specs, callback } => {
+                AppEvent::CreateWindow { specs, callback } => {
                     self.handle_window_create_event(event_loop, specs, callback);
                 }
             }
@@ -332,12 +332,12 @@ impl AppContext {
 
     fn handle_on_about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {}
 
-    fn handle_on_user_event(&mut self, event_loop: &ActiveEventLoop, event: AppAction) {
+    fn handle_on_user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEventKind) {
         self.pending_user_events.remove(&event);
 
         match event {
-            AppAction::AppUpdate => self.handle_app_update_event(event_loop),
-            AppAction::Quit => {
+            AppEventKind::AppUpdate => self.handle_app_update_event(event_loop),
+            AppEventKind::Quit => {
                 event_loop.exit();
                 self.app_events.dispose();
                 log::info!("Bye!");

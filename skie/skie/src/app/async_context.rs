@@ -4,7 +4,7 @@ use winit::{event_loop::ActiveEventLoop, window::WindowId};
 
 use crate::{jobs::Jobs, window::Window};
 
-use super::{AppAction, AppContext, AppContextCell};
+use super::{AppContext, AppContextCell, AppEventKind};
 use anyhow::Result;
 
 #[derive(Clone)]
@@ -55,7 +55,7 @@ impl AsyncAppContext {
         lock.handle_on_about_to_wait(event_loop);
     }
 
-    pub(super) fn handle_on_user_event(&self, event_loop: &ActiveEventLoop, event: AppAction) {
+    pub(super) fn handle_on_user_event(&self, event_loop: &ActiveEventLoop, event: AppEventKind) {
         let cx = self.app.upgrade().expect("app released");
         let mut lock = cx.borrow_mut();
         lock.handle_on_user_event(event_loop, event);

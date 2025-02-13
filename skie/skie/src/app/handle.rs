@@ -1,9 +1,9 @@
 use winit::{application::ApplicationHandler, event_loop::ActiveEventLoop};
 
-use super::AppAction;
+use super::AppEventKind;
 
 type ResumedCallback = Box<dyn Fn(&ActiveEventLoop)>;
-type UserEventCallback = Box<dyn Fn(&ActiveEventLoop, AppAction)>;
+type UserEventCallback = Box<dyn Fn(&ActiveEventLoop, AppEventKind)>;
 type AboutToWaitCallback = Box<dyn Fn(&ActiveEventLoop)>;
 type WindowEventCallback = Box<
     dyn Fn(&winit::event_loop::ActiveEventLoop, winit::window::WindowId, winit::event::WindowEvent),
@@ -39,14 +39,14 @@ impl AppHandle {
     }
 }
 
-impl ApplicationHandler<AppAction> for AppHandle {
+impl ApplicationHandler<AppEventKind> for AppHandle {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(callback) = &self.callbacks.about_to_wait {
             callback(event_loop)
         }
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppAction) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEventKind) {
         if let Some(callback) = &self.callbacks.user_event {
             callback(event_loop, event)
         }
