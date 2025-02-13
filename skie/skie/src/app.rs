@@ -1,8 +1,10 @@
 pub mod async_context;
 pub mod events;
+pub(crate) mod world;
 pub use async_context::AsyncAppContext;
 use skie_draw::paint::SkieAtlas;
 use skie_draw::TextSystem;
+use world::World;
 mod handle;
 
 use crate::window::{Window, WindowId, WindowSpecification};
@@ -95,6 +97,8 @@ pub struct AppContext {
     effects: VecDeque<Effect>,
     pub(crate) app_events: AppEvents,
 
+    world: World,
+
     pending_user_events: ahash::AHashSet<AppAction>,
 
     pub(crate) text_system: Arc<TextSystem>,
@@ -122,6 +126,8 @@ impl AppContext {
                 jobs,
                 init_callback: None,
                 gpu,
+
+                world: World::new(),
 
                 pending_updates: 0,
                 flushing_effects: false,
@@ -218,7 +224,6 @@ impl AppContext {
                 }
             }
         }
-
         self.effects.push_back(effect);
     }
 
@@ -226,8 +231,6 @@ impl AppContext {
         self.app_events.push_event(event);
         self.push_effect(Effect::UserEvent(AppAction::AppUpdate))
     }
-
-    pub fn create_view(&self) {}
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, create_view: F)
     where
@@ -238,7 +241,7 @@ impl AppContext {
                 specs,
                 callback: Box::new(create_view),
             });
-        });
+        })
     }
 
     fn handle_window_create_event(
@@ -248,19 +251,22 @@ impl AppContext {
         callback: OpenWindowCallback,
     ) {
         log::trace!("Creating window. \n Spec: {:#?}", &specs);
-        match Window::new(
-            event_loop,
-            &specs,
-            self.gpu.clone(),
-            self.texture_atlas.clone(),
-            self.text_system.clone(),
-        ) {
-            Ok(mut window) => {
-                callback(&mut window, self);
-                self.windows.insert(window.id(), Some(window));
-            }
-            Err(err) => log::error!("Error creating window\n{:#?}", err),
-        };
+
+        self.update(|app| {
+            match Window::new(
+                event_loop,
+                &specs,
+                app.gpu.clone(),
+                app.texture_atlas.clone(),
+                app.text_system.clone(),
+            ) {
+                Ok(mut window) => {
+                    callback(&mut window, app);
+                    app.windows.insert(window.id(), Some(window));
+                }
+                Err(err) => log::error!("Error creating window\n{:#?}", err),
+            };
+        });
     }
 
     pub fn quit(&mut self) {
