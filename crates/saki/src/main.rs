@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write, time::Duration};
 
 use skie::{div, window::WindowSpecification, Color, ParentElement, Render};
 
@@ -27,7 +27,23 @@ fn main() {
             ..Default::default()
         };
 
-        app.open_window(window_specs.clone(), move |window, _| {
+        app.open_window(window_specs.clone(), move |window, app| {
+            window.set_timeout(
+                app,
+                |window, app| {
+                    window.set_bg_color(Color::ORANGE);
+
+                    window.set_timeout(
+                        app,
+                        |window, _| {
+                            window.set_bg_color(Color::THAMAR_BLACK);
+                        },
+                        Duration::from_secs(5),
+                    );
+                },
+                Duration::from_secs(5),
+            );
+
             window.mount(Main);
         });
     });

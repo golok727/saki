@@ -2,16 +2,16 @@ pub mod async_context;
 pub mod events;
 pub(crate) mod world;
 pub use async_context::AsyncAppContext;
-use skie_draw::paint::SkieAtlas;
-use skie_draw::TextSystem;
 use world::World;
-mod handle;
+
+use winit::application::ApplicationHandler;
 
 use crate::window::{Window, WindowId, WindowSpecification};
 use anyhow::Result;
 use events::AppEvents;
-use handle::AppHandle;
 use skie_draw::gpu::GpuContext;
+use skie_draw::paint::SkieAtlas;
+use skie_draw::TextSystem;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::future::Future;
@@ -24,12 +24,12 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use crate::jobs::{Job, Jobs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AppEventKind {
+pub enum UserEvent {
     AppUpdate,
     Quit,
 }
 
-pub(crate) enum AppEvent {
+pub(crate) enum AppUpdateEvent {
     CreateWindow {
         specs: WindowSpecification,
         callback: OpenWindowCallback,
@@ -37,40 +37,70 @@ pub(crate) enum AppEvent {
 }
 
 pub(crate) enum Effect {
-    AppEvent(AppEventKind),
+    AppEvent(UserEvent),
 }
 
 pub struct App {
-    cx: AppContextRef,
-    handle: AppHandle,
+    app: AppContextRef,
+    jobs: Jobs,
 }
 
 impl App {
     pub fn new() -> Self {
-        let mut handle = AppHandle::default();
-        let cx = AppContext::new(&mut handle);
-        Self { cx, handle }
+        let app = AppContext::new();
+        let jobs = app.borrow().jobs.clone();
+        Self { app, jobs }
     }
 
     pub fn run(mut self, on_init: impl FnOnce(&mut AppContext) + 'static) {
-        let event_loop: winit::event_loop::EventLoop<AppEventKind> =
+        let event_loop: winit::event_loop::EventLoop<UserEvent> =
             winit::event_loop::EventLoop::with_user_event()
                 .build()
                 .expect("error creating event_loop.");
 
         let proxy = event_loop.create_proxy();
 
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
         {
-            let mut cx = self.cx.borrow_mut();
+            let mut cx = self.app.borrow_mut();
             cx.init_callback = Some(Box::new(on_init));
             cx.app_events.init(proxy);
         }
 
         event_loop
-            .run_app(&mut self.handle)
+            .run_app(&mut self)
             .expect("Error running EventLoop");
+    }
+}
+
+impl ApplicationHandler<UserEvent> for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.app.borrow_mut().on_resumed(event_loop)
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.app.borrow_mut().on_about_to_wait(event_loop);
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        self.app.borrow_mut().on_user_event(event_loop, event)
+    }
+
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: winit::event::StartCause) {
+        self.jobs.run_foregound_tasks();
+        self.app.borrow_mut().on_new_events(event_loop, cause)
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: WindowEvent,
+    ) {
+        self.app
+            .borrow_mut()
+            .on_window_event(event_loop, window_id, event);
     }
 }
 
@@ -99,7 +129,7 @@ pub struct AppContext {
     #[allow(unused)]
     world: World,
 
-    pending_user_events: ahash::AHashSet<AppEventKind>,
+    pending_user_events: ahash::AHashSet<UserEvent>,
 
     pub(crate) text_system: Arc<TextSystem>,
 
@@ -111,7 +141,7 @@ pub struct AppContext {
 }
 
 impl AppContext {
-    fn new(handle: &mut AppHandle) -> AppContextRef {
+    fn new() -> AppContextRef {
         let jobs = Jobs::new(Some(7));
 
         let gpu = pollster::block_on(GpuContext::new()).expect("Error creating gpu context");
@@ -120,7 +150,7 @@ impl AppContext {
 
         let text_system = TextSystem::default();
 
-        let cx = Rc::new_cyclic(|this| {
+        Rc::new_cyclic(|this| {
             RefCell::new(Self {
                 this: this.clone(),
                 jobs,
@@ -139,45 +169,7 @@ impl AppContext {
                 text_system: Arc::new(text_system),
                 windows: ahash::AHashMap::new(),
             })
-        });
-
-        {
-            let lock = cx.borrow();
-
-            handle.on_about_to_wait({
-                let cx = lock.to_async();
-
-                Box::new(move |event_loop| {
-                    cx.handle_on_about_to_wait(event_loop);
-                })
-            });
-
-            handle.on_window_event({
-                let cx = lock.to_async();
-
-                Box::new(move |event_loop, window_id, event| {
-                    cx.handle_window_event(event_loop, window_id, event);
-                })
-            });
-
-            handle.on_resumed({
-                let cx = lock.to_async();
-
-                Box::new(move |event_loop| {
-                    cx.handle_on_resumed(event_loop);
-                })
-            });
-
-            handle.on_user_event({
-                let cx = lock.to_async();
-
-                Box::new(move |event_loop, user_event| {
-                    cx.handle_on_user_event(event_loop, user_event);
-                })
-            });
-        }
-
-        cx
+        })
     }
 
     pub fn text_system(&self) -> &Arc<TextSystem> {
@@ -227,9 +219,9 @@ impl AppContext {
         self.effects.push_back(effect);
     }
 
-    pub(crate) fn push_app_event(&mut self, event: AppEvent) {
+    pub(crate) fn push_app_event(&mut self, event: AppUpdateEvent) {
         self.app_events.push_event(event);
-        self.push_effect(Effect::AppEvent(AppEventKind::AppUpdate))
+        self.push_effect(Effect::AppEvent(UserEvent::AppUpdate))
     }
 
     pub fn open_window<F>(&mut self, specs: WindowSpecification, create_view: F)
@@ -237,7 +229,7 @@ impl AppContext {
         F: FnOnce(&mut Window, &mut AppContext) + 'static,
     {
         self.update(|app| {
-            app.push_app_event(AppEvent::CreateWindow {
+            app.push_app_event(AppUpdateEvent::CreateWindow {
                 specs,
                 callback: Box::new(create_view),
             });
@@ -271,7 +263,7 @@ impl AppContext {
 
     pub fn quit(&mut self) {
         self.update(|app| {
-            app.push_effect(Effect::AppEvent(AppEventKind::Quit));
+            app.push_effect(Effect::AppEvent(UserEvent::Quit));
         });
     }
 
@@ -323,21 +315,24 @@ impl AppContext {
     fn handle_app_update_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for event in self.app_events.drain() {
             match event {
-                AppEvent::CreateWindow { specs, callback } => {
+                AppUpdateEvent::CreateWindow { specs, callback } => {
                     self.handle_window_create_event(event_loop, specs, callback);
                 }
             }
         }
     }
 
-    fn handle_on_about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {}
+    // BEGIN: WinitEventHandlers
+    fn on_about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {}
 
-    fn handle_on_user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEventKind) {
+    fn on_new_events(&mut self, _event_loop: &ActiveEventLoop, _cause: winit::event::StartCause) {}
+
+    fn on_user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         self.pending_user_events.remove(&event);
 
         match event {
-            AppEventKind::AppUpdate => self.handle_app_update_event(event_loop),
-            AppEventKind::Quit => {
+            UserEvent::AppUpdate => self.handle_app_update_event(event_loop),
+            UserEvent::Quit => {
                 event_loop.exit();
                 self.app_events.dispose();
                 log::info!("Bye!");
@@ -345,7 +340,7 @@ impl AppContext {
         }
     }
 
-    fn handle_on_resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn on_resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         log::info!("Initializing App...");
         if let Some(cb) = self.init_callback.take() {
             cb(self);
@@ -353,7 +348,7 @@ impl AppContext {
         log::info!("App Initialized!");
     }
 
-    fn handle_window_event(
+    fn on_window_event(
         &mut self,
         _event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
@@ -401,4 +396,6 @@ impl AppContext {
             }
         }
     }
+
+    // END: WinitEventHandlers
 }
