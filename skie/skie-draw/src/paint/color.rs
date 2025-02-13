@@ -19,7 +19,7 @@ impl Color {
     pub const WHITE: Self = Self::from_rgb(0xFFFFFF);
     pub const BLACK: Self = Self::from_rgb(0x000000);
 
-    pub const THAMAR_BLACK: Self = Self::from_rgb(0x181818);
+    pub const SKIE_BLACK: Self = Self::from_rgb(0x181818);
 
     pub const BROWN: Self = Self::from_rgb(0xA52A2A);
     pub const TORCH_RED: Self = Self::from_rgb(0xff2233);

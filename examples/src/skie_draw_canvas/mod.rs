@@ -37,7 +37,7 @@ pub fn run() {
     let text = Text::new("✨ Hello ✨").pos(pos.x, pos.y).size_px(64.0);
     canvas.fill_text(&text, Color::BLACK);
 
-    canvas.clear_color(Color::THAMAR_BLACK);
+    canvas.clear_color(Color::SKIE_BLACK);
     canvas.render(&mut surface).expect("error painting");
 
     let snapshot = canvas

@@ -28,7 +28,7 @@ fn main() {
         let window_specs = WindowSpecification {
             width: 1280,
             height: 720,
-            background: Color::THAMAR_BLACK,
+            background: Color::SKIE_BLACK,
             ..Default::default()
         };
 
@@ -44,7 +44,7 @@ fn main() {
             window.set_timeout(
                 app,
                 |window, _| {
-                    window.set_bg_color(Color::THAMAR_BLACK);
+                    window.set_bg_color(Color::SKIE_BLACK);
                 },
                 Duration::from_secs(5),
             );

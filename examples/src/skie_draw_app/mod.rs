@@ -106,7 +106,7 @@ impl SkieAppHandle for App {
 
     fn draw(&mut self, cx: &mut Canvas, window: &app::Window) {
         let scale_factor = window.scale_factor();
-        cx.clear_color(Color::THAMAR_BLACK);
+        cx.clear_color(Color::SKIE_BLACK);
 
         self.square.draw(cx, &self.keystate);
 

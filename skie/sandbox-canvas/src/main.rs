@@ -25,7 +25,7 @@ impl SkieAppHandle for SandboxApp {
 
         let mut shadow_color = Color::from_rgb(0x939496);
         shadow_color.a = 100;
-        cx.clear_color(Color::THAMAR_BLACK);
+        cx.clear_color(Color::SKIE_BLACK);
 
         cx.save();
         cx.scale(scale_factor, scale_factor);
