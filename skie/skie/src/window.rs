@@ -1,13 +1,13 @@
 pub mod error;
 use derive_more::derive::{Deref, DerefMut};
 
-use std::{cell::Cell, future::Future, sync::Arc};
+use std::{future::Future, sync::Arc};
 
 use crate::{
     app::{AppContext, AsyncAppContext},
     jobs::Job,
     view::View,
-    AnyElement, ElementObject, Render,
+    Element,
 };
 use anyhow::Result;
 use error::CreateWindowError;
@@ -53,6 +53,11 @@ impl WindowSpecification {
         self.title = title;
         self
     }
+
+    pub fn with_bg_color(mut self, bg: Color) -> Self {
+        self.background = bg;
+        self
+    }
 }
 
 pub struct Window {
@@ -63,9 +68,7 @@ pub struct Window {
 
     pub(crate) canvas: Canvas,
 
-    pub(crate) dirty: Cell<bool>,
     root: Option<View>,
-    tree: Option<AnyElement>,
 
     surface: BackendRenderTarget<'static>,
 
@@ -105,9 +108,7 @@ impl Window {
             handle,
             canvas,
             surface,
-            dirty: Cell::new(true),
             root: None,
-            tree: None,
             texture_atlas,
             clear_color: specs.background,
         })
@@ -148,9 +149,8 @@ impl Window {
         })
     }
 
-    pub fn mount<V: Render + 'static>(&mut self, view: V) {
-        let root = View::new(view);
-        self.root.replace(root);
+    pub fn mount(&mut self, view: impl Into<View>) {
+        self.root.replace(view.into());
         self.refresh();
     }
 
@@ -170,7 +170,7 @@ impl Window {
         )
     }
 
-    pub(crate) fn paint(&mut self) -> Result<()> {
+    pub(crate) fn paint(&mut self, cx: &mut AppContext) -> Result<()> {
         self.canvas.clear();
         self.canvas.clear_color(self.clear_color);
         let scale_factor = self.handle.scale_factor() as f32;
@@ -178,18 +178,8 @@ impl Window {
         self.canvas.save();
         self.canvas.scale(scale_factor, scale_factor);
 
-        if self.dirty.get() {
-            if let Some(mut view) = self.root.take() {
-                let tree = view.render(self);
-                self.tree.replace(tree);
-                self.dirty.set(false);
-                self.root.replace(view);
-            }
-        }
-
-        if let Some(mut root) = self.tree.take() {
-            root.paint(self);
-            self.tree.replace(root);
+        if let Some(mut root) = self.root.clone() {
+            root.paint(self, cx);
         }
 
         self.canvas.render(&mut self.surface)?.present();

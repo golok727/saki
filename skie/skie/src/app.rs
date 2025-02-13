@@ -1,8 +1,9 @@
 pub mod async_context;
+pub mod context;
 pub mod events;
 pub(crate) mod world;
 pub use async_context::AsyncAppContext;
-use world::World;
+use world::{Entity, World};
 
 use winit::application::ApplicationHandler;
 
@@ -127,7 +128,7 @@ pub struct AppContext {
     pub(crate) app_events: AppEvents,
 
     #[allow(unused)]
-    world: World,
+    pub(crate) world: World,
 
     pending_user_events: ahash::AHashSet<UserEvent>,
 
@@ -195,9 +196,10 @@ impl AppContext {
         self.running_effects = false;
     }
 
-    pub(crate) fn update<R>(&mut self, cb: impl FnOnce(&mut Self) -> R) -> R {
+    pub(crate) fn update<R>(&mut self, update: impl FnOnce(&mut Self) -> R) -> R {
         self.update_count += 1;
-        let res = cb(self);
+
+        let res = update(self);
 
         if !self.running_effects && self.update_count == 1 {
             self.run_effects();
@@ -206,6 +208,19 @@ impl AppContext {
         self.update_count -= 1;
 
         res
+    }
+
+    pub fn update_entity<T: 'static, R>(
+        &mut self,
+        handle: &Entity<T>,
+        update: impl FnOnce(&mut T, &mut AppContext) -> R,
+    ) -> R {
+        self.update(|this| {
+            let mut entity = this.world.detach(handle);
+            let res = update(&mut entity, this);
+            entity.attach(&mut this.world);
+            res
+        })
     }
 
     pub(crate) fn push_effect(&mut self, effect: Effect) {
@@ -224,16 +239,18 @@ impl AppContext {
         self.push_effect(Effect::AppEvent(UserEvent::AppUpdate))
     }
 
-    pub fn open_window<F>(&mut self, specs: WindowSpecification, create_view: F)
+    pub fn entity<T: 'static>(&mut self, value: T) -> Entity<T> {
+        self.world.insert(value)
+    }
+
+    pub fn open_window<F>(&mut self, specs: WindowSpecification, on_load: F)
     where
         F: FnOnce(&mut Window, &mut AppContext) + 'static,
     {
-        self.update(|app| {
-            app.push_app_event(AppUpdateEvent::CreateWindow {
-                specs,
-                callback: Box::new(create_view),
-            });
-        })
+        self.push_app_event(AppUpdateEvent::CreateWindow {
+            specs,
+            callback: Box::new(on_load),
+        });
     }
 
     fn handle_window_create_event(
@@ -323,6 +340,7 @@ impl AppContext {
     }
 
     // BEGIN: WinitEventHandlers
+
     fn on_about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {}
 
     fn on_new_events(&mut self, _event_loop: &ActiveEventLoop, _cause: winit::event::StartCause) {}
@@ -342,9 +360,11 @@ impl AppContext {
 
     fn on_resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         log::info!("Initializing App...");
-        if let Some(cb) = self.init_callback.take() {
-            cb(self);
-        }
+        self.update(|app| {
+            if let Some(cb) = app.init_callback.take() {
+                cb(app);
+            }
+        });
         log::info!("App Initialized!");
     }
 
@@ -363,8 +383,8 @@ impl AppContext {
                 });
             }
             WindowEvent::RedrawRequested => {
-                let _ = self.update_window(&window_id, |window, _| {
-                    if let Err(error) = window.paint() {
+                let _ = self.update_window(&window_id, |window, this| {
+                    if let Err(error) = window.paint(this) {
                         log::error!("Error rendering {:#?}", error);
                     }
                 });

@@ -1,11 +1,16 @@
 use std::{io::Write, time::Duration};
 
-use skie::{div, window::WindowSpecification, Color, ParentElement, Render};
+use skie::{app::AppContext, div, window::WindowSpecification, Color, ParentElement, Render};
 
-struct Main;
+struct Thing;
 
-impl Render for Main {
-    fn render(&mut self, _window: &mut skie::Window) -> impl skie::IntoElement {
+impl Render for Thing {
+    fn render(
+        &mut self,
+        _window: &mut skie::Window,
+        _app: &mut AppContext,
+    ) -> impl skie::IntoElement {
+        println!("render");
         div()
             .bg(Color::KHAKI)
             .child("💓  Radhey Shyam 💓 \nRadha Vallabh Shri Hari Vansh\n")
@@ -15,7 +20,7 @@ impl Render for Main {
 fn main() {
     println!("Radhe Shyam!");
     init_stdout_logger();
-    let app = skie::app::App::new();
+    let app = skie::App::new();
 
     log::info!("Welcome to saki!");
 
@@ -30,21 +35,21 @@ fn main() {
         app.open_window(window_specs.clone(), move |window, app| {
             window.set_timeout(
                 app,
-                |window, app| {
+                move |window, _| {
                     window.set_bg_color(Color::ORANGE);
+                },
+                Duration::from_secs(3),
+            );
 
-                    window.set_timeout(
-                        app,
-                        |window, _| {
-                            window.set_bg_color(Color::THAMAR_BLACK);
-                        },
-                        Duration::from_secs(5),
-                    );
+            window.set_timeout(
+                app,
+                |window, _| {
+                    window.set_bg_color(Color::THAMAR_BLACK);
                 },
                 Duration::from_secs(5),
             );
 
-            window.mount(Main);
+            window.mount(app.entity(Thing));
         });
     });
 }

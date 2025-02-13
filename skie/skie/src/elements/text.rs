@@ -1,5 +1,7 @@
 use skie_draw::Color;
 
+use crate::{app::AppContext, Window};
+
 use super::{Element, IntoElement};
 
 pub struct TextElement {
@@ -7,7 +9,7 @@ pub struct TextElement {
 }
 
 impl Element for TextElement {
-    fn paint(&mut self, window: &mut crate::Window) {
+    fn paint(&mut self, window: &mut Window, _cx: &mut AppContext) {
         window.canvas.fill_text(
             &skie_draw::Text::new(self.text)
                 .pos(20.0, 20.0)

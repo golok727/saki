@@ -1,5 +1,7 @@
 use skie_draw::{Brush, Color, Corners, Rect};
 
+use crate::{app::AppContext, Window};
+
 use super::{AnyElement, Element, ElementObject, IntoElement, ParentElement};
 
 pub struct Div {
@@ -22,7 +24,7 @@ impl Div {
 }
 
 impl Element for Div {
-    fn paint(&mut self, window: &mut crate::Window) {
+    fn paint(&mut self, window: &mut Window, cx: &mut AppContext) {
         let rect = Rect::xywh(0.0, 0.0, 400.0, 400.0);
         window.canvas.draw_round_rect(
             &rect,
@@ -31,7 +33,7 @@ impl Element for Div {
         );
 
         for children in &mut self.children {
-            children.paint(window);
+            children.paint(window, cx);
         }
     }
 }

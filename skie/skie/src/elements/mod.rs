@@ -6,12 +6,13 @@ pub use text::*;
 use std::cell::RefCell;
 
 use crate::{
+    app::AppContext,
     arena::{ArenaAllocator, ArenaElement},
     window::Window,
 };
 
 pub trait Element: IntoElement + 'static {
-    fn paint(&mut self, window: &mut Window);
+    fn paint(&mut self, window: &mut Window, cx: &mut AppContext);
 
     fn into_any(self) -> AnyElement {
         AnyElement::new(self)
@@ -50,11 +51,11 @@ pub trait ParentElement {
 }
 
 pub trait Render: 'static + Sized {
-    fn render(&mut self, window: &mut Window) -> impl IntoElement;
+    fn render(&mut self, window: &mut Window, cx: &mut AppContext) -> impl IntoElement;
 }
 
 pub trait ElementObject {
-    fn paint(&mut self, window: &mut Window);
+    fn paint(&mut self, window: &mut Window, cx: &mut AppContext);
 }
 
 struct Paintable<E: Element> {
@@ -65,8 +66,8 @@ impl<E> ElementObject for Paintable<E>
 where
     E: Element,
 {
-    fn paint(&mut self, window: &mut Window) {
-        self.element.paint(window)
+    fn paint(&mut self, window: &mut Window, cx: &mut AppContext) {
+        self.element.paint(window, cx)
     }
 }
 
@@ -78,8 +79,8 @@ pub(crate) static ELEMENT_ARENA: RefCell<ArenaAllocator> =
 pub struct AnyElement(ArenaElement<dyn ElementObject>);
 
 impl ElementObject for AnyElement {
-    fn paint(&mut self, window: &mut Window) {
-        self.0.paint(window)
+    fn paint(&mut self, window: &mut Window, cx: &mut AppContext) {
+        self.0.paint(window, cx)
     }
 }
 
