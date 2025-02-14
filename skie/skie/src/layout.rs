@@ -36,14 +36,15 @@ impl ToTaffy<taffy::Style> for Style {
         taffy::Style {
             display: self.display,
             box_sizing: self.box_sizing,
-            overflow: to_taffy_point(self.overflow),
             position: self.position,
+            overflow: self.overflow.to_taffy(rem_size),
             size: self.size.to_taffy(rem_size),
             min_size: self.min_size.to_taffy(rem_size),
             max_size: self.max_size.to_taffy(rem_size),
             margin: self.margin.to_taffy(rem_size),
             padding: self.padding.to_taffy(rem_size),
             border: self.border.to_taffy(rem_size),
+
             align_items: self.align_items,
             align_self: self.align_self,
             justify_items: self.justify_items,
@@ -51,6 +52,7 @@ impl ToTaffy<taffy::Style> for Style {
             align_content: self.align_content,
             justify_content: self.justify_content,
             gap: self.gap.to_taffy(rem_size),
+
             flex_direction: self.flex_direction,
             flex_wrap: self.flex_wrap,
             flex_basis: self.flex_basis.to_taffy(rem_size),
@@ -65,14 +67,14 @@ trait ToTaffy<Output> {
     fn to_taffy(&self, rem_size: Pixels) -> Output;
 }
 
-// impl<T: Clone> ToTaffy<taffy::Point<T>> for Vec2<T> {
-//     fn to_taffy(&self, rem_size: Pixels) -> taffy::Point<T> {
-//         taffy::Point {
-//             x: self.x.clone(),
-//             y: self.y.clone(),
-//         }
-//     }
-// }
+impl<T: Clone> ToTaffy<taffy::Point<T>> for Vec2<T> {
+    fn to_taffy(&self, _rem_size: Pixels) -> taffy::Point<T> {
+        taffy::Point {
+            x: self.x.clone(),
+            y: self.y.clone(),
+        }
+    }
+}
 
 impl<T: ToTaffy<INNER>, INNER> ToTaffy<taffy::Rect<INNER>> for Edges<T> {
     fn to_taffy(&self, rem_size: Pixels) -> taffy::Rect<INNER> {
@@ -152,8 +154,4 @@ impl<T> From<Edges<T>> for taffy::Rect<T> {
             left: value.left,
         }
     }
-}
-
-pub fn to_taffy_point<T>(p: Vec2<T>) -> taffy::Point<T> {
-    taffy::Point { x: p.x, y: p.y }
 }
