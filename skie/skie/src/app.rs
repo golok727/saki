@@ -218,7 +218,7 @@ impl AppContext {
         self.update(|this| {
             let mut entity = this.world.detach(handle);
             let res = update(&mut entity, this);
-            entity.attach(&mut this.world);
+            entity.reattach(&mut this.world);
             res
         })
     }

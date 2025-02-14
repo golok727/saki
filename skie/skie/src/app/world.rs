@@ -132,7 +132,7 @@ pub(crate) struct DetachedEntity<'a, T> {
 }
 
 impl<'a, T: 'static> DetachedEntity<'a, T> {
-    pub fn attach(mut self, world: &mut World) {
+    pub fn reattach(mut self, world: &mut World) {
         world
             .entities
             .insert(self.handle.id, self.value.take().unwrap());
