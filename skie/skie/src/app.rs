@@ -127,7 +127,6 @@ pub struct AppContext {
     effects: VecDeque<Effect>,
     pub(crate) app_events: AppEvents,
 
-    #[allow(unused)]
     pub(crate) world: World,
 
     pending_user_events: ahash::AHashSet<UserEvent>,
