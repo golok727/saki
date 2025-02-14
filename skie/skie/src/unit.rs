@@ -6,7 +6,7 @@ use derive_more::{
 #[derive(Debug, Default, Clone, Copy, Display, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[display("{_0}px")]
-pub struct Pixels(pub(crate) f32);
+pub struct Pixels(pub f32);
 
 impl Pixels {
     pub fn floor(&self) -> Self {
@@ -37,7 +37,7 @@ impl Pixels {
         self.0.signum()
     }
 
-    pub fn to_f64(self) -> f64 {
+    pub fn to_f64(&self) -> f64 {
         self.0 as f64
     }
 }
@@ -67,6 +67,13 @@ impl std::ops::Mul<Pixels> for Pixels {
     type Output = Pixels;
     fn mul(self, rhs: Self) -> Self::Output {
         Self(self.0 * rhs.0)
+    }
+}
+
+impl std::ops::Div<Pixels> for Pixels {
+    type Output = Pixels;
+    fn div(self, rhs: Self) -> Self::Output {
+        Self(self.0 / rhs.0)
     }
 }
 
@@ -144,7 +151,7 @@ impl From<Pixels> for u32 {
 )]
 #[repr(transparent)]
 #[display("{_0}spx")]
-pub struct ScaledPixels(pub(crate) f32);
+pub struct ScaledPixels(pub f32);
 
 impl_from_as!(u8, ScaledPixels, f32);
 impl_from_as!(u16, ScaledPixels, f32);
@@ -181,7 +188,7 @@ impl_from_as!(f64, ScaledPixels, f32);
 )]
 #[repr(transparent)]
 #[display("{_0}dpx")]
-pub struct DevicePixels(pub(crate) i32);
+pub struct DevicePixels(pub i32);
 
 impl_from_as!(u8, DevicePixels, i32);
 impl_from_as!(u16, DevicePixels, i32);
@@ -229,6 +236,119 @@ impl DevicePixels {
 }
 
 #[inline]
-pub fn device_px(val: impl Into<DevicePixels>) -> DevicePixels {
+pub fn dpx(val: impl Into<DevicePixels>) -> DevicePixels {
     val.into()
+}
+
+/// A percentage length relative to the size of the containing block.
+/// **NOTE: `Percent` is represented as a f32 value in the range [0.0, 1.0]**
+#[derive(Debug, Default, Clone, Copy, Display, PartialEq, PartialOrd)]
+#[repr(transparent)]
+#[display("{_0}%")]
+pub struct Percent(pub f32);
+
+#[inline]
+pub fn pct(val: f32) -> Percent {
+    Percent(val)
+}
+
+#[derive(Debug, Default, Clone, Copy, Display, PartialEq, PartialOrd)]
+#[repr(transparent)]
+#[display("{_0}rem")]
+pub struct Rems(pub f32);
+
+impl Rems {
+    pub fn to_pixels(&self, rem_size: Pixels) -> Pixels {
+        *self * rem_size
+    }
+}
+
+impl Mul<Pixels> for Rems {
+    type Output = Pixels;
+
+    fn mul(self, other: Pixels) -> Pixels {
+        Pixels(self.0 * other.0)
+    }
+}
+
+#[inline]
+pub fn rem(val: f32) -> Rems {
+    Rems(val)
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Edges<T> {
+    pub top: T,
+    pub right: T,
+    pub bottom: T,
+    pub left: T,
+}
+
+impl<T> Edges<T> {
+    pub fn new(top: T, right: T, bottom: T, left: T) -> Self {
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum FixedLength {
+    Absolute(AbsoluteLength),
+    Percent(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum Length {
+    Auto,
+    Fixed(FixedLength),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum AbsoluteLength {
+    Pixels(Pixels),
+    Rems(Rems),
+}
+
+impl AbsoluteLength {
+    pub fn to_pixels(&self, rem_size: Pixels) -> Pixels {
+        match self {
+            Self::Pixels(pixels) => *pixels,
+            Self::Rems(rems) => *rems * rem_size,
+        }
+    }
+
+    pub fn to_rems(&self, rem_size: Pixels) -> Rems {
+        match self {
+            Self::Pixels(pixels) => Rems(pixels.0 / rem_size.0),
+            Self::Rems(rems) => *rems,
+        }
+    }
+}
+
+impl From<Percent> for FixedLength {
+    fn from(value: Percent) -> Self {
+        Self::Percent(value.0)
+    }
+}
+
+impl From<Pixels> for FixedLength {
+    fn from(value: Pixels) -> Self {
+        Self::Absolute(value.into())
+    }
+}
+
+impl From<Pixels> for AbsoluteLength {
+    fn from(value: Pixels) -> Self {
+        Self::Pixels(value)
+    }
+}
+
+impl From<Rems> for AbsoluteLength {
+    fn from(value: Rems) -> Self {
+        Self::Rems(value)
+    }
 }

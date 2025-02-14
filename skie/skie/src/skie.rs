@@ -2,9 +2,12 @@ pub mod app;
 pub mod jobs;
 
 pub mod arena;
+pub mod style;
 pub mod unit;
 pub mod view;
 pub mod window;
+
+pub mod layout;
 
 pub mod elements;
 pub use elements::*;
